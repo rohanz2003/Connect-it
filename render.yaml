@@ -1,0 +1,22 @@
+services:
+  - type: web_service
+    name: chat-app
+    env: node
+    branch: main
+    plan: free
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm start
+    autoDeploy: true
+    envVars:
+      - key: MONGO_URI
+        value: "mongodb://mongo:27017/chatapp"
+
+  - type: private_service
+    name: mongo
+    env: docker
+    branch: main
+    plan: free
+    dockerfilePath: server/mongo.Dockerfile
+    autoDeploy: true
+    persistentDisk:
+      sizeGb: 10
