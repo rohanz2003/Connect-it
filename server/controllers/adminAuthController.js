@@ -9,9 +9,10 @@ const otpCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 // Configure the transporter (from feedbackController.js)
 // Ensure EMAIL_USER and GMAIL_APP_PASSWORD are set in your .env
 const transporter = nodemailer.createTransport({
+  service: "gmail",
   host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
+  port: 587,
+  secure: false, // Use false for 587
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,

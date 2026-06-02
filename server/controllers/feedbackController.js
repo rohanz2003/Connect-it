@@ -3,11 +3,12 @@ const Feedback = require("../models/Feedback");
 
 // Configure the transporter - Using Gmail or any email service
 const transporter = nodemailer.createTransport({
+  service: "gmail",
   host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
+  port: 587,
+  secure: false,
   auth: {
-    user: process.env.EMAIL_USER || "zenderohan2012@gmail.com",
+    user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD,
   },
 });

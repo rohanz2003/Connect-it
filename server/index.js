@@ -50,6 +50,10 @@ const mongoUri = process.env.MONGO_URI;
 if (!mongoUri) {
   console.error("Missing MONGO_URI. Set environment variable MONGO_URI to your MongoDB connection string.");
   if (process.env.NODE_ENV === 'production') process.exit(1);
+} else {
+  // Log a masked version of the URI to verify it's being injected without exposing passwords
+  const maskedUri = mongoUri.replace(/\/\/.*@/, "//***:***@");
+  console.log(`Connecting to MongoDB: ${maskedUri}`);
 }
 
 mongoose.connect(mongoUri)
