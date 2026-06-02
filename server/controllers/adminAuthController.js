@@ -6,15 +6,18 @@ const NodeCache = require("node-cache");
 // Each OTP will expire after 5 minutes
 const otpCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
+const emailUser = process.env.EMAIL_USER;
+const emailPass = process.env.GMAIL_APP_PASSWORD;
+
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
+    user: emailUser,
+    pass: emailPass,
   },
 });
 
-if (!process.env.EMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+if (!emailUser || !emailPass) {
   console.warn("⚠️ Admin Email credentials missing. OTP login will not work.");
 }
 

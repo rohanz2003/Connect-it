@@ -48,15 +48,15 @@ app.get("/", (req, res) => {
 // 🔌 MONGODB CONNECTION
 const mongoUri = process.env.MONGO_URI;
 if (!mongoUri) {
-  console.error("Missing MONGO_URI. Set environment variable MONGO_URI to your MongoDB connection string.");
-  if (process.env.NODE_ENV === 'production') process.exit(1);
+  console.error("❌ FATAL ERROR: MONGO_URI is not defined in environment variables.");
+  process.exit(1);
 } else if (mongoUri.includes("mongodb+srv")) {
   // Log a masked version of the URI to verify it's being injected without exposing passwords
   const maskedUri = mongoUri.replace(/\/\/.*@/, "//***:***@");
   console.log(`Connecting to MongoDB: ${maskedUri}`);
 }
 
-mongoose.connect(mongoUri)
+mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 })
   .then(() => console.log("MongoDB Connected ✅"))
   .catch((err) => console.error("MongoDB Error ❌", err));
 

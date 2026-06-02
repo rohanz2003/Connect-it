@@ -4,6 +4,8 @@ import { Star, Home, Send } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import "../styles/Feedback.css";
 
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
 const Feedback = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -70,8 +72,7 @@ const Feedback = () => {
     setErrorMessage("");
 
     try {
-      const API_BASE_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:5000";
-      const response = await fetch(`${API_BASE_URL}/api/feedback/send`, {
+      const response = await fetch(`${API_URL}/api/feedback/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
