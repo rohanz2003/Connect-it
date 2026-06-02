@@ -6,18 +6,17 @@ const NodeCache = require("node-cache");
 // Each OTP will expire after 5 minutes
 const otpCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
-// Configure the transporter (from feedbackController.js)
-// Ensure EMAIL_USER and GMAIL_APP_PASSWORD are set in your .env
 const transporter = nodemailer.createTransport({
   service: "gmail",
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // Use false for 587
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
 });
+
+if (!process.env.EMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+  console.warn("⚠️ Admin Email credentials missing. OTP login will not work.");
+}
 
 // Verify transporter configuration
 transporter.verify().then(() => {

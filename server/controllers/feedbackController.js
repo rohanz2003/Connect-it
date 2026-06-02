@@ -4,14 +4,15 @@ const Feedback = require("../models/Feedback");
 // Configure the transporter - Using Gmail or any email service
 const transporter = nodemailer.createTransport({
   service: "gmail",
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD,
   },
 });
+
+if (!process.env.EMAIL_USER || (!process.env.EMAIL_PASSWORD && !process.env.GMAIL_APP_PASSWORD)) {
+  console.warn("⚠️ Feedback Email credentials missing. User feedback will not be emailed.");
+}
 
 // Verify transporter configuration early to surface auth/connectivity errors
 transporter.verify().then(() => {
