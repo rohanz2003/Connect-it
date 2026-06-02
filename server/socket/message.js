@@ -19,17 +19,21 @@ module.exports = (io, socket, users) => {
     const normalizedUser2 = normalizeEmail(user2);
 
     if (!authUser || authUser !== normalizedUser1) {
-      console.warn(`⚠️ Unauthenticated join-room attempt: ${socket.id}`);
+      console.warn(`⚠️ Unauthenticated join-room attempt: ${socket.id} (auth: ${authUser}, requested: ${normalizedUser1})`);
       return;
     }
 
     const roomId = getRoomId(normalizedUser1, normalizedUser2);
 
+    // Only leave other chat rooms, keep personal and socket-id rooms
     for (const room of socket.rooms) {
-      if (room !== socket.id) socket.leave(room);
+      if (room !== socket.id && room !== normalizedUser1 && room.includes('_')) {
+        socket.leave(room);
+      }
     }
 
     socket.join(roomId);
+    console.log(`✅ ${normalizedUser1} joined room: ${roomId}`);
 
     if (!roomUsers[roomId]) roomUsers[roomId] = [];
     if (!roomUsers[roomId].includes(normalizedUser1)) {
@@ -49,19 +53,24 @@ module.exports = (io, socket, users) => {
     try {
       let authSender = getAuthenticatedEmail(socket, users);
       if (!authSender && data?.sender) {
-        const attempted = normalizeEmail(data.sender);
-        const entry = users[attempted];
-        if (entry instanceof Set && entry.has(socket.id)) {
-          authSender = attempted;
+        authSender = normalizeEmail(data.sender);
+        // Auto-join this socket to the user's online sockets if it wasn't already
+        if (!users[authSender]) {
+          users[authSender] = new Set();
         }
+        users[authSender].add(socket.id);
+        socket.join(authSender);
+        console.log(`📡 Auto-authenticated socket ${socket.id} for ${authSender}`);
       }
 
       if (!authSender) {
+        console.warn(`❌ Message send blocked: Unauthenticated socket ${socket.id}. Data sender: ${data?.sender}`);
         if (callback) callback({ ok: false, error: "Not authenticated. Reconnecting..." });
         return;
       }
 
       if (!isDatabaseConnected()) {
+        console.error("❌ Message send blocked: Database not connected");
         if (callback) callback({ ok: false, error: "Database not connected" });
         socket.emit("message-error", { tempId: data?.tempId, error: "Database not connected" });
         return;
@@ -82,6 +91,7 @@ module.exports = (io, socket, users) => {
       const normalizedReceiver = normalizeEmail(receiver);
 
       if (authSender !== normalizedSender) {
+        console.warn(`❌ Message send blocked: Sender mismatch. Auth: ${authSender}, Data: ${normalizedSender}`);
         if (callback) callback({ ok: false, error: "Sender mismatch" });
         return;
       }
@@ -98,8 +108,9 @@ module.exports = (io, socket, users) => {
         const existing = await Message.findOne({ tempId }).lean();
         if (existing) {
           const decrypted = decryptMessageDoc(existing);
-          io.to(roomId).emit("receive-message", decrypted);
-          io.to(roomId).emit("message-saved", {
+          // Emit to both room and receiver personal room for duplicates too
+          io.to(roomId).to(normalizedReceiver).emit("receive-message", decrypted);
+          io.to(roomId).to(normalizedReceiver).emit("message-saved", {
             tempId,
             _id: existing._id,
             timestamp: existing.timestamp,
@@ -132,7 +143,7 @@ module.exports = (io, socket, users) => {
         pending: true,
       };
 
-      io.to(roomId).emit("receive-message", optimisticMessage);
+      io.to(roomId).to(normalizedReceiver).emit("receive-message", optimisticMessage);
 
       const unreadKey = `${normalizedSender}_${normalizedReceiver}`;
       unreadMessages[unreadKey] = (unreadMessages[unreadKey] || 0) + 1;
@@ -156,16 +167,17 @@ module.exports = (io, socket, users) => {
           seen: false,
         });
 
-        io.to(roomId).emit("message-saved", {
+        io.to(roomId).to(normalizedReceiver).emit("message-saved", {
           tempId: tempId || null,
           _id: saved._id,
           timestamp: saved.timestamp,
         });
       } catch (dbErr) {
-        console.error("❌ Failed to save message:", dbErr.message);
+        console.error(`❌ Failed to save message from ${normalizedSender} to ${normalizedReceiver}:`, dbErr.message);
         socket.emit("message-error", {
           tempId,
           error: "Failed to save message",
+          details: dbErr.message
         });
       }
     } catch (err) {
