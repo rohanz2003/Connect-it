@@ -21,13 +21,13 @@ initSocket(server);
 
 // 🧠 MIDDLEWARE
 
-
 app.use(
   cors({
     origin: [
       "http://localhost:3000",
-      "https://your-frontend.vercel.app"
-    ],
+      process.env.FRONTEND_URL,
+      "https://connect-it-frontend.vercel.app"
+    ].filter(Boolean),
     credentials: true
   })
 );
@@ -54,7 +54,7 @@ if (!mongoUri) {
 
 mongoose.connect(mongoUri)
   .then(() => console.log("MongoDB Connected ✅"))
-  .catch((err) => console.log("MongoDB Error ❌", err));
+  .catch((err) => console.error("MongoDB Error ❌", err));
 
 // 🚀 START SERVER
 const PORT = process.env.PORT || 5000;

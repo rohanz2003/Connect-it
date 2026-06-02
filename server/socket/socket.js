@@ -7,10 +7,10 @@ const initSocket = (server) => {
   const io = new Server(server, {
     cors: { 
       origin: [
-        "http://localhost:3000", 
-        "http://localhost:3001",
-        "https://chat-app-nine-zeta-71.vercel.app"
-      ],
+        "http://localhost:3000",
+        process.env.FRONTEND_URL,
+        "https://connect-it-frontend.vercel.app"
+      ].filter(Boolean),
       methods: ["GET", "POST"],
       credentials: true
     },

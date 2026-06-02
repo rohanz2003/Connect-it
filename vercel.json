@@ -1,8 +1,0 @@
-{
-  "version": 2,
-  "env": {
-    "CI": "false"
-  },
-  "buildCommand": "cd chat/client && npm install && npm run build",
-  "outputDirectory": "chat/client/build"
-}
