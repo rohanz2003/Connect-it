@@ -18,7 +18,8 @@ import {
   Moon,
   ChevronDown,
   X,
-  Minus
+  Minus,
+  LogOut,
 } from "lucide-react";
 import { auth } from "../firebase";
 import useSocket from "../hooks/useSocket";
@@ -26,6 +27,36 @@ import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
 import { fetchMessages, fetchRecentChats } from "../services/messageService";
 import { useNavigate } from "react-router-dom";
 import "./Chat.css";
+
+const normalizeEmail = (email) => (email || "").toLowerCase().trim();
+
+const getOtherParty = (msg, currentUserEmail) => {
+  const senderEmail = normalizeEmail(msg.sender);
+  const receiverEmail = normalizeEmail(msg.receiver);
+  const me = normalizeEmail(currentUserEmail);
+  return senderEmail === me ? receiverEmail : senderEmail;
+};
+
+const isSameMessage = (a, b) => {
+  if (!a || !b) return false;
+  if (a._id && b._id && String(a._id) === String(b._id)) return true;
+  if (a.tempId && b.tempId && a.tempId === b.tempId) return true;
+  return false;
+};
+
+const upsertMessageInList = (list, msg) => {
+  const idx = list.findIndex((m) => isSameMessage(m, msg));
+  if (idx === -1) {
+    return [...list, msg].sort(
+      (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
+    );
+  }
+  const updated = [...list];
+  updated[idx] = { ...updated[idx], ...msg };
+  return updated.sort(
+    (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
+  );
+};
 
 function Chat({ user: currentUser }) {
   const socket = useSocket();
@@ -115,36 +146,12 @@ function Chat({ user: currentUser }) {
     });
   };
 
-  const normalizeEmail = (email) => (email || "").toLowerCase().trim();
   const getDisplayName = (email) => (email || "").split("@")[0];
 
-  const getOtherParty = (msg, currentUserEmail) => {
-    const senderEmail = normalizeEmail(msg.sender);
-    const receiverEmail = normalizeEmail(msg.receiver);
-    const me = normalizeEmail(currentUserEmail);
-    return senderEmail === me ? receiverEmail : senderEmail;
-  };
-
-  const isSameMessage = (a, b) => {
-    if (!a || !b) return false;
-    if (a._id && b._id && String(a._id) === String(b._id)) return true;
-    if (a.tempId && b.tempId && a.tempId === b.tempId) return true;
-    return false;
-  };
-
-  const upsertMessageInList = (list, msg) => {
-    const idx = list.findIndex((m) => isSameMessage(m, msg));
-    if (idx === -1) {
-      return [...list, msg].sort(
-        (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
-      );
-    }
-    const updated = [...list];
-    updated[idx] = { ...updated[idx], ...msg };
-    return updated.sort(
-      (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
-    );
-  };
+  const chatHistoryRef = useRef({});
+  useEffect(() => {
+    chatHistoryRef.current = chatHistory;
+  }, [chatHistory]);
 
   const safeLocalStorageSet = (key, value) => {
     try {
@@ -560,9 +567,11 @@ function Chat({ user: currentUser }) {
         });
       } catch (err) {
         console.error("Failed to fetch messages:", err);
-        if (chatHistory[selectedUser]?.length) {
+        const partner = normalizeEmail(selectedUser);
+        const cached = chatHistoryRef.current[partner];
+        if (cached?.length) {
           setMessages(
-            chatHistory[selectedUser].sort(
+            cached.sort(
               (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
             )
           );
