@@ -20,7 +20,7 @@ const server = http.createServer(app);
 initSocket(server);
 
 // 🧠 MIDDLEWARE
-const cors = require("cors");
+
 
 app.use(
   cors({
