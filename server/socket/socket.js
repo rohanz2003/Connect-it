@@ -3,19 +3,18 @@ const handlePresence = require("./presence");
 const handleTyping = require("./typing");
 const handleMessages = require("./message");
 
+const { getCorsOrigins } = require("../config/env");
+
 const initSocket = (server) => {
   const io = new Server(server, {
-    cors: { 
-      origin: [
-        "http://localhost:3000",
-        process.env.FRONTEND_URL,
-        "https://connect-it-frontend.vercel.app",
-        "https://connect-it.vercel.app"
-      ].filter(Boolean),
+    cors: {
+      origin: getCorsOrigins(),
       methods: ["GET", "POST"],
-      credentials: true
+      credentials: true,
     },
     transports: ["websocket", "polling"],
+    pingTimeout: 60000,
+    pingInterval: 25000,
   });
 
   // Global users tracking
@@ -56,6 +55,8 @@ const initSocket = (server) => {
       io.emit("online-users", Object.keys(users));
     });
   });
+
+  return io;
 };
 
 module.exports = initSocket;

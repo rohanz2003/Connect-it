@@ -1,45 +1,12 @@
-const nodemailer = require("nodemailer");
 const Feedback = require("../models/Feedback");
+const { createTransporter, verifyTransporter } = require("../config/mail");
 
-// Configure the transporter - Using Gmail or any email service
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD,
-  },
-});
-
+const transporter = createTransporter();
 let transporterReady = false;
 
-// Startup diagnostics (no secrets, only presence)
-console.log("📩 [Feedback Email] Email env check:", {
-  EMAIL_USER_SET: Boolean(process.env.EMAIL_USER),
-  EMAIL_PASSWORD_SET: Boolean(process.env.EMAIL_PASSWORD),
-  GMAIL_APP_PASSWORD_SET: Boolean(process.env.GMAIL_APP_PASSWORD),
-  ADMIN_EMAIL_SET: Boolean(process.env.ADMIN_EMAIL),
-  ADMIN_FEEDBACK_EMAIL_SET: Boolean(process.env.ADMIN_FEEDBACK_EMAIL),
+verifyTransporter(transporter, "Feedback Email").then((ready) => {
+  transporterReady = ready;
 });
-
-if (!process.env.EMAIL_USER || (!process.env.EMAIL_PASSWORD && !process.env.GMAIL_APP_PASSWORD)) {
-  console.warn("⚠️ Feedback Email credentials missing. User feedback will not be emailed.");
-}
-
-// Verify transporter configuration early to surface auth/connectivity errors
-// Verify transporter configuration early to surface auth/connectivity errors.
-// Do not crash on failure; mark it and fail requests with a clear message.
-if (process.env.EMAIL_USER && (process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD)) {
-  transporter
-    .verify()
-    .then(() => {
-      transporterReady = true;
-      console.log("Email transporter is ready ✅");
-    })
-    .catch((err) => {
-      transporterReady = false;
-      console.warn("Email transporter verification failed ⚠️", err && err.message ? err.message : err);
-    });
-}
 
 
 // Admin receiving address can be configured on hosts; fallback to ADMIN_EMAIL or a default
@@ -48,6 +15,7 @@ const adminMailTo =
 
 // Send feedback email
 const sendFeedback = async (req, res) => {
+  console.log("📩 Feedback email request received");
   try {
     const { name, email, message, rating } = req.body;
 
@@ -178,15 +146,19 @@ const sendFeedback = async (req, res) => {
     let userSent = false;
 
     try {
+      console.log("📩 Feedback email sending started (admin)");
       await transporter.sendMail(adminMailOptions);
       adminSent = true;
+      console.log("📩 Feedback admin email sent successfully");
     } catch (mailErr) {
       console.error("Failed to send admin feedback email:", mailErr && mailErr.message ? mailErr.message : mailErr);
     }
 
     try {
+      console.log("📩 Feedback email sending started (user confirmation)");
       await transporter.sendMail(userMailOptions);
       userSent = true;
+      console.log("📩 Feedback user confirmation email sent successfully");
     } catch (mailErr) {
       console.error("Failed to send user confirmation email:", mailErr && mailErr.message ? mailErr.message : mailErr);
     }

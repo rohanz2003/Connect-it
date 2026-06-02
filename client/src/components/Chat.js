@@ -81,6 +81,7 @@ function Chat({ user: currentUser }) {
   const [contextMenu, setContextMenu] = useState(null); // { x, y, message }
   const [replyTo, setReplyTo] = useState(null); // Message being replied to
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -672,6 +673,8 @@ function Chat({ user: currentUser }) {
       return;
     }
 
+    ensureSocketJoined();
+
     const msgText = message;
     const tempId = `${Date.now()}-${Math.random()}`;
     console.log(`📤 Sending message from ${user.email} to ${selectedUser}: "${msgText}"`);
@@ -727,6 +730,8 @@ function Chat({ user: currentUser }) {
       e.target.value = null;
       return;
     }
+
+    ensureSocketJoined();
 
     // Prevent multiple sends
     if (isMediaSending) {
@@ -957,10 +962,19 @@ function Chat({ user: currentUser }) {
     reader.readAsDataURL(file);
   };
 
-  const logout = () => {
+  const ensureSocketJoined = () => {
+    if (!socket || !user) return;
+    socket.emit("join", {
+      email: normalizeEmail(user.email),
+      profilePic: user.profilePic || null,
+    });
+  };
+
+  const performLogout = () => {
     if (socket && user) {
-      socket.emit("leave", { email: user.email.toLowerCase() });
+      socket.emit("leave", { email: normalizeEmail(user.email) });
     }
+    setShowLogoutConfirm(false);
     navigate("/feedback");
     auth.signOut().then(() => {
       localStorage.removeItem("user");
@@ -1228,12 +1242,34 @@ function Chat({ user: currentUser }) {
               onChange={handleUpdateProfilePic}
               style={{ display: "none" }}
             />
-            <button className="logout-btn" type="button" onClick={logout}>
-              <LogOut size={16} />
-              Logout
+            <button
+              className="logout-btn logout-btn-icon"
+              type="button"
+              title="Logout"
+              aria-label="Logout"
+              onClick={() => setShowLogoutConfirm(true)}
+            >
+              <LogOut size={20} />
             </button>
           </div>
         </div>
+
+        {showLogoutConfirm && (
+          <div className="logout-modal-overlay" onClick={() => setShowLogoutConfirm(false)}>
+            <div className="logout-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Log out?</h3>
+              <p>You will be signed out of Connect It.</p>
+              <div className="logout-modal-actions">
+                <button type="button" className="logout-cancel-btn" onClick={() => setShowLogoutConfirm(false)}>
+                  Cancel
+                </button>
+                <button type="button" className="logout-confirm-btn" onClick={performLogout}>
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {!isChatMinimized && (
         <div className="chat-panel-body">
@@ -1525,6 +1561,15 @@ function Chat({ user: currentUser }) {
           </motion.div>
         </div>
       )}
+
+      <button
+        className="mobile-logout-fab"
+        type="button"
+        aria-label="Logout"
+        onClick={() => setShowLogoutConfirm(true)}
+      >
+        <LogOut size={22} />
+      </button>
 
       <nav className="bottom-nav">
         <button className="bottom-nav-btn active"><MessageCircle size={18} /><span>Chat</span></button>

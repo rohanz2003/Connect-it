@@ -2,6 +2,7 @@ const Message = require("../models/Message");
 const ClearedChat = require("../models/ClearedChat");
 const { encryptPayload, decryptMessageDoc } = require("../utils/messageCrypto");
 const { normalizeEmail, getAuthenticatedEmail, getRoomId } = require("../utils/socketAuth");
+const { isDatabaseConnected } = require("../config/database");
 
 const roomUsers = {};
 const unreadMessages = {};
@@ -46,9 +47,23 @@ module.exports = (io, socket, users) => {
 
   socket.on("send-message", async (data, callback) => {
     try {
-      const authSender = getAuthenticatedEmail(socket, users);
+      let authSender = getAuthenticatedEmail(socket, users);
+      if (!authSender && data?.sender) {
+        const attempted = normalizeEmail(data.sender);
+        const entry = users[attempted];
+        if (entry instanceof Set && entry.has(socket.id)) {
+          authSender = attempted;
+        }
+      }
+
       if (!authSender) {
-        if (callback) callback({ ok: false, error: "Not authenticated" });
+        if (callback) callback({ ok: false, error: "Not authenticated. Reconnecting..." });
+        return;
+      }
+
+      if (!isDatabaseConnected()) {
+        if (callback) callback({ ok: false, error: "Database not connected" });
+        socket.emit("message-error", { tempId: data?.tempId, error: "Database not connected" });
         return;
       }
 
@@ -94,7 +109,14 @@ module.exports = (io, socket, users) => {
         }
       }
 
-      const encryptedText = encryptPayload(text);
+      let encryptedText;
+      try {
+        encryptedText = encryptPayload(text);
+      } catch (encErr) {
+        console.error("❌ Encryption failed:", encErr.message);
+        if (callback) callback({ ok: false, error: "Message encryption failed" });
+        return;
+      }
 
       const optimisticMessage = {
         _id: tempId || `temp-${Date.now()}`,

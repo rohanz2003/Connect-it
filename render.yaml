@@ -18,9 +18,13 @@ services:
         sync: false
       - key: GMAIL_APP_PASSWORD
         sync: false
+      - key: EMAIL_PASS
+        sync: false
       - key: ADMIN_EMAIL
         sync: false
       - key: JWT_SECRET
+        sync: false
+      - key: MESSAGE_ENCRYPTION_KEY
         sync: false
       - key: FRONTEND_URL
         value: https://connect-it.vercel.app

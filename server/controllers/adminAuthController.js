@@ -1,51 +1,19 @@
-const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const NodeCache = require("node-cache");
+const { getEmailPassword } = require("../config/env");
+const { createTransporter, verifyTransporter } = require("../config/mail");
 
-// Initialize OTP cache with a 5-minute (300 seconds) TTL
-// Each OTP will expire after 5 minutes
 const otpCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 const emailUser = process.env.EMAIL_USER;
-// Allow both env var names since different hosts often set different ones
-const emailPass = process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD;
+const emailPass = getEmailPassword();
 
-// Startup diagnostics (no secrets, only presence)
-console.log("🔐 [Admin OTP] Email env check:", {
-  EMAIL_USER_SET: Boolean(emailUser),
-  EMAIL_PASSWORD_SET: Boolean(process.env.EMAIL_PASSWORD),
-  GMAIL_APP_PASSWORD_SET: Boolean(process.env.GMAIL_APP_PASSWORD),
-  ADMIN_EMAIL_SET: Boolean(process.env.ADMIN_EMAIL),
-  JWT_SECRET_SET: Boolean(process.env.JWT_SECRET),
-});
-
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: emailUser,
-    pass: emailPass,
-  },
-});
-
+const transporter = createTransporter();
 let transporterReady = false;
-if (!emailUser || !emailPass) {
-  console.warn("⚠️ Admin Email credentials missing. OTP login will not work.");
-} else {
-  // Verify transporter configuration once at startup to surface auth/connectivity errors
-  transporter
-    .verify()
-    .then(() => {
-      transporterReady = true;
-      console.log("Admin Email transporter is ready ✅");
-    })
-    .catch((err) => {
-      transporterReady = false;
-      console.warn(
-        "Admin Email transporter verification failed ⚠️",
-        err && err.message ? err.message : err
-      );
-    });
-}
+
+verifyTransporter(transporter, "Admin OTP").then((ready) => {
+  transporterReady = ready;
+});
 
 // Function to generate a random 6-digit OTP
 const generateOtp = () => {
@@ -56,6 +24,7 @@ const generateOtp = () => {
 // @desc Send an OTP to the admin email
 // @access Public
 const sendOtp = async (req, res) => {
+  console.log("🔐 Admin OTP request received");
   try {
     const { email } = req.body;
     const adminEmail = process.env.ADMIN_EMAIL;
@@ -96,7 +65,7 @@ const sendOtp = async (req, res) => {
     }
 
     const otp = generateOtp();
-    // Store OTP in cache with admin email as key, set to expire in 5 minutes
+    console.log("🔐 OTP generated for admin login");
     otpCache.set(normalizedAdminEmail, otp);
 
     const mailOptions = {
@@ -124,7 +93,9 @@ const sendOtp = async (req, res) => {
       `,
     };
 
+    console.log("🔐 OTP email sending started");
     await transporter.sendMail(mailOptions);
+    console.log("🔐 OTP email sent successfully");
     res.status(200).json({ success: true, message: "OTP sent to admin email." });
   } catch (error) {
     console.error("Error sending OTP:", error);
@@ -165,8 +136,8 @@ const verifyOtp = async (req, res) => {
       return res.status(401).json({ success: false, message: "Invalid or expired OTP." });
     }
 
-    // OTP is valid, remove from cache and issue JWT
-    otpCache.del(adminEmail.toLowerCase());
+    console.log("🔐 OTP verified successfully");
+    otpCache.del(normalizedAdminEmail);
     const token = jwt.sign({ email: normalizedAdminEmail }, jwtSecret, { expiresIn: "1h" }); // Token valid for 1 hour
 
     res.status(200).json({ success: true, message: "Login successful.", token });
