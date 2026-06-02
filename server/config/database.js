@@ -24,10 +24,7 @@ const connectDatabase = async () => {
     console.warn("MongoDB event: disconnected");
   });
 
-  await mongoose.connect(mongoUri, {
-    serverSelectionTimeoutMS: 15000,
-    socketTimeoutMS: 45000,
-  });
+  await mongoose.connect(mongoUri, { family: 4 });
 
   console.log("MongoDB Connected Successfully ✅");
   return mongoose.connection;
