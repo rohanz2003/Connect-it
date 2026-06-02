@@ -22,6 +22,10 @@ transporter.verify().then(() => {
 });
 
 
+// Admin receiving address can be configured on hosts; fallback to ADMIN_EMAIL or a default
+const adminMailTo =
+  process.env.ADMIN_FEEDBACK_EMAIL || process.env.ADMIN_EMAIL || "zenderohan2012@gmail.com";
+
 // Send feedback email
 const sendFeedback = async (req, res) => {
   try {
@@ -47,7 +51,7 @@ const sendFeedback = async (req, res) => {
     // Email to admin (you)
     const adminMailOptions = {
       from: process.env.EMAIL_USER || "zenderohan2012@gmail.com",
-      to: "zenderohan2012@gmail.com",
+      to: adminMailTo,
       subject: `New Feedback from ${name} - Connect It`,
       html: `
         <div style="font-family: Arial, sans-serif; background-color: #f9fafb; padding: 20px;">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { LogOut, Mail, ShieldCheck, ArrowLeft, MessageSquare, MessageCircle, Users, Star, TrendingUp, Send, Loader2 } from "lucide-react";
 import "../styles/Admin.css";
@@ -28,14 +28,6 @@ function AdminDashboard() {
   const navigate = useNavigate();
   const otpRefs = useRef([]);
 
-  // Check for existing valid session on mount
-  useEffect(() => {
-    const storedToken = localStorage.getItem("adminToken");
-    if (storedToken) {
-      verifyExistingToken(storedToken);
-    }
-  }, []);
-
   // Resend timer countdown
   useEffect(() => {
     if (resendTimer > 0) {
@@ -44,7 +36,33 @@ function AdminDashboard() {
     }
   }, [resendTimer]);
 
-  const verifyExistingToken = async (token) => {
+  const fetchDashboardData = useCallback(async (token) => {
+    setDataLoading(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [statsRes, messagesRes, feedbackRes, usersRes, messageStatsRes] = await Promise.all([
+        fetch(`${API_URL}/api/admin/stats`, { headers }),
+        fetch(`${API_URL}/api/admin/messages`, { headers }),
+        fetch(`${API_URL}/api/admin/feedback`, { headers }),
+        fetch(`${API_URL}/api/admin/users`, { headers }),
+        fetch(`${API_URL}/api/admin/message-stats`, { headers }),
+      ]);
+
+      if (statsRes.ok) setStats(await statsRes.json());
+      if (messagesRes.ok) setMessages(await messagesRes.json());
+      if (feedbackRes.ok) setFeedback(await feedbackRes.json());
+      if (usersRes.ok) setUsers(await usersRes.json());
+      if (messageStatsRes.ok) setMessageStats(await messageStatsRes.json());
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      setError("Failed to load dashboard data");
+    } finally {
+      setDataLoading(false);
+    }
+  }, [API_URL]);
+
+  const verifyExistingToken = useCallback(async (token) => {
     try {
       const response = await fetch(`${API_URL}/api/admin/stats`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -59,7 +77,15 @@ function AdminDashboard() {
     } catch {
       localStorage.removeItem("adminToken");
     }
-  };
+  }, [API_URL, fetchDashboardData]);
+
+  // Check for existing valid session on mount
+  useEffect(() => {
+    const storedToken = localStorage.getItem("adminToken");
+    if (storedToken) {
+      verifyExistingToken(storedToken);
+    }
+  }, [verifyExistingToken]);
 
   // STEP 1: Send OTP to email
   const handleSendOtp = async (e) => {
@@ -201,31 +227,12 @@ function AdminDashboard() {
     }
   };
 
-  const fetchDashboardData = async (token) => {
-    setDataLoading(true);
-    try {
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const [statsRes, messagesRes, feedbackRes, usersRes, messageStatsRes] = await Promise.all([
-        fetch(`${API_URL}/api/admin/stats`, { headers }),
-        fetch(`${API_URL}/api/admin/messages`, { headers }),
-        fetch(`${API_URL}/api/admin/feedback`, { headers }),
-        fetch(`${API_URL}/api/admin/users`, { headers }),
-        fetch(`${API_URL}/api/admin/message-stats`, { headers }),
-      ]);
-
-      if (statsRes.ok) setStats(await statsRes.json());
-      if (messagesRes.ok) setMessages(await messagesRes.json());
-      if (feedbackRes.ok) setFeedback(await feedbackRes.json());
-      if (usersRes.ok) setUsers(await usersRes.json());
-      if (messageStatsRes.ok) setMessageStats(await messageStatsRes.json());
-    } catch (err) {
-      console.error("Error fetching data:", err);
-      setError("Failed to load dashboard data");
-    } finally {
-      setDataLoading(false);
-    }
-  };
+  // Poll dashboard data while logged in so new feedback/messages appear automatically
+  useEffect(() => {
+    if (authStep !== "dashboard" || !adminToken) return;
+    const id = setInterval(() => fetchDashboardData(adminToken), 15000);
+    return () => clearInterval(id);
+  }, [authStep, adminToken, fetchDashboardData]);
 
   const handleLogout = () => {
     setAuthStep("email");
