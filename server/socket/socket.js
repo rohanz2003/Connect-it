@@ -9,7 +9,8 @@ const initSocket = (server) => {
       origin: [
         "http://localhost:3000",
         process.env.FRONTEND_URL,
-        "https://connect-it-frontend.vercel.app"
+        "https://connect-it-frontend.vercel.app",
+        "https://connect-it.vercel.app"
       ].filter(Boolean),
       methods: ["GET", "POST"],
       credentials: true
