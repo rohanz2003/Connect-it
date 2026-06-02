@@ -10,6 +10,15 @@ const emailUser = process.env.EMAIL_USER;
 // Allow both env var names since different hosts often set different ones
 const emailPass = process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD;
 
+// Startup diagnostics (no secrets, only presence)
+console.log("🔐 [Admin OTP] Email env check:", {
+  EMAIL_USER_SET: Boolean(emailUser),
+  EMAIL_PASSWORD_SET: Boolean(process.env.EMAIL_PASSWORD),
+  GMAIL_APP_PASSWORD_SET: Boolean(process.env.GMAIL_APP_PASSWORD),
+  ADMIN_EMAIL_SET: Boolean(process.env.ADMIN_EMAIL),
+  JWT_SECRET_SET: Boolean(process.env.JWT_SECRET),
+});
+
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -50,36 +59,49 @@ const sendOtp = async (req, res) => {
   try {
     const { email } = req.body;
     const adminEmail = process.env.ADMIN_EMAIL;
+    const normalizedRequestEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const normalizedAdminEmail = typeof adminEmail === "string" ? adminEmail.trim().toLowerCase() : "";
 
     if (!emailUser || !emailPass) {
+      console.error("❌ [Admin OTP] Email credentials missing; cannot send OTP.");
       return res
         .status(500)
         .json({ success: false, message: "Email credentials are missing on the server." });
     }
 
     if (!adminEmail) {
+      console.error("❌ [Admin OTP] ADMIN_EMAIL missing; cannot send OTP.");
       return res
         .status(500)
         .json({ success: false, message: "ADMIN_EMAIL is missing on the server." });
     }
 
-    if (!email || email.toLowerCase() !== adminEmail.toLowerCase()) {
+    if (!normalizedRequestEmail || normalizedRequestEmail !== normalizedAdminEmail) {
       return res.status(400).json({ success: false, message: "Invalid admin email address." });
     }
 
     if (!transporterReady) {
-      return res
-        .status(500)
-        .json({ success: false, message: "Email transporter is not ready. Check Gmail configuration." });
+      // Avoid a race during startup: if verify() hasn't completed yet, try once here.
+      try {
+        await transporter.verify();
+        transporterReady = true;
+        console.log("Admin Email transporter is ready ✅ (lazy verify)");
+      } catch (err) {
+        console.error("❌ [Admin OTP] Nodemailer transporter not ready; cannot send OTP:", err && err.message ? err.message : err);
+        return res.status(500).json({
+          success: false,
+          message: "Email transporter is not ready. Check Gmail configuration.",
+        });
+      }
     }
 
     const otp = generateOtp();
     // Store OTP in cache with admin email as key, set to expire in 5 minutes
-    otpCache.set(adminEmail.toLowerCase(), otp);
+    otpCache.set(normalizedAdminEmail, otp);
 
     const mailOptions = {
       from: emailUser,
-      to: adminEmail,
+      to: normalizedAdminEmail,
       subject: "Connect It Admin Login OTP",
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
@@ -118,6 +140,8 @@ const verifyOtp = async (req, res) => {
     const { email, otp } = req.body;
     const adminEmail = process.env.ADMIN_EMAIL;
     const jwtSecret = process.env.JWT_SECRET;
+    const normalizedRequestEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const normalizedAdminEmail = typeof adminEmail === "string" ? adminEmail.trim().toLowerCase() : "";
 
     if (!adminEmail) {
       return res
@@ -131,11 +155,11 @@ const verifyOtp = async (req, res) => {
         .json({ success: false, message: "JWT_SECRET is missing on the server." });
     }
 
-    if (!email || email.toLowerCase() !== adminEmail.toLowerCase() || !otp) {
+    if (!normalizedRequestEmail || normalizedRequestEmail !== normalizedAdminEmail || !otp) {
       return res.status(400).json({ success: false, message: "Invalid request. Email and OTP are required." });
     }
 
-    const storedOtp = otpCache.get(adminEmail.toLowerCase());
+    const storedOtp = otpCache.get(normalizedAdminEmail);
 
     if (!storedOtp || storedOtp !== otp) {
       return res.status(401).json({ success: false, message: "Invalid or expired OTP." });
@@ -143,7 +167,7 @@ const verifyOtp = async (req, res) => {
 
     // OTP is valid, remove from cache and issue JWT
     otpCache.del(adminEmail.toLowerCase());
-    const token = jwt.sign({ email: adminEmail }, jwtSecret, { expiresIn: "1h" }); // Token valid for 1 hour
+    const token = jwt.sign({ email: normalizedAdminEmail }, jwtSecret, { expiresIn: "1h" }); // Token valid for 1 hour
 
     res.status(200).json({ success: true, message: "Login successful.", token });
   } catch (error) {

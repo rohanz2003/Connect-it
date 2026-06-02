@@ -10,16 +10,36 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+let transporterReady = false;
+
+// Startup diagnostics (no secrets, only presence)
+console.log("📩 [Feedback Email] Email env check:", {
+  EMAIL_USER_SET: Boolean(process.env.EMAIL_USER),
+  EMAIL_PASSWORD_SET: Boolean(process.env.EMAIL_PASSWORD),
+  GMAIL_APP_PASSWORD_SET: Boolean(process.env.GMAIL_APP_PASSWORD),
+  ADMIN_EMAIL_SET: Boolean(process.env.ADMIN_EMAIL),
+  ADMIN_FEEDBACK_EMAIL_SET: Boolean(process.env.ADMIN_FEEDBACK_EMAIL),
+});
+
 if (!process.env.EMAIL_USER || (!process.env.EMAIL_PASSWORD && !process.env.GMAIL_APP_PASSWORD)) {
   console.warn("⚠️ Feedback Email credentials missing. User feedback will not be emailed.");
 }
 
 // Verify transporter configuration early to surface auth/connectivity errors
-transporter.verify().then(() => {
-  console.log("Email transporter is ready ✅");
-}).catch((err) => {
-  console.warn("Email transporter verification failed ⚠️", err && err.message ? err.message : err);
-});
+// Verify transporter configuration early to surface auth/connectivity errors.
+// Do not crash on failure; mark it and fail requests with a clear message.
+if (process.env.EMAIL_USER && (process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD)) {
+  transporter
+    .verify()
+    .then(() => {
+      transporterReady = true;
+      console.log("Email transporter is ready ✅");
+    })
+    .catch((err) => {
+      transporterReady = false;
+      console.warn("Email transporter verification failed ⚠️", err && err.message ? err.message : err);
+    });
+}
 
 
 // Admin receiving address can be configured on hosts; fallback to ADMIN_EMAIL or a default
@@ -87,6 +107,21 @@ const sendFeedback = async (req, res) => {
         </div>
       `,
     };
+
+    // Avoid race during startup: if transporter isn't ready yet, try once.
+    if (!transporterReady) {
+      try {
+        await transporter.verify();
+        transporterReady = true;
+        console.log("Email transporter is ready ✅ (lazy verify)");
+      } catch (err) {
+        console.error("❌ [Feedback Email] transporter not ready:", err && err.message ? err.message : err);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to send feedback emails. Check server email configuration.",
+        });
+      }
+    }
 
     // Email to user (confirmation)
     const userMailOptions = {
