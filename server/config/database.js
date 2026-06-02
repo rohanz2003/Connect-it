@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const dns = require("dns");
 
 /**
  * Fixes MONGO_URI if it contains unencoded special characters in the password.
@@ -42,6 +43,22 @@ const formatMongoUri = (uri) => {
 };
 
 const connectDatabase = async () => {
+  /**
+   * Attempt to resolve DNS issues by setting Google DNS servers.
+   * This can bypass local ISP blocks on SRV records.
+   */
+  try {
+    dns.setServers(["8.8.8.8", "8.8.4.4"]);
+    console.log("🌐 DNS servers set to Google (8.8.8.8, 8.8.4.4)");
+  } catch (dnsErr) {
+    console.warn("⚠️ Could not set custom DNS servers:", dnsErr.message);
+  }
+
+  // Set default DNS result order to IPv4 first
+  if (dns.setDefaultResultOrder) {
+    dns.setDefaultResultOrder("ipv4first");
+  }
+
   let mongoUri = process.env.MONGO_URI;
 
   if (!mongoUri) {
@@ -56,25 +73,36 @@ const connectDatabase = async () => {
     console.log(`Connecting to MongoDB: ${maskedUri}`);
   }
 
+  // Clear existing listeners to prevent memory leaks on retry
+  mongoose.connection.removeAllListeners("connected");
+  mongoose.connection.removeAllListeners("error");
+  mongoose.connection.removeAllListeners("disconnected");
+
   mongoose.connection.on("connected", () => {
-    console.log("MongoDB event: connected");
+    console.log("✅ MongoDB event: connected");
   });
 
   mongoose.connection.on("error", (err) => {
-    console.error("MongoDB event: error", err.message);
+    // Only log, don't crash the process
+    console.error("❌ MongoDB event: error", err.message);
   });
 
   mongoose.connection.on("disconnected", () => {
-    console.warn("MongoDB event: disconnected");
+    console.warn("⚠️ MongoDB event: disconnected");
   });
 
   try {
+    // SRV lookups (mongodb+srv) can be sensitive to DNS issues.
+    // We use a longer timeout and force IPv4.
     await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 15000,
+      serverSelectionTimeoutMS: 30000, // 30 seconds
       socketTimeoutMS: 45000,
-      family: 4, // Force IPv4 to avoid DNS issues on some hosting providers
+      connectTimeoutMS: 30000,
+      family: 4, 
     });
-    console.log("MongoDB Connected Successfully ✅");
+    console.log("*****************************************");
+    console.log("🏆 DATABASE CONNECTED SUCCESSFULLY 🏆");
+    console.log("*****************************************");
   } catch (err) {
     console.error("❌ MongoDB Connection Error Details:", {
       message: err.message,
@@ -82,6 +110,15 @@ const connectDatabase = async () => {
       hostname: err.hostname,
       syscall: err.syscall
     });
+    
+    if (err.message.includes("ECONNREFUSED") || err.message.includes("ENOTFOUND")) {
+      console.warn("\n💡 TIP: Your network is blocking the MongoDB SRV lookup.");
+      console.warn("1. Check if your IP is whitelisted in MongoDB Atlas (Network Access tab).");
+      console.warn("2. If you are using a public WiFi or restricted network, SRV lookups might be blocked.");
+      console.warn("3. TRY THIS: In MongoDB Atlas, go to 'Connect' -> 'Drivers' -> Select 'Node.js' -> Select 'Version 2.2.12 or later'.");
+      console.warn("   Use that long-form connection string (mongodb://...) in your .env instead.\n");
+    }
+    
     throw err;
   }
 

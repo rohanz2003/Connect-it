@@ -85,16 +85,30 @@ const startServer = async () => {
   try {
     await connectDatabase();
   } catch (err) {
-    console.error("❌ MongoDB connection failed:", err.message);
+    console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    console.error("❌ CRITICAL: DATABASE CONNECTION FAILED!");
+    console.error("Error:", err.message);
+    console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    
     if (process.env.RENDER === "true") {
       process.exit(1);
     }
-    console.warn("⚠️ Continuing without MongoDB (local dev only).");
+    console.warn("⚠️ Warning: Running in LOCAL MODE without database persistence.");
   }
 
-  server.listen(PORT, () => {
+  const serverInstance = server.listen(PORT, () => {
     console.log(`Server running on port ${PORT} 🚀`);
     console.log("=== Startup Complete ===");
+  });
+
+  serverInstance.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`❌ Port ${PORT} is already in use.`);
+      console.error("💡 TIP: Try stopping the other process or use a different port (e.g., PORT=5001 npm start)");
+      process.exit(1);
+    } else {
+      console.error("❌ Server error:", err.message);
+    }
   });
 };
 
