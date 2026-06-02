@@ -1,207 +1,259 @@
 const Message = require("../models/Message");
+const ClearedChat = require("../models/ClearedChat");
+const { encryptPayload, decryptMessageDoc } = require("../utils/messageCrypto");
+const { normalizeEmail, getAuthenticatedEmail, getRoomId } = require("../utils/socketAuth");
 
-const getRoomId = (user1, user2) => {
-  return [user1.toLowerCase(), user2.toLowerCase()].sort().join("_");
-};
-
-// Track which users are in which rooms
 const roomUsers = {};
-// Track unread messages
 const unreadMessages = {};
 
-module.exports = (io, socket, users) => {
+const isUserOnline = (users, email) => {
+  const entry = users[normalizeEmail(email)];
+  return entry instanceof Set ? entry.size > 0 : Boolean(entry);
+};
 
-  // JOIN ROOM
+module.exports = (io, socket, users) => {
   socket.on("join-room", ({ user1, user2 }) => {
-    // Find the user whose Set of socket IDs contains this socket.id
-    const authenticatedUser = Object.keys(users).find(key => 
-      users[key] instanceof Set ? users[key].has(socket.id) : users[key] === socket.id
-    );
-    
-    if (!authenticatedUser || authenticatedUser.toLowerCase() !== user1.toLowerCase()) {
-      console.warn(`⚠️ Unauthenticated attempt to join room by socket ${socket.id}`);
+    const authUser = getAuthenticatedEmail(socket, users);
+    const normalizedUser1 = normalizeEmail(user1);
+    const normalizedUser2 = normalizeEmail(user2);
+
+    if (!authUser || authUser !== normalizedUser1) {
+      console.warn(`⚠️ Unauthenticated join-room attempt: ${socket.id}`);
       return;
     }
 
-    const roomId = getRoomId(user1, user2);
+    const roomId = getRoomId(normalizedUser1, normalizedUser2);
 
-    // Leave previous rooms
     for (const room of socket.rooms) {
-      if (room !== socket.id) {
-        socket.leave(room);
-      }
+      if (room !== socket.id) socket.leave(room);
     }
 
-    // Join new room
     socket.join(roomId);
-    
-    // Track who is in this room
-    if (!roomUsers[roomId]) {
-      roomUsers[roomId] = [];
+
+    if (!roomUsers[roomId]) roomUsers[roomId] = [];
+    if (!roomUsers[roomId].includes(normalizedUser1)) {
+      roomUsers[roomId].push(normalizedUser1);
     }
-    if (!roomUsers[roomId].includes(user1)) {
-      roomUsers[roomId].push(user1);
-    }
-    
-    console.log(`✅ ${user1} joined room: ${roomId}`);
-    console.log(`Room users:`, roomUsers[roomId]);
-    
-    // Mark messages as read when user enters the room
-    const key = `${user2}_${user1}`; // unread from user2 to user1
-    if (unreadMessages[key]) {
-      unreadMessages[key] = 0;
-      console.log(`✓✓ Marked messages as read for ${user1} from ${user2}`);
-      
-      // Only notify the user who marked them as read
-      // Use the personal room (email) instead of the users object Set
-      const target = user1.toLowerCase().trim();
-      if (users[target]) {
-        io.to(target).emit("unread-update", unreadMessages);
+
+    const unreadKey = `${normalizedUser2}_${normalizedUser1}`;
+    if (unreadMessages[unreadKey]) {
+      unreadMessages[unreadKey] = 0;
+      if (isUserOnline(users, normalizedUser1)) {
+        io.to(normalizedUser1).emit("unread-update", unreadMessages);
       }
     }
   });
 
-  // SEND MESSAGE
   socket.on("send-message", async (data, callback) => {
-    const { sender, receiver, text, type, mediaType, tempId, timestamp } = data;
-    const roomId = getRoomId(sender, receiver);
-
     try {
-      let message = { 
-        sender, 
-        receiver, 
+      const authSender = getAuthenticatedEmail(socket, users);
+      if (!authSender) {
+        if (callback) callback({ ok: false, error: "Not authenticated" });
+        return;
+      }
+
+      const {
+        sender,
+        receiver,
         text,
-        type: type || 'text',
+        type,
+        mediaType,
+        tempId,
+        timestamp,
+        replyTo,
+      } = data || {};
+
+      const normalizedSender = normalizeEmail(sender);
+      const normalizedReceiver = normalizeEmail(receiver);
+
+      if (authSender !== normalizedSender) {
+        if (callback) callback({ ok: false, error: "Sender mismatch" });
+        return;
+      }
+
+      if (!normalizedReceiver || !text) {
+        if (callback) callback({ ok: false, error: "Invalid message payload" });
+        return;
+      }
+
+      const roomId = getRoomId(normalizedSender, normalizedReceiver);
+      const msgTimestamp = timestamp ? new Date(timestamp) : new Date();
+
+      if (tempId) {
+        const existing = await Message.findOne({ tempId }).lean();
+        if (existing) {
+          const decrypted = decryptMessageDoc(existing);
+          io.to(roomId).emit("receive-message", decrypted);
+          io.to(roomId).emit("message-saved", {
+            tempId,
+            _id: existing._id,
+            timestamp: existing.timestamp,
+          });
+          if (callback) callback({ ok: true, _id: existing._id, duplicate: true });
+          return;
+        }
+      }
+
+      const encryptedText = encryptPayload(text);
+
+      const optimisticMessage = {
+        _id: tempId || `temp-${Date.now()}`,
+        sender: normalizedSender,
+        receiver: normalizedReceiver,
+        text,
+        type: type || "text",
         mediaType: mediaType || null,
-        tempId: tempId,
-        timestamp: timestamp || new Date(),
-        seen: false
+        tempId: tempId || null,
+        replyTo: replyTo || null,
+        timestamp: msgTimestamp,
+        seen: false,
+        pending: true,
       };
-      
-      // Try to save to DB
+
+      io.to(roomId).emit("receive-message", optimisticMessage);
+
+      const unreadKey = `${normalizedSender}_${normalizedReceiver}`;
+      unreadMessages[unreadKey] = (unreadMessages[unreadKey] || 0) + 1;
+
+      if (isUserOnline(users, normalizedReceiver)) {
+        io.to(normalizedReceiver).emit("unread-update", unreadMessages);
+      }
+
+      if (callback) callback({ ok: true, pending: true, tempId });
+
       try {
-        message = await Message.create({
-          sender,
-          receiver,
-          text,
-          type: type || 'text',
+        const saved = await Message.create({
+          sender: normalizedSender,
+          receiver: normalizedReceiver,
+          text: encryptedText,
+          type: type || "text",
           mediaType: mediaType || null,
-          tempId: tempId,
-          timestamp: timestamp || new Date(),
-          seen: false
+          tempId: tempId || undefined,
+          replyTo: replyTo || undefined,
+          timestamp: msgTimestamp,
+          seen: false,
+        });
+
+        io.to(roomId).emit("message-saved", {
+          tempId: tempId || null,
+          _id: saved._id,
+          timestamp: saved.timestamp,
         });
       } catch (dbErr) {
-        console.log("📝 Message not saved to DB (MongoDB offline), broadcasting in real-time only");
-        message._id = Date.now().toString();
+        console.error("❌ Failed to save message:", dbErr.message);
+        socket.emit("message-error", {
+          tempId,
+          error: "Failed to save message",
+        });
       }
-
-      // Track unread message
-      const unreadKey = `${sender}_${receiver}`;
-      unreadMessages[unreadKey] = (unreadMessages[unreadKey] || 0) + 1;
-      console.log(`📨 Unread from ${sender} to ${receiver}: ${unreadMessages[unreadKey]}`);
-
-      // Send to all users in the room (this includes both sender and receiver)
-      io.to(roomId).emit("receive-message", message);
-      
-      // Send unread count update to all clients
-      // Better: Only send to the receiver
-      const target = receiver.toLowerCase().trim();
-      if (users[target]) {
-        io.to(target).emit("unread-update", unreadMessages);
-      }
-      
-      // Send acknowledgment back to sender
-      if (callback) callback(true);
-      
-      console.log(`✅ Message broadcasted to room ${roomId}`);
-      console.log(`   From: ${sender}, To: ${receiver}, Type: ${type}`);
-      
     } catch (err) {
       console.error("❌ Error sending message:", err.message);
-      socket.emit("error", { message: "Failed to send message" });
-      if (callback) callback(false);
+      if (callback) callback({ ok: false, error: err.message });
     }
   });
 
-  // DELETE MESSAGE
   socket.on("delete-message", async ({ messageId, sender, receiver }) => {
     try {
-      // Find and delete the message from DB
+      const authUser = getAuthenticatedEmail(socket, users);
+      const normalizedSender = normalizeEmail(sender);
+      if (!authUser || authUser !== normalizedSender) return;
+
       await Message.deleteOne({
-        $or: [
-          { _id: messageId },
-          { tempId: messageId }
-        ]
+        $or: [{ _id: messageId }, { tempId: messageId }],
+        sender: normalizedSender,
       });
 
-      const roomId = getRoomId(sender, receiver);
-      io.to(roomId).emit("message-deleted", { messageId, sender, receiver });
+      const roomId = getRoomId(normalizedSender, normalizeEmail(receiver));
+      io.to(roomId).emit("message-deleted", {
+        messageId,
+        sender: normalizedSender,
+        receiver: normalizeEmail(receiver),
+      });
     } catch (err) {
       console.error("❌ Error deleting message:", err.message);
     }
   });
 
-  // MARK MESSAGES AS READ
   socket.on("mark-as-read", ({ user1, user2 }) => {
-    const unreadKey = `${user2}_${user1}`;
-    if (unreadMessages[unreadKey]) {
-      unreadMessages[unreadKey] = 0;
-      console.log(`✓✓ Marked messages as read for ${user1} from ${user2}`);
-      
-      const target = user1.toLowerCase().trim();
-      if (users[target]) {
-        io.to(target).emit("unread-update", unreadMessages);
-      }
+    const authUser = getAuthenticatedEmail(socket, users);
+    const normalizedUser1 = normalizeEmail(user1);
+    const normalizedUser2 = normalizeEmail(user2);
+    if (!authUser || authUser !== normalizedUser1) return;
+
+    const unreadKey = `${normalizedUser2}_${normalizedUser1}`;
+    unreadMessages[unreadKey] = 0;
+
+    Message.updateMany(
+      { sender: normalizedUser2, receiver: normalizedUser1, seen: false },
+      { seen: true }
+    ).catch((err) => console.warn("mark-as-read DB update failed:", err.message));
+
+    if (isUserOnline(users, normalizedUser1)) {
+      io.to(normalizedUser1).emit("unread-update", unreadMessages);
     }
   });
 
-  // SEEN MESSAGE                                                                                                                                                                                                                                                                                                                                                           
   socket.on("seen-message", async ({ sender, receiver }) => {
     try {
+      const authUser = getAuthenticatedEmail(socket, users);
+      const normalizedReceiver = normalizeEmail(receiver);
+      if (!authUser || authUser !== normalizedReceiver) return;
+
       await Message.updateMany(
-        { sender, receiver, seen: false },
+        { sender: normalizeEmail(sender), receiver: normalizedReceiver, seen: false },
         { seen: true }
       );
 
       const roomId = getRoomId(sender, receiver);
-      io.to(roomId).emit("message-seen", { sender, receiver });
+      io.to(roomId).emit("message-seen", {
+        sender: normalizeEmail(sender),
+        receiver: normalizedReceiver,
+      });
     } catch (err) {
-      console.log("Could not mark as seen:", err.message);
+      console.warn("seen-message failed:", err.message);
     }
   });
 
-  // CLEAR CHAT (Delete messages from database)
+  // Per-user soft clear (WhatsApp-style): only hides for the requesting user
   socket.on("clear-chat", async ({ user1, user2 }, callback) => {
     try {
-      // Delete all messages between these two users
-      const result = await Message.deleteMany({
-        $or: [
-          { sender: user1, receiver: user2 },
-          { sender: user2, receiver: user1 }
-        ]
+      const authUser = getAuthenticatedEmail(socket, users);
+      const normalizedUser1 = normalizeEmail(user1);
+      const normalizedUser2 = normalizeEmail(user2);
+
+      if (!authUser || authUser !== normalizedUser1) {
+        if (callback) callback({ ok: false, error: "Unauthorized" });
+        return;
+      }
+
+      const clearedAt = new Date();
+      await ClearedChat.findOneAndUpdate(
+        { user: normalizedUser1, partner: normalizedUser2 },
+        { clearedAt },
+        { upsert: true, new: true }
+      );
+
+      io.to(normalizedUser1).emit("chat-cleared", {
+        user1: normalizedUser1,
+        user2: normalizedUser2,
+        clearedAt,
+        scope: "self",
       });
-      
-      console.log(`🗑️ Deleted ${result.deletedCount} messages between ${user1} and ${user2}`);
-      io.emit("chat-cleared", { user1, user2 });
-      
-      if (callback) callback(true);
+
+      if (callback) callback({ ok: true, clearedAt });
     } catch (err) {
       console.error("❌ Error clearing chat:", err.message);
-      socket.emit("error", { message: "Failed to clear chat" });
-      if (callback) callback(false);
+      if (callback) callback({ ok: false, error: err.message });
     }
   });
 
-  // Clean up on disconnect
   socket.on("disconnect", () => {
-    for (let roomId in roomUsers) {
-      roomUsers[roomId] = roomUsers[roomId].filter(user => {
-        const userEntry = users[user.toLowerCase().trim()];
+    for (const roomId in roomUsers) {
+      roomUsers[roomId] = roomUsers[roomId].filter((user) => {
+        const userEntry = users[normalizeEmail(user)];
         return userEntry instanceof Set ? !userEntry.has(socket.id) : userEntry !== socket.id;
       });
-      if (roomUsers[roomId].length === 0) {
-        delete roomUsers[roomId];
-      }
+      if (roomUsers[roomId].length === 0) delete roomUsers[roomId];
     }
   });
 };

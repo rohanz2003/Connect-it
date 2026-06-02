@@ -1,58 +1,105 @@
 const Message = require("../models/Message");
+const ClearedChat = require("../models/ClearedChat");
+const { decryptMessageDoc } = require("../utils/messageCrypto");
+const { normalizeEmail } = require("../utils/socketAuth");
 
-exports.getMessages = async (req, res) => {
-  const { user1, user2 } = req.query;
-
-  const messages = await Message.find({
-    $or: [
-      { sender: user1, receiver: user2 },
-      { sender: user2, receiver: user1 },
-    ],
-  }).sort({ timestamp: 1 }); // Sort by timestamp instead of createdAt for consistency
-
-  res.json(messages);
+const getClearedAt = async (user, partner) => {
+  const record = await ClearedChat.findOne({
+    user: normalizeEmail(user),
+    partner: normalizeEmail(partner),
+  }).lean();
+  return record?.clearedAt || null;
 };
 
-// Get recent chats for a user (list of conversations with latest message)
+exports.getMessages = async (req, res) => {
+  try {
+    const { user1, user2 } = req.query;
+    if (!user1 || !user2) {
+      return res.status(400).json({ error: "user1 and user2 are required" });
+    }
+
+    const u1 = normalizeEmail(user1);
+    const u2 = normalizeEmail(user2);
+
+    const clearedAt = await getClearedAt(u1, u2);
+    const query = {
+      $or: [
+        { sender: u1, receiver: u2 },
+        { sender: u2, receiver: u1 },
+      ],
+    };
+
+    if (clearedAt) {
+      query.timestamp = { $gt: clearedAt };
+    }
+
+    const messages = await Message.find(query)
+      .sort({ timestamp: 1 })
+      .limit(500)
+      .lean();
+
+    res.json(messages.map(decryptMessageDoc));
+  } catch (error) {
+    console.error("getMessages error:", error);
+    res.status(500).json({ error: "Failed to fetch messages", details: error.message });
+  }
+};
+
 exports.getRecentChats = async (req, res) => {
   try {
     const { userEmail } = req.query;
-    
     if (!userEmail) {
       return res.status(400).json({ error: "userEmail is required" });
     }
 
-    const normalizedEmail = userEmail.toLowerCase();
+    const normalizedEmail = normalizeEmail(userEmail);
 
-    // Find all conversations involving this user
+    const clearedRecords = await ClearedChat.find({ user: normalizedEmail }).lean();
+    const clearedMap = Object.fromEntries(
+      clearedRecords.map((r) => [r.partner, r.clearedAt])
+    );
+
     const messages = await Message.find({
-      $or: [
-        { sender: { $regex: new RegExp(`^${normalizedEmail}$`, "i") } },
-        { receiver: { $regex: new RegExp(`^${normalizedEmail}$`, "i") } }
-      ]
-    }).sort({ timestamp: -1 });
+      $or: [{ sender: normalizedEmail }, { receiver: normalizedEmail }],
+    })
+      .sort({ timestamp: -1 })
+      .limit(1000)
+      .lean();
 
-    // Group messages by conversation partner
     const conversations = {};
-    
-    messages.forEach(msg => {
-      const otherUser = msg.sender.toLowerCase() === normalizedEmail ? msg.receiver.toLowerCase() : msg.sender.toLowerCase();
-      
-      // Only keep the most recent message per conversation
+
+    for (const msg of messages) {
+      const otherUser =
+        msg.sender === normalizedEmail ? msg.receiver : msg.sender;
+      const clearedAt = clearedMap[otherUser];
+      const msgTime = msg.timestamp || msg.createdAt;
+
+      if (clearedAt && new Date(msgTime) <= new Date(clearedAt)) {
+        continue;
+      }
+
       if (!conversations[otherUser]) {
+        const decrypted = decryptMessageDoc(msg);
+        const preview =
+          decrypted.type === "media"
+            ? "[Media]"
+            : typeof decrypted.text === "string"
+              ? decrypted.text
+              : "[Message]";
+
         conversations[otherUser] = {
           userEmail: otherUser,
-          lastMessage: msg.text,
-          timestamp: msg.timestamp || msg.createdAt,
+          lastMessage: preview,
+          timestamp: msgTime,
           type: msg.type,
-          messageId: msg._id
+          messageId: msg._id,
         };
       }
-    });
+    }
 
-    // Convert to array and sort by timestamp descending (most recent first)
-    const recentChats = Object.values(conversations)
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    const recentChats = Object.values(conversations).sort(
+      (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+    );
 
     res.json(recentChats);
   } catch (error) {

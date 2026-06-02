@@ -2,12 +2,13 @@
 const Message = require("../models/Message");
 const Feedback = require("../models/Feedback");
 const User = require("../modules/User");
+const { decryptMessageDoc } = require("../utils/messageCrypto");
 
 // Get all messages with sender details
 exports.getAllMessages = async (req, res) => {
   try {
-    const messages = await Message.find().sort({ createdAt: -1 }).limit(1000);
-    res.json(messages);
+    const messages = await Message.find().sort({ createdAt: -1 }).limit(1000).lean();
+    res.json(messages.map(decryptMessageDoc));
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch messages", details: error.message });
   }

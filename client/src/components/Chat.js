@@ -56,6 +56,7 @@ function Chat({ user: currentUser }) {
 
   // Use Ref to track selectedUser for the socket listener to avoid stale closures
   const selectedUserRef = useRef(selectedUser);
+  const previousSelectedUserRef = useRef(null);
   useEffect(() => { selectedUserRef.current = selectedUser; }, [selectedUser]);
 
   useEffect(() => {
@@ -116,6 +117,34 @@ function Chat({ user: currentUser }) {
 
   const normalizeEmail = (email) => (email || "").toLowerCase().trim();
   const getDisplayName = (email) => (email || "").split("@")[0];
+
+  const getOtherParty = (msg, currentUserEmail) => {
+    const senderEmail = normalizeEmail(msg.sender);
+    const receiverEmail = normalizeEmail(msg.receiver);
+    const me = normalizeEmail(currentUserEmail);
+    return senderEmail === me ? receiverEmail : senderEmail;
+  };
+
+  const isSameMessage = (a, b) => {
+    if (!a || !b) return false;
+    if (a._id && b._id && String(a._id) === String(b._id)) return true;
+    if (a.tempId && b.tempId && a.tempId === b.tempId) return true;
+    return false;
+  };
+
+  const upsertMessageInList = (list, msg) => {
+    const idx = list.findIndex((m) => isSameMessage(m, msg));
+    if (idx === -1) {
+      return [...list, msg].sort(
+        (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
+      );
+    }
+    const updated = [...list];
+    updated[idx] = { ...updated[idx], ...msg };
+    return updated.sort(
+      (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
+    );
+  };
 
   const safeLocalStorageSet = (key, value) => {
     try {
@@ -318,10 +347,77 @@ function Chat({ user: currentUser }) {
       });
     });
 
-    // Listen for chat cleared event
-    socket.on("chat-cleared", ({ user1, user2 }) => {
-      console.log(`✅ Chat between ${user1} and ${user2} has been cleared from database`);
-    });
+    const handleChatCleared = ({ user1, user2, scope }) => {
+      const clearedFor = normalizeEmail(user1);
+      const partner = normalizeEmail(user2);
+      if (clearedFor !== normalizeEmail(user.email)) return;
+
+      setChatHistory((prev) => {
+        const updated = { ...prev };
+        delete updated[partner];
+        persistHistory(updated, user.email);
+        return updated;
+      });
+
+      setUnreadMessages((prev) => {
+        const key = `${partner}_${normalizeEmail(user.email)}`;
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        try {
+          localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
+        } catch (e) {
+          console.error("Failed to persist unread counts", e);
+        }
+        return next;
+      });
+
+      if (selectedUserRef.current && normalizeEmail(selectedUserRef.current) === partner) {
+        setMessages([]);
+      }
+    };
+
+    socket.on("chat-cleared", handleChatCleared);
+
+    const handleMessageSaved = ({ tempId, _id, timestamp }) => {
+      const applySaved = (list) =>
+        list.map((m) =>
+          m.tempId === tempId
+            ? { ...m, _id, timestamp: timestamp || m.timestamp, pending: false }
+            : m
+        );
+
+      setChatHistory((prev) => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach((key) => {
+          updated[key] = applySaved(updated[key] || []);
+        });
+        persistHistory(updated, user.email);
+        return updated;
+      });
+
+      if (selectedUserRef.current) {
+        setMessages((prev) => applySaved(prev));
+      }
+    };
+
+    socket.on("message-saved", handleMessageSaved);
+
+    const handleMessageError = ({ tempId }) => {
+      const markFailed = (list) =>
+        list.map((m) => (m.tempId === tempId ? { ...m, failed: true, pending: false } : m));
+
+      setMessages((prev) => markFailed(prev));
+      setChatHistory((prev) => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach((key) => {
+          updated[key] = markFailed(updated[key] || []);
+        });
+        return updated;
+      });
+    };
+
+    socket.on("message-error", handleMessageError);
 
     // Listen for message deletion
     socket.on("message-deleted", ({ messageId, sender, receiver }) => {
@@ -347,58 +443,36 @@ function Chat({ user: currentUser }) {
 
     // Listen for incoming messages globally (even when not in the room)
     const handleIncomingMessage = (msg) => {
-      console.log("📨 Incoming message:", msg);
-      
-      const senderEmail = msg.sender.toLowerCase();
-      const receiverEmail = msg.receiver.toLowerCase();
-      const currentUserEmail = user.email.toLowerCase();
-      const otherParty = senderEmail === currentUserEmail ? receiverEmail : senderEmail;
-      
-      // Update chat history
+      const otherParty = getOtherParty(msg, user.email);
+      const isActiveChat =
+        selectedUserRef.current &&
+        normalizeEmail(selectedUserRef.current) === otherParty;
+
       setChatHistory((prev) => {
         const currentHistory = prev[otherParty] || [];
-        
-        // Avoid duplicates - check by _id, sender+text combo, or tempId
-        const isDuplicate = currentHistory.some(m => 
-          (msg._id && m._id === msg._id) || 
-          (m.sender === msg.sender && m.receiver === msg.receiver && m.tempId === msg.tempId) ||
-          (m.sender === msg.sender && m.receiver === msg.receiver && JSON.stringify(m.text) === JSON.stringify(msg.text) && m.type === msg.type)
-        );
-        
-        if (isDuplicate) {
-          console.log("⚠️ Duplicate message ignored");
-          return prev;
-        }
-
         const updated = {
           ...prev,
-          [otherParty]: [...currentHistory, msg]
+          [otherParty]: upsertMessageInList(currentHistory, msg),
         };
-        // Save sanitized history
-        persistHistory(updated, user?.email);
+        persistHistory(updated, user.email);
         return updated;
       });
 
-      // If this message is from the currently selected user, update messages display and mark as read
-      if (selectedUserRef.current && selectedUserRef.current.toLowerCase() === otherParty) {
-        setMessages((prev) => {
-          const isDuplicate = prev.some(m =>
-            (msg._id && m._id === msg._id) ||
-            (msg.tempId && m.tempId === msg.tempId)
-          );
-
-          if (isDuplicate) return prev;
-          return [...prev, msg].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt));
+      if (isActiveChat) {
+        setMessages((prev) => upsertMessageInList(prev, msg));
+        socket.emit("mark-as-read", {
+          user1: normalizeEmail(user.email),
+          user2: otherParty,
         });
-        
-        // Mark message as read since user is currently viewing this chat
-        socket.emit("mark-as-read", { user1: user.email, user2: otherParty });
-      } else {
-        // Increment unread count for this conversation (client-side) and persist
+      } else if (normalizeEmail(msg.sender) !== normalizeEmail(user.email)) {
         setUnreadMessages((prev) => {
-          const key = `${otherParty.toLowerCase()}_${user.email.toLowerCase()}`;
+          const key = `${otherParty}_${normalizeEmail(user.email)}`;
           const newCounts = { ...prev, [key]: (prev[key] || 0) + 1 };
-          try { localStorage.setItem(`unread_${user.email}`, JSON.stringify(newCounts)); } catch (e) { console.error('Failed to persist unread counts', e); }
+          try {
+            localStorage.setItem(`unread_${user.email}`, JSON.stringify(newCounts));
+          } catch (e) {
+            console.error("Failed to persist unread counts", e);
+          }
           return newCounts;
         });
       }
@@ -414,11 +488,13 @@ function Chat({ user: currentUser }) {
       socket.off("last-seen");
       socket.off("unread-update");
       socket.off("user-profile-update");
-      socket.off("chat-cleared");
+      socket.off("chat-cleared", handleChatCleared);
+      socket.off("message-saved", handleMessageSaved);
+      socket.off("message-error", handleMessageError);
       socket.off("message-deleted");
       socket.off("receive-message", handleIncomingMessage);
     };
-  }, [socket, user]); // Removed selectedUser dependency to keep listener stable
+  }, [socket, user]);
 
   useEffect(() => {
     if (!socket || !user) return;
@@ -484,8 +560,13 @@ function Chat({ user: currentUser }) {
         });
       } catch (err) {
         console.error("Failed to fetch messages:", err);
-        // Fallback: show no messages
-        setMessages([]);
+        if (chatHistory[selectedUser]?.length) {
+          setMessages(
+            chatHistory[selectedUser].sort(
+              (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
+            )
+          );
+        }
       }
     };
 
@@ -515,23 +596,21 @@ function Chat({ user: currentUser }) {
   };
 
   useEffect(() => {
-    // When switching active chat, clear typing indicator from the previous partner.
-    console.log(`🔄 Chat switched to: ${selectedUser || "none"} - clearing typing indicator`);
     setTypingUser(null);
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
     }
-    // Send stop-typing to previous chat if user was typing
-    if (user && socket && socket.connected) {
-      // This helps clean up if the user switches away while typing
-      if (selectedUserRef.current) {
-        const prevUser = selectedUserRef.current;
-        const stopPayload = { from: normalizeEmail(user.email), to: normalizeEmail(prevUser) };
-        console.log("📤 Emitting stop-typing to previous chat:", stopPayload);
-        socket.emit("stop-typing", stopPayload);
-      }
+
+    if (user && socket && socket.connected && previousSelectedUserRef.current) {
+      const stopPayload = {
+        from: normalizeEmail(user.email),
+        to: normalizeEmail(previousSelectedUserRef.current),
+      };
+      socket.emit("stop-typing", stopPayload);
     }
+
+    previousSelectedUserRef.current = selectedUser;
   }, [selectedUser, user, socket]);
 
   const handleTyping = (e) => {
@@ -607,8 +686,22 @@ function Chat({ user: currentUser }) {
       };
     }
 
-    // Send to server (don't add locally - wait for server broadcast to avoid duplicates)
-    socket.emit("send-message", newMsg);
+    const optimisticMsg = { ...newMsg, pending: true, _id: tempId };
+    const partner = normalizeEmail(selectedUser);
+
+    setChatHistory((prev) => ({
+      ...prev,
+      [partner]: upsertMessageInList(prev[partner] || [], optimisticMsg),
+    }));
+    setMessages((prev) => upsertMessageInList(prev, optimisticMsg));
+
+    socket.emit("send-message", newMsg, (ack) => {
+      if (ack && ack.ok === false) {
+        setMessages((prev) =>
+          prev.map((m) => (m.tempId === tempId ? { ...m, failed: true, pending: false } : m))
+        );
+      }
+    });
 
     stopTyping();
     setMessage("");
@@ -670,12 +763,20 @@ function Chat({ user: currentUser }) {
           timestamp: new Date().toISOString()
         };
 
-        // Send to server (don't add locally - wait for server broadcast to avoid duplicates)
+        const optimisticMsg = { ...newMsg, pending: true, _id: tempId };
+        const partner = normalizeEmail(selectedUser);
+
+        setChatHistory((prev) => ({
+          ...prev,
+          [partner]: upsertMessageInList(prev[partner] || [], optimisticMsg),
+        }));
+        setMessages((prev) => upsertMessageInList(prev, optimisticMsg));
+
         socket.emit("send-message", newMsg, (ack) => {
-          if (ack) {
-            console.log("✅ Media sent successfully");
-          } else {
-            console.error("❌ Media send failed - server did not acknowledge");
+          if (!ack || ack.ok === false) {
+            setMessages((prev) =>
+              prev.map((m) => (m.tempId === tempId ? { ...m, failed: true, pending: false } : m))
+            );
           }
         });
         
@@ -706,23 +807,78 @@ function Chat({ user: currentUser }) {
     }
   };
 
+  const clearChatForPartner = (partnerEmail) => {
+    if (!user || !socket?.connected || !partnerEmail) return;
+
+    socket.emit(
+      "clear-chat",
+      { user1: normalizeEmail(user.email), user2: normalizeEmail(partnerEmail) },
+      (ack) => {
+        if (!ack?.ok) {
+          alert("Failed to clear chat. Please try again.");
+        }
+      }
+    );
+
+    const partner = normalizeEmail(partnerEmail);
+    setChatHistory((prev) => {
+      const updated = { ...prev };
+      delete updated[partner];
+      persistHistory(updated, user.email);
+      return updated;
+    });
+
+    setUnreadMessages((prev) => {
+      const key = `${partner}_${normalizeEmail(user.email)}`;
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      try {
+        localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
+      } catch (e) {
+        console.error("Failed to persist unread counts", e);
+      }
+      return next;
+    });
+
+    if (selectedUser && normalizeEmail(selectedUser) === partner) {
+      setMessages([]);
+    }
+  };
+
+  const handleClearCurrentChat = () => {
+    if (!selectedUser) return;
+    if (
+      window.confirm(
+        "Clear this chat for you only? The other person will still see all messages."
+      )
+    ) {
+      clearChatForPartner(selectedUser);
+    }
+  };
+
   const handleClearAllHistory = () => {
     if (!user) return;
-    if (window.confirm("Are you sure you want to clear ALL chat history?")) {
-      // Delete all messages from database for this user
+    if (
+      window.confirm(
+        "Clear all conversations for you only? Other users will still see their messages."
+      )
+    ) {
       if (socket && socket.connected) {
-        Object.keys(chatHistory).forEach(otherUser => {
-          socket.emit("clear-chat", { user1: user.email, user2: otherUser });
+        Object.keys(chatHistory).forEach((otherUser) => {
+          socket.emit("clear-chat", {
+            user1: normalizeEmail(user.email),
+            user2: normalizeEmail(otherUser),
+          });
         });
-        console.log("🗑️ Clearing all chats from database");
       }
-      
-      // Clear localStorage
+
       localStorage.removeItem(`chatHistory_${user.email}`);
+      localStorage.removeItem(`unread_${user.email}`);
       setChatHistory({});
       setMessages([]);
+      setUnreadMessages({});
       setSelectedUser(null);
-      console.log("🗑️ All chat history cleared.");
     }
   };
 
@@ -842,7 +998,8 @@ function Chat({ user: currentUser }) {
       return new Date(timeB) - new Date(timeA);
     });
 
-  const isUserOnline = (userEmail) => onlineUsers.includes(userEmail);
+  const isUserOnline = (userEmail) =>
+    onlineUsers.some((u) => normalizeEmail(u) === normalizeEmail(userEmail));
 
   // Get unread count for a user
   const getUnreadCount = (otherUser) => {
@@ -1026,6 +1183,13 @@ function Chat({ user: currentUser }) {
           <div className="chat-header-actions">
             {selectedUser && (
               <>
+                <button
+                  className="secondary-btn clear-chat-btn"
+                  title="Clear chat for you only"
+                  onClick={handleClearCurrentChat}
+                >
+                  <Trash2 size={16} /> Clear Chat
+                </button>
                 <button 
                   className="icon-btn minimize-btn" 
                   title={isChatMinimized ? "Expand chat" : "Minimize chat"}
@@ -1055,7 +1219,10 @@ function Chat({ user: currentUser }) {
               onChange={handleUpdateProfilePic}
               style={{ display: "none" }}
             />
-            <button className="logout-btn" onClick={logout}>Logout</button>
+            <button className="logout-btn" type="button" onClick={logout}>
+              <LogOut size={16} />
+              Logout
+            </button>
           </div>
         </div>
 
@@ -1111,6 +1278,17 @@ function Chat({ user: currentUser }) {
                                   <a href={msg.text.data} download={msg.text.name} className="download-btn">Download</a>
                                 </div>
                               )}
+                              {msg.text?.data && msg.mediaType !== "image" && msg.mediaType !== "video" && msg.mediaType !== "application" && (
+                                <div className="media-file">
+                                  <span>📎 {msg.text?.name || "Attachment"}</span>
+                                  {msg.text?.data && (
+                                    <a href={msg.text.data} download={msg.text?.name} className="download-btn">Download</a>
+                                  )}
+                                </div>
+                              )}
+                              {!msg.text?.data && msg.type === "media" && (
+                                <span className="media-unavailable">Media unavailable (reload chat)</span>
+                              )}
                             </div>
                           ) : (
                             msg.text
@@ -1118,7 +1296,11 @@ function Chat({ user: currentUser }) {
                         </div>
                         <div className="message-meta">
                           <span>{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
-                          {msg.sender === user.email && <span className="read-receipt">✓✓</span>}
+                          {msg.pending && <span className="message-status pending">Sending…</span>}
+                          {msg.failed && <span className="message-status failed">Failed</span>}
+                          {msg.sender === user.email && !msg.pending && !msg.failed && (
+                            <span className="read-receipt">✓✓</span>
+                          )}
                         </div>
                       </motion.div>
                     </React.Fragment>

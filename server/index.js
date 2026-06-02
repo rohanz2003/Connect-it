@@ -18,6 +18,9 @@ const logConfigurationStatus = () => {
     ADMIN_EMAIL_SET: Boolean(process.env.ADMIN_EMAIL),
     JWT_SECRET_SET: Boolean(process.env.JWT_SECRET),
     FRONTEND_URL_SET: Boolean(process.env.FRONTEND_URL),
+    MESSAGE_ENCRYPTION_KEY_SET: Boolean(
+      process.env.MESSAGE_ENCRYPTION_KEY || process.env.JWT_SECRET
+    ),
   };
   console.log("📋 Server configuration:", status);
 
