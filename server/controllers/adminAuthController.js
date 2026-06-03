@@ -56,7 +56,11 @@ const sendOtp = async (req, res) => {
         transporterReady = true;
         console.log("Admin Email transporter is ready ✅ (lazy verify)");
       } catch (err) {
-        console.error("❌ [Admin OTP] Nodemailer transporter not ready; cannot send OTP:", err && err.message ? err.message : err);
+        console.error("❌ [Admin OTP] Nodemailer transporter verification failed:", {
+          message: err?.message || err,
+          code: err?.code,
+          stack: err?.stack
+        });
         return res.status(500).json({
           success: false,
           message: "Email transporter is not ready. Check Gmail configuration.",

@@ -83,7 +83,11 @@ const sendFeedback = async (req, res) => {
         transporterReady = true;
         console.log("Email transporter is ready ✅ (lazy verify)");
       } catch (err) {
-        console.error("❌ [Feedback Email] transporter not ready:", err && err.message ? err.message : err);
+        console.error("❌ [Feedback Email] transporter verification failed:", {
+          message: err?.message || err,
+          code: err?.code,
+          stack: err?.stack
+        });
         return res.status(500).json({
           success: false,
           message: "Failed to send feedback emails. Check server email configuration.",
