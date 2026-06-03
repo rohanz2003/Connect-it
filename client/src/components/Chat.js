@@ -113,8 +113,18 @@ function Chat({ user: currentUser }) {
 
   // Auto-scroll to bottom whenever messages or typing state changes
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, typingUser]);
+    if (!messagesEndRef.current) return;
+    
+    const container = messagesEndRef.current.parentElement;
+    const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 150;
+    const lastMsg = messages[messages.length - 1];
+    const isMyMsg = lastMsg?.sender?.toLowerCase() === user?.email?.toLowerCase();
+
+    // Scroll if we're already near bottom OR if I just sent a message
+    if (isAtBottom || isMyMsg) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, typingUser, user?.email]);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -186,7 +196,7 @@ function Chat({ user: currentUser }) {
 
     return (
       <div className={`letter-avatar avatar-${size}`}>
-        {firstLetter}
+        <span>{firstLetter}</span>
       </div>
     );
   };
@@ -1413,21 +1423,25 @@ function Chat({ user: currentUser }) {
 
         {showSettings && (
           <div className="logout-modal-overlay" onClick={() => setShowSettings(false)}>
-            <div className="logout-modal settings-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
               <div className="settings-header">
                 <h3>Settings</h3>
-                <button className="close-btn" onClick={() => setShowSettings(false)}><X size={20} /></button>
+                <button className="settings-close-btn" onClick={() => setShowSettings(false)}><X size={20} /></button>
               </div>
               
               <div className="settings-body">
                 <div className="settings-section">
-                  <label>Profile Picture</label>
-                  <div className="settings-avatar-edit">
+                  <label className="settings-label">Profile Picture</label>
+                  <div className="settings-avatar-card">
                     {renderAvatar(user.email, "lg")}
-                    <div className="avatar-btns">
-                      <label htmlFor="update-profile-pic-settings" className="change-dp-btn">Change Photo</label>
+                    <div className="avatar-actions-row">
+                      <label htmlFor="update-profile-pic-settings" className="change-dp-btn">
+                        Change Photo
+                      </label>
                       {user.profilePic && (
-                        <button className="remove-dp-btn" onClick={handleRemoveProfilePic}>Remove Photo</button>
+                        <button className="remove-dp-btn" onClick={handleRemoveProfilePic}>
+                          Remove Photo
+                        </button>
                       )}
                     </div>
                     <input
@@ -1441,7 +1455,7 @@ function Chat({ user: currentUser }) {
                 </div>
 
                 <div className="settings-section">
-                  <label>Display Name</label>
+                  <label className="settings-label">Display Name</label>
                   <input 
                     type="text" 
                     value={newDisplayName} 
@@ -1453,7 +1467,7 @@ function Chat({ user: currentUser }) {
                 </div>
 
                 <div className="settings-section">
-                  <label>Bio / About</label>
+                  <label className="settings-label">Bio / About</label>
                   <textarea 
                     value={newBio} 
                     onChange={(e) => setNewBio(e.target.value)}
@@ -1462,22 +1476,24 @@ function Chat({ user: currentUser }) {
                   />
                 </div>
 
-                <div className="settings-info-box">
-                  <label>Account Information</label>
-                  <div className="info-row">
-                    <span>Email:</span>
-                    <strong>{user?.email}</strong>
-                  </div>
-                  <div className="info-row">
-                    <span>User ID:</span>
-                    <code>{user?.uid?.slice(0, 8)}...</code>
+                <div className="settings-section">
+                  <label className="settings-label">Account Information</label>
+                  <div className="settings-info-card">
+                    <div className="info-row">
+                      <span className="info-label">Email</span>
+                      <span className="info-value">{user?.email}</span>
+                    </div>
+                    <div className="info-row">
+                      <span className="info-label">User ID</span>
+                      <span className="info-value"><code>{user?.uid?.slice(0, 12)}...</code></span>
+                    </div>
                   </div>
                 </div>
               </div>
 
               <div className="settings-footer">
                 <button className="logout-cancel-btn" onClick={() => setShowSettings(false)}>Cancel</button>
-                <button className="logout-confirm-btn save-profile-btn" onClick={() => {
+                <button className="save-profile-btn" onClick={() => {
                   handleUpdateDisplayName();
                   setShowSettings(false);
                 }}>Save Changes</button>
