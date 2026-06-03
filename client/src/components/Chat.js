@@ -1243,13 +1243,12 @@ function Chat({ user: currentUser }) {
               style={{ display: "none" }}
             />
             <button
-              className="logout-btn logout-btn-icon"
+              className="logout-btn"
               type="button"
-              title="Logout"
-              aria-label="Logout"
               onClick={() => setShowLogoutConfirm(true)}
             >
-              <LogOut size={20} />
+              <LogOut size={16} />
+              <span>Logout</span>
             </button>
           </div>
         </div>
@@ -1360,11 +1359,11 @@ function Chat({ user: currentUser }) {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 10 }}
+                    title="Someone is typing..."
                   >
                     <span />
                     <span />
                     <span />
-                    typing...
                   </motion.div>
                 )}
               </AnimatePresence>
