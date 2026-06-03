@@ -1128,7 +1128,7 @@ function Chat({ user: currentUser }) {
             {filteredRecentChats.length > 0 ? filteredRecentChats.map((u, i) => {
               const unreadCount = getUnreadCount(u);
               return (
-                <button
+                <div
                   key={`recent-${i}`}
                   className={`user-item ${selectedUser === u ? "active" : ""}`}
                   onClick={() => handleUserSelect(u)}
@@ -1158,7 +1158,7 @@ function Chat({ user: currentUser }) {
                       <X size={14} />
                     </button>
                   </div>
-                </button>
+                </div>
               );
             }) : (
               <div className="empty-list">Try searching or start a new conversation.</div>
@@ -1170,7 +1170,7 @@ function Chat({ user: currentUser }) {
           <div className="sidebar-section-title">Online Users</div>
           <div className="sidebar-list">
             {filteredOnlineUsers.length > 0 ? filteredOnlineUsers.map((u, i) => (
-              <button
+              <div
                 key={`online-${i}`}
                 className={`user-item ${selectedUser === u ? "active" : ""}`}
                 onClick={() => handleUserSelect(u)}
@@ -1191,7 +1191,7 @@ function Chat({ user: currentUser }) {
                 {getUnreadCount(u) > 0 && (
                   <span className="unread-badge">{getUnreadCount(u)}</span>
                 )}
-              </button>
+              </div>
             )) : (
               <div className="empty-list">No contacts are available right now.</div>
             )}

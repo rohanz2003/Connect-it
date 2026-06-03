@@ -481,7 +481,7 @@ body {
   justify-content: center;
   cursor: pointer;
   transition: var(--transition);
-  opacity: 0;
+  opacity: 0.4; /* Changed from 0 to 0.4 for better visibility */
 }
 
 .user-item:hover .remove-recent-btn {
