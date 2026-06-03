@@ -1364,7 +1364,7 @@ function Chat({ user: currentUser }) {
                     <span />
                     <span />
                     <span />
-                    {typingUser.split('@')[0]} is typing...
+                    typing...
                   </motion.div>
                 )}
               </AnimatePresence>
