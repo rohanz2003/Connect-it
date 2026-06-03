@@ -463,6 +463,36 @@ body {
   text-overflow: ellipsis;
 }
 
+.user-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.remove-recent-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition);
+  opacity: 0;
+}
+
+.user-item:hover .remove-recent-btn {
+  opacity: 1;
+}
+
+.remove-recent-btn:hover {
+  background: var(--danger-light);
+  color: var(--danger-color);
+}
+
 .unread-badge {
   background: var(--danger-color);
   color: white;

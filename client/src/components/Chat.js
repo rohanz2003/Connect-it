@@ -875,24 +875,36 @@ function Chat({ user: currentUser }) {
     if (!user) return;
     if (
       window.confirm(
-        "Clear all conversations for you only? Other users will still see their messages."
+        "Clear all recent chats from your list? This will not delete the messages from the server."
       )
     ) {
-      if (socket && socket.connected) {
-        Object.keys(chatHistory).forEach((otherUser) => {
-          socket.emit("clear-chat", {
-            user1: normalizeEmail(user.email),
-            user2: normalizeEmail(otherUser),
-          });
-        });
-      }
-
       localStorage.removeItem(`chatHistory_${user.email}`);
       localStorage.removeItem(`unread_${user.email}`);
       setChatHistory({});
       setMessages([]);
       setUnreadMessages({});
       setSelectedUser(null);
+    }
+  };
+
+  const handleRemoveChatFromRecent = (e, partnerEmail) => {
+    e.stopPropagation(); // Prevent selecting the user
+    if (!user || !partnerEmail) return;
+
+    if (window.confirm(`Remove ${partnerEmail} from your recent chats?`)) {
+      const partner = normalizeEmail(partnerEmail);
+      
+      setChatHistory((prev) => {
+        const updated = { ...prev };
+        delete updated[partner];
+        persistHistory(updated, user.email);
+        return updated;
+      });
+
+      if (selectedUser && normalizeEmail(selectedUser) === partner) {
+        setMessages([]);
+        setSelectedUser(null);
+      }
     }
   };
 
@@ -1134,9 +1146,18 @@ function Chat({ user: currentUser }) {
                     <span className="user-name">{u}</span>
                     <span className="user-last">{isUserOnline(u) ? "Online" : "Last active"}</span>
                   </div>
-                  {unreadCount > 0 && (
-                    <span className="unread-badge">{unreadCount}</span>
-                  )}
+                  <div className="user-item-actions">
+                    {unreadCount > 0 && (
+                      <span className="unread-badge">{unreadCount}</span>
+                    )}
+                    <button 
+                      className="remove-recent-btn" 
+                      onClick={(e) => handleRemoveChatFromRecent(e, u)}
+                      title="Remove from list"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 </button>
               );
             }) : (
