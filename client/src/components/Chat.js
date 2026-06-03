@@ -111,20 +111,32 @@ function Chat({ user: currentUser }) {
     }
   }, [zoomedImage]);
 
-  // Auto-scroll to bottom whenever messages or typing state changes
+  // Auto-scroll to bottom whenever messages change
   useEffect(() => {
     if (!messagesEndRef.current) return;
-    
-    const container = messagesEndRef.current.parentElement;
-    const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 150;
-    const lastMsg = messages[messages.length - 1];
-    const isMyMsg = lastMsg?.sender?.toLowerCase() === user?.email?.toLowerCase();
 
-    // Scroll if we're already near bottom OR if I just sent a message
-    if (isAtBottom || isMyMsg) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesEndRef.current.parentElement;
+
+    const distanceFromBottom =
+      container.scrollHeight -
+      container.scrollTop -
+      container.clientHeight;
+
+    const isNearBottom = distanceFromBottom < 50;
+
+    const lastMsg = messages[messages.length - 1];
+
+    const isMyMessage =
+      lastMsg?.sender?.toLowerCase() ===
+      user?.email?.toLowerCase();
+
+    if (isNearBottom || isMyMessage) {
+      messagesEndRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "end"
+      });
     }
-  }, [messages, typingUser, user?.email]);
+  }, [messages, user?.email]);
 
   // Close context menu on outside click
   useEffect(() => {
