@@ -82,6 +82,12 @@ app.get("/api/health", (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
+  console.log("-----------------------------------------");
+  console.log("🚀 SERVER INITIALIZATION STARTING");
+  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📍 Port: ${PORT}`);
+  console.log("-----------------------------------------");
+
   try {
     await connectDatabase();
   } catch (err) {

@@ -57,9 +57,11 @@ const validateRequiredEnv = () => {
   if (!process.env.ADMIN_EMAIL) missing.push("ADMIN_EMAIL");
 
   if (missing.length > 0) {
-    console.error("❌ Missing required environment variables:", missing.join(", "));
+    console.error("❌ CRITICAL: Missing environment variables:", missing.join(", "));
+    console.warn("💡 TIP: Add these in your Render Dashboard -> Environment tab!");
     return false;
   }
+  console.log("✅ All required environment variables are present.");
   return true;
 };
 
