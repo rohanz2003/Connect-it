@@ -964,37 +964,47 @@ function Chat({ user: currentUser }) {
     }
   };
 
-  const handleClearAllHistory = () => {
+  const handleClearAllHistory = (e) => {
+    if (e) e.preventDefault();
     if (!user) return;
+    
     if (
       window.confirm(
         "Clear all recent chats from your list? This will not delete the messages from the server."
       )
     ) {
-      localStorage.removeItem(`chatHistory_${user.email}`);
-      localStorage.removeItem(`unread_${user.email}`);
+      // Clear all recent chats from local state and storage
+      localStorage.removeItem(`chatHistory_${user.email.toLowerCase()}`);
+      localStorage.removeItem(`unread_${user.email.toLowerCase()}`);
       setChatHistory({});
       setMessages([]);
       setUnreadMessages({});
       setSelectedUser(null);
+      alert("Recent chats cleared.");
     }
   };
 
   const handleRemoveChatFromRecent = (e, partnerEmail) => {
-    e.stopPropagation(); // Prevent selecting the user
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation(); // CRITICAL: Stop the click from selecting the user
+    }
+    
     if (!user || !partnerEmail) return;
 
     if (window.confirm(`Remove ${partnerEmail} from your recent chats?`)) {
-      const partner = normalizeEmail(partnerEmail);
+      const partner = partnerEmail.toLowerCase().trim();
       
       setChatHistory((prev) => {
         const updated = { ...prev };
         delete updated[partner];
-        persistHistory(updated, user.email);
+        // Use the lowercased email for consistency
+        persistHistory(updated, user.email.toLowerCase());
         return updated;
       });
 
-      if (selectedUser && normalizeEmail(selectedUser) === partner) {
+      // If we are currently viewing this chat, clear it
+      if (selectedUser && selectedUser.toLowerCase() === partner) {
         setMessages([]);
         setSelectedUser(null);
       }
