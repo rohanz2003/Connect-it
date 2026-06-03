@@ -293,8 +293,9 @@ function Chat({ user: currentUser }) {
 
     const loadChatHistory = async () => {
       try {
+        const userKey = normalizeEmail(user.email);
         // 1. Load from localStorage first (for offline access)
-        const savedHistory = localStorage.getItem(`chatHistory_${user.email}`);
+        const savedHistory = localStorage.getItem(`chatHistory_${userKey}`);
         if (savedHistory) {
           try {
             const parsed = JSON.parse(savedHistory);
@@ -306,16 +307,16 @@ function Chat({ user: currentUser }) {
         }
 
         // 2. Fetch recent chats from server (to get the most up-to-date list)
-        const recentChats = await fetchRecentChats(user.email);
+        const recentChats = await fetchRecentChats(userKey);
         if (recentChats && recentChats.length > 0) {
           // Build chat history structure from recent chats for display purposes
           const historyFromServer = {};
           recentChats.forEach(chat => {
             if (chat.userEmail) {
-              const emailKey = chat.userEmail.toLowerCase();
+              const emailKey = normalizeEmail(chat.userEmail);
               historyFromServer[emailKey] = [{
                 _id: chat.messageId,
-                sender: user.email,
+                sender: userKey,
                 receiver: chat.userEmail,
                 text: chat.lastMessage,
                 type: chat.type,
@@ -328,7 +329,7 @@ function Chat({ user: currentUser }) {
           // Merge with existing localStorage data, preferring localStorage for full histories
           setChatHistory(prev => {
             const merged = { ...historyFromServer, ...prev };
-            persistHistory(merged, user.email);
+            persistHistory(merged, userKey);
             return merged;
           });
           console.log("✅ Loaded", recentChats.length, "recent chats from server");
@@ -929,9 +930,12 @@ function Chat({ user: currentUser }) {
   const clearChatForPartner = (partnerEmail) => {
     if (!user || !socket?.connected || !partnerEmail) return;
 
+    const partner = normalizeEmail(partnerEmail);
+    const userKey = normalizeEmail(user.email);
+
     socket.emit(
       "clear-chat",
-      { user1: normalizeEmail(user.email), user2: normalizeEmail(partnerEmail) },
+      { user1: userKey, user2: partner },
       (ack) => {
         if (!ack?.ok) {
           alert("Failed to clear chat. Please try again.");
@@ -939,28 +943,27 @@ function Chat({ user: currentUser }) {
       }
     );
 
-    const partner = normalizeEmail(partnerEmail);
     setChatHistory((prev) => {
       const updated = { ...prev };
       delete updated[partner];
-      persistHistory(updated, user.email);
+      persistHistory(updated, userKey);
       return updated;
     });
 
     setUnreadMessages((prev) => {
-      const key = `${partner}_${normalizeEmail(user.email)}`;
+      const key = `${partner}_${userKey}`;
       if (!prev[key]) return prev;
       const next = { ...prev };
       delete next[key];
       try {
-        localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
+        localStorage.setItem(`unread_${userKey}`, JSON.stringify(next));
       } catch (e) {
         console.error("Failed to persist unread counts", e);
       }
       return next;
     });
 
-    if (selectedUser && normalizeEmail(selectedUser) === partner) {
+    if (selectedUserRef.current && normalizeEmail(selectedUserRef.current) === partner) {
       setMessages([]);
     }
   };
@@ -977,7 +980,10 @@ function Chat({ user: currentUser }) {
   };
 
   const handleClearAllHistory = (e) => {
-    if (e) e.preventDefault();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (!user) return;
     
     if (
@@ -986,13 +992,14 @@ function Chat({ user: currentUser }) {
       )
     ) {
       // Clear all recent chats from local state and storage
-      localStorage.removeItem(`chatHistory_${user.email.toLowerCase()}`);
-      localStorage.removeItem(`unread_${user.email.toLowerCase()}`);
+      const userKey = normalizeEmail(user.email);
+      localStorage.removeItem(`chatHistory_${userKey}`);
+      localStorage.removeItem(`unread_${userKey}`);
+      
       setChatHistory({});
       setMessages([]);
       setUnreadMessages({});
       setSelectedUser(null);
-      alert("Recent chats cleared.");
     }
   };
 
@@ -1004,19 +1011,32 @@ function Chat({ user: currentUser }) {
     
     if (!user || !partnerEmail) return;
 
-    if (window.confirm(`Remove ${partnerEmail} from your recent chats?`)) {
-      const partner = partnerEmail.toLowerCase().trim();
+    if (window.confirm(`Remove ${getDisplayName(partnerEmail)} from your recent chats?`)) {
+      const partner = normalizeEmail(partnerEmail);
+      const userKey = normalizeEmail(user.email);
       
       setChatHistory((prev) => {
         const updated = { ...prev };
         delete updated[partner];
-        // Use the lowercased email for consistency
-        persistHistory(updated, user.email.toLowerCase());
+        persistHistory(updated, userKey);
         return updated;
       });
 
+      setUnreadMessages((prev) => {
+        const key = `${partner}_${userKey}`;
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        try {
+          localStorage.setItem(`unread_${userKey}`, JSON.stringify(next));
+        } catch (err) {
+          console.error("Failed to persist unread counts", err);
+        }
+        return next;
+      });
+
       // If we are currently viewing this chat, clear it
-      if (selectedUser && selectedUser.toLowerCase() === partner) {
+      if (selectedUserRef.current && normalizeEmail(selectedUserRef.current) === partner) {
         setMessages([]);
         setSelectedUser(null);
       }
@@ -1171,22 +1191,24 @@ function Chat({ user: currentUser }) {
   };
 
   const handleUserSelect = (u) => {
-    console.log(`👤 Selected user: ${u}`);
-    setSelectedUser(u);
+    const partner = normalizeEmail(u);
+    console.log(`👤 Selected user: ${partner}`);
+    setSelectedUser(partner);
     
     // Update messages when user is selected, ensuring chronological order
-    if (chatHistory[u]) {
-      setMessages(chatHistory[u].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
+    if (chatHistory[partner]) {
+      setMessages(chatHistory[partner].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
     }
 
     // Clear unread badge for this chat
     if (user) {
+      const userKey = normalizeEmail(user.email);
       setUnreadMessages(prev => {
-        const key = `${u.toLowerCase()}_${user.email.toLowerCase()}`;
+        const key = `${partner}_${userKey}`;
         if (!prev[key]) return prev;
         const next = { ...prev };
         delete next[key];
-        try { localStorage.setItem(`unread_${user.email}`, JSON.stringify(next)); } catch (e) { console.error('Failed to persist unread counts', e); }
+        try { localStorage.setItem(`unread_${userKey}`, JSON.stringify(next)); } catch (e) { console.error('Failed to persist unread counts', e); }
         return next;
       });
     }
@@ -1216,7 +1238,7 @@ function Chat({ user: currentUser }) {
   // Get unread count for a user
   const getUnreadCount = (otherUser) => {
     if (!user || !otherUser) return 0;
-    const key = `${otherUser.toLowerCase()}_${user.email.toLowerCase()}`;
+    const key = `${normalizeEmail(otherUser)}_${normalizeEmail(user.email)}`;
     return unreadMessages[key] || 0;
   };
 
@@ -1304,7 +1326,7 @@ function Chat({ user: currentUser }) {
               return (
                 <div
                   key={`recent-${i}`}
-                  className={`user-item ${selectedUser === u ? "active" : ""}`}
+                  className={`user-item ${normalizeEmail(selectedUser) === normalizeEmail(u) ? "active" : ""}`}
                   onClick={() => handleUserSelect(u)}
                 >
                   <div className="avatar-wrap">
@@ -1343,7 +1365,7 @@ function Chat({ user: currentUser }) {
             {filteredOnlineUsers.length > 0 ? filteredOnlineUsers.map((u, i) => (
               <div
                 key={`online-${i}`}
-                className={`user-item ${selectedUser === u ? "active" : ""}`}
+                className={`user-item ${normalizeEmail(selectedUser) === normalizeEmail(u) ? "active" : ""}`}
                 onClick={() => handleUserSelect(u)}
               >
                 <div className="avatar-wrap">
