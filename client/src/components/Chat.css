@@ -638,15 +638,19 @@ body {
   gap: 8px;
   padding: 8px 16px;
   background: #ef4444;
-  color: #ffffff;
+  color: #000000; /* Black text for light mode */
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: var(--transition);
-  font-weight: 600;
+  font-weight: 700;
   font-size: 14px;
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
   font-family: inherit;
+}
+
+.dark .logout-btn {
+  color: #ffffff; /* White text for dark mode */
 }
 
 .logout-btn:hover {
