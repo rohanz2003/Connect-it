@@ -6,24 +6,19 @@ const createTransporter = () => {
   const pass = getEmailPassword();
 
   return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true, // Use SSL
+    service: "gmail",
     auth: { user, pass },
     // Enable logging to see the handshake in Render logs
     debug: true,
     logger: true,
-    // Robust settings for cloud environments
-    pool: true,
-    maxConnections: 3,
-    connectionTimeout: 20000,
-    greetingTimeout: 20000,
-    socketTimeout: 30000,
-    dnsTimeout: 10000,
+    // Robust timeouts for cloud environments
+    connectionTimeout: 40000, // 40s
+    greetingTimeout: 40000,   // 40s
+    socketTimeout: 60000,     // 60s
+    dnsTimeout: 20000,
     tls: {
-      // Helps with SNI issues in cloud environments
+      // Helps with SNI issues and certificate handshake
       servername: "smtp.gmail.com",
-      // If Render's certificate store is old, this avoids handshake errors
       rejectUnauthorized: false 
     }
   });
