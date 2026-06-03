@@ -629,77 +629,117 @@ body {
 .close-btn:hover {
   background: var(--danger-light);
   color: var(--danger-color);
-}
-
+}/* Logout Button */
 .logout-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 8px 16px;
-  background: #ef4444;
-  color: #000000; /* Black text for light mode */
+
+  /* Red Button */
+  background-color: #ef4444 !important;
+
+  /* Black Text in Light Mode */
+  color: #000000 !important;
+
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: var(--transition);
   font-weight: 700;
   font-size: 14px;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
   font-family: inherit;
+
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
+/* Ensure icon and text are black in light mode */
+.logout-btn,
+.logout-btn * {
+  color: #000000 !important;
+}
+
+/* Dark Mode */
 .dark .logout-btn {
-  color: #ffffff; /* White text for dark mode */
+  background-color: #ef4444 !important;
+  color: #ffffff !important;
 }
 
+/* Ensure icon and text are white in dark mode */
+.dark .logout-btn,
+.dark .logout-btn * {
+  color: #ffffff !important;
+}
+
+/* Hover Effect */
 .logout-btn:hover {
-  background: #dc2626;
+  background-color: #dc2626 !important;
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
 }
 
+/* Active Effect */
 .logout-btn:active {
   transform: translateY(0);
 }
 
+/* Modal Overlay */
 .logout-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
+
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   z-index: 9999;
 }
 
+/* Modal Box */
 .logout-modal {
   background: var(--background-white);
   border-radius: var(--radius-lg);
   padding: 32px;
+
   max-width: 400px;
   width: 90%;
+
   box-shadow: var(--shadow-xl);
   border: 1px solid var(--border-color);
+
   text-align: center;
+
   animation: modal-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Modal Animation */
 @keyframes modal-pop {
-  from { transform: scale(0.9); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
+/* Modal Heading */
 .logout-modal h3 {
   margin: 0 0 12px;
   font-size: 20px;
   color: var(--text-primary);
 }
 
+/* Modal Text */
 .logout-modal p {
   margin: 0 0 24px;
   color: var(--text-secondary);
@@ -707,19 +747,24 @@ body {
   line-height: 1.5;
 }
 
+/* Modal Buttons Container */
 .logout-modal-actions {
   display: flex;
   gap: 12px;
   justify-content: center;
 }
 
+/* Cancel Button */
 .logout-cancel-btn {
   flex: 1;
   padding: 12px 20px;
+
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
+
   background: var(--border-light);
   color: var(--text-primary);
+
   cursor: pointer;
   font-weight: 600;
   transition: var(--transition);
@@ -729,13 +774,17 @@ body {
   background: var(--border-color);
 }
 
+/* Confirm Logout Button */
 .logout-confirm-btn {
   flex: 1;
   padding: 12px 20px;
+
   border-radius: var(--radius-md);
   border: none;
+
   background: #ef4444;
-  color: #fff;
+  color: #ffffff;
+
   font-weight: 700;
   cursor: pointer;
   transition: var(--transition);
@@ -745,27 +794,43 @@ body {
   background: #dc2626;
 }
 
+/* Mobile Floating Logout Button */
 .mobile-logout-fab {
   display: none;
+
   position: fixed;
   right: 16px;
   bottom: 88px;
+
   width: 52px;
   height: 52px;
+
   border-radius: 50%;
   border: none;
+
   background: #ef4444;
-  color: #fff;
+  color: #ffffff;
+
   box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+
   z-index: 1500;
+
   align-items: center;
   justify-content: center;
+
   cursor: pointer;
   transition: transform 0.2s ease;
 }
 
 .mobile-logout-fab:hover {
   transform: scale(1.06);
+}
+
+/* Show FAB on Mobile */
+@media (max-width: 768px) {
+  .mobile-logout-fab {
+    display: flex;
+  }
 }
 
 .clear-chat-btn {
