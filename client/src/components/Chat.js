@@ -160,8 +160,14 @@ function Chat({ user: currentUser }) {
   const renderAvatar = (email, size = "md", customSrc = null) => {
     if (!email) return null;
     const lowerEmail = email.toLowerCase();
-    const src = customSrc || userProfiles[lowerEmail] || userMetadata[lowerEmail]?.profilePic || (lowerEmail === user?.email?.toLowerCase() ? user?.profilePic : null);
-    const name = getDisplayName(email);
+    
+    // Check if this is the current user
+    const isMe = user && lowerEmail === user.email.toLowerCase();
+    
+    // Get the most up-to-date data from userMetadata or the current user state
+    const metadata = userMetadata[lowerEmail];
+    const src = customSrc || (isMe ? user?.profilePic : metadata?.profilePic) || userProfiles[lowerEmail];
+    const name = (isMe ? user?.displayName : metadata?.displayName) || email.split('@')[0];
     const firstLetter = name ? name.charAt(0).toUpperCase() : "?";
 
     if (src) {
@@ -336,6 +342,20 @@ function Chat({ user: currentUser }) {
 
     socket.on("online-users", setOnlineUsers);
 
+    socket.on("all-user-metadata", (metadata) => {
+      console.log("📊 Received all user metadata:", Object.keys(metadata).length, "profiles");
+      setUserMetadata(prev => ({ ...prev, ...metadata }));
+      
+      // Also update userProfiles map for avatars
+      const profiles = {};
+      Object.keys(metadata).forEach(email => {
+        if (metadata[email].profilePic) {
+          profiles[email] = metadata[email].profilePic;
+        }
+      });
+      setUserProfiles(prev => ({ ...prev, ...profiles }));
+    });
+
     socket.on("typing", ({ from }) => {
       const activeChat = selectedUserRef.current;
       const normalizedFrom = normalizeEmail(from);
@@ -385,46 +405,37 @@ function Chat({ user: currentUser }) {
 
     // Listen for profile picture and display name updates
     socket.on("user-profile-update", (data) => {
-      console.log("👤 Profile update:", data);
-      const isMe = data.email.toLowerCase() === user.email.toLowerCase();
+      console.log("👤 Profile update received for:", data.email);
+      const isMe = user && data.email.toLowerCase() === user.email.toLowerCase();
       
+      const updatedInfo = {
+        displayName: data.displayName,
+        profilePic: data.profilePic || null,
+        bio: data.bio || ""
+      };
+
       if (isMe) {
         setUser(prev => ({
           ...prev,
-          displayName: data.displayName || prev.displayName,
-          profilePic: data.profilePic || prev.profilePic,
-          bio: data.bio !== undefined ? data.bio : prev.bio
+          ...updatedInfo
         }));
         
         // Persist to local storage
-        const savedUser = JSON.parse(localStorage.getItem("user") || "{}");
         localStorage.setItem("user", JSON.stringify({
-          ...savedUser,
-          displayName: data.displayName || savedUser.displayName,
-          profilePic: data.profilePic || savedUser.profilePic
+          ...user,
+          ...updatedInfo
         }));
       }
 
       setUserMetadata((prev) => ({
         ...prev,
-        [data.email.toLowerCase()]: {
-          displayName: data.displayName || prev[data.email.toLowerCase()]?.displayName || data.email.split('@')[0],
-          profilePic: data.profilePic || prev[data.email.toLowerCase()]?.profilePic || null,
-          bio: data.bio !== undefined ? data.bio : prev[data.email.toLowerCase()]?.bio || ""
-        }
+        [data.email.toLowerCase()]: updatedInfo
       }));
       
-      setUserProfiles((prev) => {
-        const updated = {
-          ...prev,
-          [data.email.toLowerCase()]: data.profilePic
-        };
-        // Save profiles to localStorage
-        if (user) {
-          localStorage.setItem(`userProfiles_${user.email.toLowerCase()}`, JSON.stringify(updated));
-        }
-        return updated;
-      });
+      setUserProfiles((prev) => ({
+        ...prev,
+        [data.email.toLowerCase()]: data.profilePic || null
+      }));
     });
 
     const handleChatCleared = ({ user1, user2, scope }) => {

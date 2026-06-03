@@ -53,6 +53,22 @@ module.exports = (io, socket, users, userProfiles) => {
     
     // Broadcast to all clients the updated online users list
     io.emit("online-users", Object.keys(users));
+
+    // Send all existing profile metadata to the newly joined user
+    try {
+      const allProfiles = await UserProfile.find({}, 'email displayName profilePic bio');
+      const profileMap = {};
+      allProfiles.forEach(p => {
+        profileMap[p.email.toLowerCase()] = {
+          displayName: p.displayName,
+          profilePic: p.profilePic,
+          bio: p.bio
+        };
+      });
+      socket.emit("all-user-metadata", profileMap);
+    } catch (err) {
+      console.error("Error fetching all profiles:", err.message);
+    }
   });
 
   socket.on("update-profile", async (data) => {
