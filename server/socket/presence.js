@@ -3,6 +3,7 @@ module.exports = (io, socket, users, userProfiles) => {
     // Handle both old string format and new object format
     let userId = typeof data === 'string' ? data : data?.email;
     const profilePic = typeof data === 'object' ? data?.profilePic : null;
+    const displayName = typeof data === 'object' ? data?.displayName : null;
     
     if (!userId || userId.trim() === "") {
       console.log("❌ Invalid userId received");
@@ -18,25 +19,53 @@ module.exports = (io, socket, users, userProfiles) => {
     // Join a personal room named after the email to handle multiple tabs/reconnects
     socket.join(userId);
 
-    // Store profile picture if provided
+    // Initialize or update user profile info
+    if (!userProfiles[userId]) userProfiles[userId] = {};
+    
+    let profileChanged = false;
     if (profilePic) {
-      userProfiles[userId] = profilePic;
-      console.log(`👤 ${userId} profile picture updated`);
+      userProfiles[userId].profilePic = profilePic;
+      profileChanged = true;
+    }
+    if (displayName) {
+      userProfiles[userId].displayName = displayName;
+      profileChanged = true;
     }
 
     console.log(`✅ ${userId} is online`);
-    console.log(`📊 Current online users: ${Object.keys(users).join(", ")}`);
     
-    // Broadcast profile picture update to all clients
-    if (profilePic) {
+    // Broadcast profile update if anything changed
+    if (profileChanged) {
       io.emit("user-profile-update", {
         email: userId,
-        profilePic: profilePic
+        profilePic: userProfiles[userId].profilePic,
+        displayName: userProfiles[userId].displayName
       });
     }
     
     // Broadcast to all clients the updated online users list
     io.emit("online-users", Object.keys(users));
+  });
+
+  socket.on("update-profile", (data) => {
+    const { email, displayName, profilePic, bio } = data;
+    if (!email) return;
+
+    const userId = email.toLowerCase().trim();
+    if (!userProfiles[userId]) userProfiles[userId] = {};
+
+    if (displayName) userProfiles[userId].displayName = displayName;
+    if (profilePic) userProfiles[userId].profilePic = profilePic;
+    if (bio !== undefined) userProfiles[userId].bio = bio;
+
+    console.log(`👤 Profile updated for ${userId}: ${displayName}`);
+
+    io.emit("user-profile-update", {
+      email: userId,
+      displayName: userProfiles[userId].displayName,
+      profilePic: userProfiles[userId].profilePic,
+      bio: userProfiles[userId].bio
+    });
   });
 
   socket.on("leave", (data) => {

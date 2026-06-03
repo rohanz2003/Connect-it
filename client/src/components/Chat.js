@@ -82,6 +82,10 @@ function Chat({ user: currentUser }) {
   const [replyTo, setReplyTo] = useState(null); // Message being replied to
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [newDisplayName, setNewDisplayName] = useState("");
+  const [newBio, setNewBio] = useState("");
+  const [userMetadata, setUserMetadata] = useState({}); // { email: { displayName, bio, profilePic } }
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -339,9 +343,18 @@ function Chat({ user: currentUser }) {
       setUnreadMessages(unreadData);
     });
 
-    // Listen for profile picture updates
+    // Listen for profile picture and display name updates
     socket.on("user-profile-update", (data) => {
       console.log("👤 Profile update:", data);
+      setUserMetadata((prev) => ({
+        ...prev,
+        [data.email.toLowerCase()]: {
+          displayName: data.displayName || prev[data.email.toLowerCase()]?.displayName || data.email.split('@')[0],
+          profilePic: data.profilePic || prev[data.email.toLowerCase()]?.profilePic || null,
+          bio: data.bio !== undefined ? data.bio : prev[data.email.toLowerCase()]?.bio || ""
+        }
+      }));
+      
       setUserProfiles((prev) => {
         const updated = {
           ...prev,
@@ -954,7 +967,9 @@ function Chat({ user: currentUser }) {
 
         safeLocalStorageSet("user", JSON.stringify({
           email: updatedUser.email,
-          uid: updatedUser.uid
+          uid: updatedUser.uid,
+          displayName: updatedUser.displayName || user.email.split('@')[0],
+          profilePic: newPic
         }));
         safeLocalStorageSet(`profilePic_${user.email.toLowerCase()}`, newPic);
 
@@ -966,12 +981,38 @@ function Chat({ user: currentUser }) {
 
         // 4. Inform the server
         if (socket) {
-          socket.emit("join", { email: user.email, profilePic: newPic });
+          socket.emit("update-profile", { 
+            email: user.email, 
+            profilePic: newPic,
+            displayName: user.displayName || user.email.split('@')[0]
+          });
         }
       };
       img.src = event.target.result;
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleUpdateDisplayName = () => {
+    if (!newDisplayName.trim() || !user || !socket) return;
+    
+    const updatedUser = { ...user, displayName: newDisplayName.trim() };
+    setUser(updatedUser);
+    
+    socket.emit("update-profile", {
+      email: user.email,
+      displayName: newDisplayName.trim(),
+      bio: newBio
+    });
+    
+    safeLocalStorageSet("user", JSON.stringify({
+      email: updatedUser.email,
+      uid: updatedUser.uid,
+      displayName: updatedUser.displayName,
+      profilePic: updatedUser.profilePic
+    }));
+    
+    alert("Profile updated successfully!");
   };
 
   const ensureSocketJoined = () => {
@@ -1108,7 +1149,9 @@ function Chat({ user: currentUser }) {
               onClick={() => handleZoomImage(userProfiles[user.email.toLowerCase()] || user.profilePic || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80")}
             />
             <div>
-              <span className="profile-name">{user.email.split("@")[0]}</span>
+              <span className="profile-name">
+                {user.displayName || user.email.split("@")[0]}
+              </span>
               <span className="profile-meta">
                 {isUserOnline(user.email) ? "Online" : "Offline"}
               </span>
@@ -1143,7 +1186,9 @@ function Chat({ user: currentUser }) {
                     {isUserOnline(u) && <span className="status-dot" />}
                   </div>
                   <div className="user-item-copy">
-                    <span className="user-name">{u}</span>
+                    <span className="user-name">
+                      {userMetadata[u.toLowerCase()]?.displayName || u.split('@')[0]}
+                    </span>
                     <span className="user-last">{isUserOnline(u) ? "Online" : "Last active"}</span>
                   </div>
                   <div className="user-item-actions">
@@ -1185,7 +1230,9 @@ function Chat({ user: currentUser }) {
                   <span className="status-dot online" />
                 </div>
                 <div className="user-item-copy">
-                  <span className="user-name">{u}</span>
+                  <span className="user-name">
+                    {userMetadata[u.toLowerCase()]?.displayName || u.split('@')[0]}
+                  </span>
                   <span className="user-last">Available now</span>
                 </div>
                 {getUnreadCount(u) > 0 && (
@@ -1220,7 +1267,11 @@ function Chat({ user: currentUser }) {
               />
             </div>
             <div>
-              <h3>{selectedUser || "Welcome to Connect"}</h3>
+              <h3>
+                {selectedUser 
+                  ? (userMetadata[selectedUser.toLowerCase()]?.displayName || selectedUser.split('@')[0]) 
+                  : "Welcome to Connect"}
+              </h3>
               <p>{selectedUser ? (isUserOnline(selectedUser) ? "Online" : formatLastSeen(lastSeen[selectedUser])) : "Choose a conversation or create a new one."}</p>
             </div>
           </div>
@@ -1253,16 +1304,18 @@ function Chat({ user: currentUser }) {
                 </button>
               </>
             )}
-            <label htmlFor="update-profile-pic" className="icon-btn" title="Update Profile Picture" style={{ cursor: 'pointer' }}>
+            <button 
+              className="icon-btn" 
+              title="Settings" 
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                setNewDisplayName(user?.displayName || user?.email?.split('@')[0] || "");
+                setNewBio(user?.bio || "");
+                setShowSettings(true);
+              }}
+            >
               <Settings size={18} />
-            </label>
-            <input
-              id="update-profile-pic"
-              type="file"
-              accept="image/*"
-              onChange={handleUpdateProfilePic}
-              style={{ display: "none" }}
-            />
+            </button>
             <button
               className="logout-btn"
               type="button"
@@ -1273,6 +1326,80 @@ function Chat({ user: currentUser }) {
             </button>
           </div>
         </div>
+
+        {showSettings && (
+          <div className="logout-modal-overlay" onClick={() => setShowSettings(false)}>
+            <div className="logout-modal settings-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="settings-header">
+                <h3>Settings</h3>
+                <button className="close-btn" onClick={() => setShowSettings(false)}><X size={20} /></button>
+              </div>
+              
+              <div className="settings-body">
+                <div className="settings-section">
+                  <label>Profile Picture</label>
+                  <div className="settings-avatar-edit">
+                    <img 
+                      src={user?.profilePic || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80"} 
+                      alt="Profile" 
+                      className="settings-large-avatar"
+                    />
+                    <label htmlFor="update-profile-pic-settings" className="change-dp-btn">Change Photo</label>
+                    <input
+                      id="update-profile-pic-settings"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleUpdateProfilePic}
+                      style={{ display: "none" }}
+                    />
+                  </div>
+                </div>
+
+                <div className="settings-section">
+                  <label>Display Name</label>
+                  <input 
+                    type="text" 
+                    value={newDisplayName} 
+                    onChange={(e) => setNewDisplayName(e.target.value)}
+                    placeholder="Enter your name"
+                    className="settings-input"
+                  />
+                  <p className="settings-hint">This name will be visible to everyone on the server.</p>
+                </div>
+
+                <div className="settings-section">
+                  <label>Bio / About</label>
+                  <textarea 
+                    value={newBio} 
+                    onChange={(e) => setNewBio(e.target.value)}
+                    placeholder="Tell others about yourself..."
+                    className="settings-input settings-textarea"
+                  />
+                </div>
+
+                <div className="settings-info-box">
+                  <label>Account Information</label>
+                  <div className="info-row">
+                    <span>Email:</span>
+                    <strong>{user?.email}</strong>
+                  </div>
+                  <div className="info-row">
+                    <span>User ID:</span>
+                    <code>{user?.uid?.slice(0, 8)}...</code>
+                  </div>
+                </div>
+              </div>
+
+              <div className="settings-footer">
+                <button className="logout-cancel-btn" onClick={() => setShowSettings(false)}>Cancel</button>
+                <button className="logout-confirm-btn save-profile-btn" onClick={() => {
+                  handleUpdateDisplayName();
+                  setShowSettings(false);
+                }}>Save Changes</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showLogoutConfirm && (
           <div className="logout-modal-overlay" onClick={() => setShowLogoutConfirm(false)}>
