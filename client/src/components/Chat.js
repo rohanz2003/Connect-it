@@ -948,9 +948,9 @@ function Chat({ user: currentUser }) {
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        // Compress image to 150px max dimension
+        // Increase quality: 400px max dimension for clear avatars
         const canvas = document.createElement("canvas");
-        const MAX_SIZE = 150;
+        const MAX_SIZE = 400;
         let width = img.width, height = img.height;
         if (width > height) {
           if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
@@ -959,8 +959,12 @@ function Chat({ user: currentUser }) {
         }
         canvas.width = width; canvas.height = height;
         const ctx = canvas.getContext("2d");
+        // Use high-quality image smoothing
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         ctx.drawImage(img, 0, 0, width, height);
-        const newPic = canvas.toDataURL("image/jpeg", 0.7);
+        // Use higher JPEG quality (0.9)
+        const newPic = canvas.toDataURL("image/jpeg", 0.9);
 
         const updatedUser = { ...user, profilePic: newPic };
         setUser(updatedUser);
