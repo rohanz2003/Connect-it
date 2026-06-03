@@ -43,17 +43,6 @@ const formatMongoUri = (uri) => {
 };
 
 const connectDatabase = async () => {
-  /**
-   * Attempt to resolve DNS issues by setting Google DNS servers.
-   * This can bypass local ISP blocks on SRV records.
-   */
-  try {
-    dns.setServers(["8.8.8.8", "8.8.4.4"]);
-    console.log("🌐 DNS servers set to Google (8.8.8.8, 8.8.4.4)");
-  } catch (dnsErr) {
-    console.warn("⚠️ Could not set custom DNS servers:", dnsErr.message);
-  }
-
   // Set default DNS result order to IPv4 first
   if (dns.setDefaultResultOrder) {
     dns.setDefaultResultOrder("ipv4first");

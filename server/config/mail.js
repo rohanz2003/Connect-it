@@ -6,14 +6,15 @@ const createTransporter = () => {
   const pass = getEmailPassword();
 
   return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true, // Use SSL/TLS
+    service: "gmail",
     auth: { user, pass },
-    // Increase timeouts for cloud environments like Render
-    connectionTimeout: 10000, // 10s
-    greetingTimeout: 10000,   // 10s
-    socketTimeout: 30000,     // 30s
+    // Use pool to keep connections open
+    pool: true,
+    maxConnections: 3,
+    // Robust timeouts for cloud environments
+    connectionTimeout: 20000, // 20s
+    greetingTimeout: 20000,   // 20s
+    socketTimeout: 60000,     // 60s
   });
 };
 
