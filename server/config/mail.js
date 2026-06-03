@@ -6,8 +6,14 @@ const createTransporter = () => {
   const pass = getEmailPassword();
 
   return nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true, // Use SSL/TLS
     auth: { user, pass },
+    // Increase timeouts for cloud environments like Render
+    connectionTimeout: 10000, // 10s
+    greetingTimeout: 10000,   // 10s
+    socketTimeout: 30000,     // 30s
   });
 };
 
@@ -17,6 +23,7 @@ const verifyTransporter = async (transporter, label) => {
     return false;
   }
 
+  console.log(`[${label}] Verifying email transporter...`);
   try {
     await transporter.verify();
     console.log(`[${label}] Email transporter is ready ✅`);
@@ -24,7 +31,11 @@ const verifyTransporter = async (transporter, label) => {
   } catch (err) {
     console.warn(
       `[${label}] Email transporter verification failed ⚠️`,
-      err?.message || err
+      {
+        message: err?.message || err,
+        code: err?.code,
+        command: err?.command
+      }
     );
     return false;
   }
