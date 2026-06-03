@@ -151,7 +151,39 @@ function Chat({ user: currentUser }) {
     });
   };
 
-  const getDisplayName = (email) => (email || "").split("@")[0];
+  const getDisplayName = (email) => {
+    if (!email) return "";
+    const lowerEmail = email.toLowerCase();
+    return userMetadata[lowerEmail]?.displayName || user?.displayName || email.split("@")[0];
+  };
+
+  const renderAvatar = (email, size = "md", customSrc = null) => {
+    if (!email) return null;
+    const lowerEmail = email.toLowerCase();
+    const src = customSrc || userProfiles[lowerEmail] || userMetadata[lowerEmail]?.profilePic || (lowerEmail === user?.email?.toLowerCase() ? user?.profilePic : null);
+    const name = getDisplayName(email);
+    const firstLetter = name ? name.charAt(0).toUpperCase() : "?";
+
+    if (src) {
+      return (
+        <img
+          src={src}
+          alt={name}
+          className={`user-avatar avatar-${size}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleZoomImage(src);
+          }}
+        />
+      );
+    }
+
+    return (
+      <div className={`letter-avatar avatar-${size}`}>
+        {firstLetter}
+      </div>
+    );
+  };
 
   const chatHistoryRef = useRef({});
   useEffect(() => {
@@ -192,31 +224,38 @@ function Chat({ user: currentUser }) {
 
   useEffect(() => {
     if (!currentUser) {
+      const savedUser = localStorage.getItem("user");
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          setUser(parsed);
+          setNewDisplayName(parsed.displayName || parsed.email.split('@')[0]);
+          return;
+        } catch (e) {
+          console.error("Failed to parse saved user", e);
+        }
+      }
       navigate("/");
       return;
     }
 
     const userData = {
       email: currentUser.email.toLowerCase(),
-      profilePic: currentUser.profilePic,
-      uid: currentUser.uid
+      profilePic: currentUser.profilePic || localStorage.getItem(`profilePic_${currentUser.email.toLowerCase()}`),
+      uid: currentUser.uid,
+      displayName: currentUser.displayName || currentUser.email.split('@')[0]
     };
+    
     setUser(userData);
-    safeLocalStorageSet("user", JSON.stringify({
-      email: userData.email,
-      uid: userData.uid
-    }));
+    setNewDisplayName(userData.displayName);
+    
+    safeLocalStorageSet("user", JSON.stringify(userData));
 
     if (userData.profilePic) {
       setUserProfiles((prev) => ({
         ...prev,
         [userData.email.toLowerCase()]: userData.profilePic
       }));
-    }
-
-    const savedPicFromReg = localStorage.getItem(`profilePic_${userData.email.toLowerCase()}`);
-    if (savedPicFromReg && !userData.profilePic) {
-      setUser(prev => ({ ...prev, profilePic: savedPicFromReg }));
     }
   }, [currentUser, navigate]);
 
@@ -280,7 +319,8 @@ function Chat({ user: currentUser }) {
     const handleJoin = () => {
       socket.emit("join", {
         email: user.email,
-        profilePic: user.profilePic || null
+        profilePic: user.profilePic || null,
+        displayName: user.displayName || user.email.split('@')[0]
       });
     };
 
@@ -346,6 +386,25 @@ function Chat({ user: currentUser }) {
     // Listen for profile picture and display name updates
     socket.on("user-profile-update", (data) => {
       console.log("👤 Profile update:", data);
+      const isMe = data.email.toLowerCase() === user.email.toLowerCase();
+      
+      if (isMe) {
+        setUser(prev => ({
+          ...prev,
+          displayName: data.displayName || prev.displayName,
+          profilePic: data.profilePic || prev.profilePic,
+          bio: data.bio !== undefined ? data.bio : prev.bio
+        }));
+        
+        // Persist to local storage
+        const savedUser = JSON.parse(localStorage.getItem("user") || "{}");
+        localStorage.setItem("user", JSON.stringify({
+          ...savedUser,
+          displayName: data.displayName || savedUser.displayName,
+          profilePic: data.profilePic || savedUser.profilePic
+        }));
+      }
+
       setUserMetadata((prev) => ({
         ...prev,
         [data.email.toLowerCase()]: {
@@ -997,6 +1056,34 @@ function Chat({ user: currentUser }) {
     reader.readAsDataURL(file);
   };
 
+  const handleRemoveProfilePic = () => {
+    if (!user || !socket) return;
+    
+    const updatedUser = { ...user, profilePic: null };
+    setUser(updatedUser);
+    
+    socket.emit("update-profile", {
+      email: user.email,
+      profilePic: "", // Empty string to clear in DB
+      displayName: user.displayName || user.email.split('@')[0],
+      bio: newBio
+    });
+    
+    safeLocalStorageSet("user", JSON.stringify({
+      email: updatedUser.email,
+      uid: updatedUser.uid,
+      displayName: updatedUser.displayName,
+      profilePic: null
+    }));
+    
+    setUserProfiles(prev => ({
+      ...prev,
+      [user.email.toLowerCase()]: null
+    }));
+    
+    alert("Profile picture removed!");
+  };
+
   const handleUpdateDisplayName = () => {
     if (!newDisplayName.trim() || !user || !socket) return;
     
@@ -1006,7 +1093,8 @@ function Chat({ user: currentUser }) {
     socket.emit("update-profile", {
       email: user.email,
       displayName: newDisplayName.trim(),
-      bio: newBio
+      bio: newBio,
+      profilePic: user.profilePic // Preserve current pic
     });
     
     safeLocalStorageSet("user", JSON.stringify({
@@ -1024,6 +1112,7 @@ function Chat({ user: currentUser }) {
     socket.emit("join", {
       email: normalizeEmail(user.email),
       profilePic: user.profilePic || null,
+      displayName: user.displayName || user.email.split('@')[0]
     });
   };
 
@@ -1146,12 +1235,7 @@ function Chat({ user: currentUser }) {
 
         <div className="profile-card">
           <div className="profile-card-main">
-            <img
-              src={userProfiles[user.email.toLowerCase()] || user.profilePic || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80"}
-              alt={user.email}
-              className="profile-card-avatar"
-              onClick={() => handleZoomImage(userProfiles[user.email.toLowerCase()] || user.profilePic || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80")}
-            />
+            {renderAvatar(user.email, "md")}
             <div>
               <span className="profile-name">
                 {user.displayName || user.email.split("@")[0]}
@@ -1181,17 +1265,12 @@ function Chat({ user: currentUser }) {
                   onClick={() => handleUserSelect(u)}
                 >
                   <div className="avatar-wrap">
-                    <img
-                      src={userProfiles[u] || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80"}
-                      alt={u}
-                      className="user-avatar"
-                      onClick={(e) => { e.stopPropagation(); handleZoomImage(userProfiles[u] || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80"); }}
-                    />
-                    {isUserOnline(u) && <span className="status-dot" />}
+                    {renderAvatar(u, "md")}
+                    {isUserOnline(u) && <span className="status-dot online" />}
                   </div>
                   <div className="user-item-copy">
                     <span className="user-name">
-                      {userMetadata[u.toLowerCase()]?.displayName || u.split('@')[0]}
+                      {getDisplayName(u)}
                     </span>
                     <span className="user-last">{isUserOnline(u) ? "Online" : "Last active"}</span>
                   </div>
@@ -1225,17 +1304,12 @@ function Chat({ user: currentUser }) {
                 onClick={() => handleUserSelect(u)}
               >
                 <div className="avatar-wrap">
-                  <img
-                    src={userProfiles[u] || "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80"}
-                    alt={u}
-                    className="user-avatar"
-                    onClick={(e) => { e.stopPropagation(); handleZoomImage(userProfiles[u] || "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80"); }}
-                  />
+                  {renderAvatar(u, "md")}
                   <span className="status-dot online" />
                 </div>
                 <div className="user-item-copy">
                   <span className="user-name">
-                    {userMetadata[u.toLowerCase()]?.displayName || u.split('@')[0]}
+                    {getDisplayName(u)}
                   </span>
                   <span className="user-last">Available now</span>
                 </div>
@@ -1263,17 +1337,12 @@ function Chat({ user: currentUser }) {
         <div className="chat-panel-header">
           <div className="chat-panel-title">
             <div className="header-avatar-wrap">
-              <img
-                src={selectedUser ? userProfiles[selectedUser] || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80" : "https://images.unsplash.com/photo-1503416997304-3cc562acfdc5?auto=format&fit=crop&w=200&q=80"}
-                alt={selectedUser || "Start"}
-                className="header-avatar"
-                onClick={() => selectedUser && handleZoomImage(userProfiles[selectedUser] || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80")}
-              />
+              {renderAvatar(selectedUser, "md")}
             </div>
             <div>
               <h3>
                 {selectedUser 
-                  ? (userMetadata[selectedUser.toLowerCase()]?.displayName || selectedUser.split('@')[0]) 
+                  ? getDisplayName(selectedUser) 
                   : "Welcome to Connect"}
               </h3>
               <p>{selectedUser ? (isUserOnline(selectedUser) ? "Online" : formatLastSeen(lastSeen[selectedUser])) : "Choose a conversation or create a new one."}</p>
@@ -1343,12 +1412,13 @@ function Chat({ user: currentUser }) {
                 <div className="settings-section">
                   <label>Profile Picture</label>
                   <div className="settings-avatar-edit">
-                    <img 
-                      src={user?.profilePic || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80"} 
-                      alt="Profile" 
-                      className="settings-large-avatar"
-                    />
-                    <label htmlFor="update-profile-pic-settings" className="change-dp-btn">Change Photo</label>
+                    {renderAvatar(user.email, "lg")}
+                    <div className="avatar-btns">
+                      <label htmlFor="update-profile-pic-settings" className="change-dp-btn">Change Photo</label>
+                      {user.profilePic && (
+                        <button className="remove-dp-btn" onClick={handleRemoveProfilePic}>Remove Photo</button>
+                      )}
+                    </div>
                     <input
                       id="update-profile-pic-settings"
                       type="file"
