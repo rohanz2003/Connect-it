@@ -87,6 +87,7 @@ function Chat({ user: currentUser }) {
   const [showSettings, setShowSettings] = useState(false);
   const [newDisplayName, setNewDisplayName] = useState("");
   const [newBio, setNewBio] = useState("");
+  const [tempProfilePic, setTempProfilePic] = useState(null);
   const [userMetadata, setUserMetadata] = useState({}); // { email: { displayName, bio, profilePic } }
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -113,37 +114,51 @@ function Chat({ user: currentUser }) {
     }
   }, [zoomedImage]);
 
+  const [isNearBottom, setIsNearBottom] = useState(true);
+
   // Auto-scroll to bottom whenever messages change
   useEffect(() => {
     if (!messagesEndRef.current) return;
 
     const container = messagesEndRef.current.parentElement;
 
+    const handleScrollEvent = () => {
+      const distanceFromBottom =
+        container.scrollHeight -
+        container.scrollTop -
+        container.clientHeight;
+      setIsNearBottom(distanceFromBottom < 150);
+    };
+
+    container.addEventListener("scroll", handleScrollEvent);
+    return () => container.removeEventListener("scroll", handleScrollEvent);
+  }, []);
+
+  useEffect(() => {
+    if (!messagesEndRef.current || !isNearBottom) {
+      // If it's my message, we still want to scroll even if not near bottom
+      const lastMsg = messages[messages.length - 1];
+      const isMyMessage = lastMsg?.sender?.toLowerCase() === user?.email?.toLowerCase();
+      
+      if (isMyMessage) {
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+      }
+      return;
+    }
+
     const scrollOptions = {
       behavior: "smooth",
       block: "end"
     };
 
-    const handleScroll = () => {
-      const distanceFromBottom =
-        container.scrollHeight -
-        container.scrollTop -
-        container.clientHeight;
-
-      const isNearBottom = distanceFromBottom < 150; 
-      const lastMsg = messages[messages.length - 1];
-      const isMyMessage = lastMsg?.sender?.toLowerCase() === user?.email?.toLowerCase();
-
-      // Only scroll if we are already near the bottom or if it's our own message
-      if (isNearBottom || isMyMessage) {
+    // Small delay to allow images/animations to settle
+    const timeoutId = setTimeout(() => {
+      if (messagesEndRef.current) {
         messagesEndRef.current.scrollIntoView(scrollOptions);
       }
-    };
-
-    // Small delay to allow images/animations to settle
-    const timeoutId = setTimeout(handleScroll, 100);
+    }, 100);
     return () => clearTimeout(timeoutId);
-  }, [messages, user?.email]); // Removed typingUser from dependencies to prevent jump-back
+  }, [messages, user?.email]);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -1052,7 +1067,6 @@ function Chat({ user: currentUser }) {
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        // Increase quality: 400px max dimension for clear avatars
         const canvas = document.createElement("canvas");
         const MAX_SIZE = 400;
         let width = img.width, height = img.height;
@@ -1063,38 +1077,11 @@ function Chat({ user: currentUser }) {
         }
         canvas.width = width; canvas.height = height;
         const ctx = canvas.getContext("2d");
-        // Use high-quality image smoothing
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = "high";
         ctx.drawImage(img, 0, 0, width, height);
-        // Use higher JPEG quality (0.9)
         const newPic = canvas.toDataURL("image/jpeg", 0.9);
-
-        const updatedUser = { ...user, profilePic: newPic };
-        setUser(updatedUser);
-
-        safeLocalStorageSet("user", JSON.stringify({
-          email: updatedUser.email,
-          uid: updatedUser.uid,
-          displayName: updatedUser.displayName || user.email.split('@')[0],
-          profilePic: newPic
-        }));
-        safeLocalStorageSet(`profilePic_${user.email.toLowerCase()}`, newPic);
-
-        // 3. Update the profiles map immediately
-        setUserProfiles(prev => ({
-          ...prev,
-          [user.email.toLowerCase()]: newPic
-        }));
-
-        // 4. Inform the server
-        if (socket) {
-          socket.emit("update-profile", { 
-            email: user.email, 
-            profilePic: newPic,
-            displayName: user.displayName || user.email.split('@')[0]
-          });
-        }
+        setTempProfilePic(newPic);
       };
       img.src = event.target.result;
     };
@@ -1102,54 +1089,61 @@ function Chat({ user: currentUser }) {
   };
 
   const handleRemoveProfilePic = () => {
-    if (!user || !socket) return;
-    
-    const updatedUser = { ...user, profilePic: null };
-    setUser(updatedUser);
-    
-    socket.emit("update-profile", {
-      email: user.email,
-      profilePic: "", // Empty string to clear in DB
-      displayName: user.displayName || user.email.split('@')[0],
-      bio: newBio
-    });
-    
-    safeLocalStorageSet("user", JSON.stringify({
-      email: updatedUser.email,
-      uid: updatedUser.uid,
-      displayName: updatedUser.displayName,
-      profilePic: null
-    }));
-    
-    setUserProfiles(prev => ({
-      ...prev,
-      [user.email.toLowerCase()]: null
-    }));
-    
-    alert("Profile picture removed!");
+    setTempProfilePic(""); // Empty string means removed
   };
 
-  const handleUpdateDisplayName = () => {
-    if (!newDisplayName.trim() || !user || !socket) return;
+  const handleSaveSettings = () => {
+    if (!user || !socket) return;
     
-    const updatedUser = { ...user, displayName: newDisplayName.trim() };
+    const displayName = newDisplayName.trim() || user.email.split('@')[0];
+    const profilePic = tempProfilePic !== null ? tempProfilePic : user.profilePic;
+    const bio = newBio;
+
+    // 1. Update local user state
+    const updatedUser = { ...user, displayName, profilePic, bio };
     setUser(updatedUser);
-    
-    socket.emit("update-profile", {
-      email: user.email,
-      displayName: newDisplayName.trim(),
-      bio: newBio,
-      profilePic: user.profilePic // Preserve current pic
-    });
-    
+
+    // 2. Persist to local storage
     safeLocalStorageSet("user", JSON.stringify({
       email: updatedUser.email,
       uid: updatedUser.uid,
       displayName: updatedUser.displayName,
-      profilePic: updatedUser.profilePic
+      profilePic: updatedUser.profilePic,
+      bio: updatedUser.bio
+    }));
+
+    if (updatedUser.profilePic) {
+      safeLocalStorageSet(`profilePic_${user.email.toLowerCase()}`, updatedUser.profilePic);
+    } else {
+      localStorage.removeItem(`profilePic_${user.email.toLowerCase()}`);
+    }
+
+    // 3. Update the profiles map and metadata immediately
+    setUserProfiles(prev => ({
+      ...prev,
+      [user.email.toLowerCase()]: updatedUser.profilePic || null
     }));
     
+    setUserMetadata(prev => ({
+      ...prev,
+      [user.email.toLowerCase()]: { displayName, profilePic: updatedUser.profilePic, bio }
+    }));
+
+    // 4. Inform the server
+    socket.emit("update-profile", { 
+      email: user.email, 
+      profilePic: updatedUser.profilePic,
+      displayName: updatedUser.displayName,
+      bio: updatedUser.bio
+    });
+
+    setShowSettings(false);
     alert("Profile updated successfully!");
+  };
+
+  const handleCancelSettings = () => {
+    setShowSettings(false);
+    // Values will be reset when modal is reopened
   };
 
   const ensureSocketJoined = () => {
@@ -1437,6 +1431,7 @@ function Chat({ user: currentUser }) {
               onClick={() => {
                 setNewDisplayName(user?.displayName || user?.email?.split('@')[0] || "");
                 setNewBio(user?.bio || "");
+                setTempProfilePic(null); // Reset temp pic
                 setShowSettings(true);
               }}
             >
@@ -1465,12 +1460,12 @@ function Chat({ user: currentUser }) {
                 <div className="settings-section">
                   <label className="settings-label">Profile Picture</label>
                   <div className="settings-avatar-card">
-                    {renderAvatar(user.email, "lg")}
+                    {renderAvatar(user.email, "lg", tempProfilePic !== null ? tempProfilePic : undefined)}
                     <div className="avatar-actions-row">
                       <label htmlFor="update-profile-pic-settings" className="change-dp-btn">
                         Change Photo
                       </label>
-                      {user.profilePic && (
+                      {(tempProfilePic || (tempProfilePic === null && user.profilePic)) && (
                         <button className="remove-dp-btn" onClick={handleRemoveProfilePic}>
                           Remove Photo
                         </button>
@@ -1512,23 +1507,20 @@ function Chat({ user: currentUser }) {
                   <label className="settings-label">Account Information</label>
                   <div className="settings-info-card">
                     <div className="info-row">
-                      <span className="info-label">Email</span>
+                      <span className="info-label">Email Address</span>
                       <span className="info-value">{user?.email}</span>
                     </div>
                     <div className="info-row">
-                      <span className="info-label">User ID</span>
-                      <span className="info-value"><code>{user?.uid?.slice(0, 12)}...</code></span>
+                      <span className="info-label">Username</span>
+                      <span className="info-value">{user?.email?.split('@')[0]}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="settings-footer">
-                <button className="logout-cancel-btn" onClick={() => setShowSettings(false)}>Cancel</button>
-                <button className="save-profile-btn" onClick={() => {
-                  handleUpdateDisplayName();
-                  setShowSettings(false);
-                }}>Save Changes</button>
+                <button className="remove-dp-btn" style={{ borderColor: 'var(--text-light)', color: 'var(--text-secondary)' }} onClick={handleCancelSettings}>Cancel</button>
+                <button className="save-profile-btn" onClick={handleSaveSettings}>Save Changes</button>
               </div>
             </div>
           </div>
