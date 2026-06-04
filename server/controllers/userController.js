@@ -1,14 +1,19 @@
-const User = require("../modules/User");
+const User = require("../models/UserProfile");
 
 // Create or update a user record (e.g., update lastSeen)
 exports.createOrUpdateUser = async (req, res) => {
   try {
-    const { email, lastSeen } = req.body;
+    const { email, lastSeen, displayName, profilePic } = req.body;
     if (!email) return res.status(400).json({ error: "email is required" });
 
     const user = await User.findOneAndUpdate(
       { email: email.toLowerCase() },
-      { lastSeen: lastSeen || new Date(), email: email.toLowerCase() },
+      { 
+        lastSeen: lastSeen || new Date(), 
+        email: email.toLowerCase(),
+        displayName: displayName,
+        profilePic: profilePic
+      },
       { upsert: true, new: true }
     );
 
@@ -22,12 +27,12 @@ exports.createOrUpdateUser = async (req, res) => {
 // Update user's avatar/profile picture URL
 exports.updateAvatar = async (req, res) => {
   try {
-    const { email, avatarUrl } = req.body;
-    if (!email || !avatarUrl) return res.status(400).json({ error: "email and avatarUrl are required" });
+    const { email, profilePic } = req.body;
+    if (!email || !profilePic) return res.status(400).json({ error: "email and profilePic are required" });
 
     const user = await User.findOneAndUpdate(
       { email: email.toLowerCase() },
-      { avatarUrl },
+      { profilePic },
       { upsert: true, new: true }
     );
 

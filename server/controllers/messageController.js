@@ -54,52 +54,61 @@ exports.getRecentChats = async (req, res) => {
 
     const normalizedEmail = normalizeEmail(userEmail);
 
+    // Get all users this person has chatted with, and the last message from each
+    const conversations = await Message.aggregate([
+      {
+        $match: {
+          $or: [{ sender: normalizedEmail }, { receiver: normalizedEmail }],
+        },
+      },
+      { $sort: { timestamp: -1 } },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $eq: ["$sender", normalizedEmail] },
+              "$receiver",
+              "$sender",
+            ],
+          },
+          lastMessage: { $first: "$text" },
+          timestamp: { $first: "$timestamp" },
+          type: { $first: "$type" },
+          messageId: { $first: "$_id" },
+        },
+      },
+      { $sort: { timestamp: -1 } },
+    ]);
+
+    // Get cleared chat records to filter out hidden conversations
     const clearedRecords = await ClearedChat.find({ user: normalizedEmail }).lean();
     const clearedMap = Object.fromEntries(
       clearedRecords.map((r) => [r.partner, r.clearedAt])
     );
 
-    const messages = await Message.find({
-      $or: [{ sender: normalizedEmail }, { receiver: normalizedEmail }],
-    })
-      .sort({ timestamp: -1 })
-      .limit(1000)
-      .lean();
-
-    const conversations = {};
-
-    for (const msg of messages) {
-      const otherUser =
-        msg.sender === normalizedEmail ? msg.receiver : msg.sender;
-      const clearedAt = clearedMap[otherUser];
-      const msgTime = msg.timestamp || msg.createdAt;
-
-      if (clearedAt && new Date(msgTime) <= new Date(clearedAt)) {
-        continue;
-      }
-
-      if (!conversations[otherUser]) {
-        const decrypted = decryptMessageDoc(msg);
+    const recentChats = conversations
+      .filter((conv) => {
+        const clearedAt = clearedMap[conv._id];
+        if (!clearedAt) return true;
+        return new Date(conv.timestamp) > new Date(clearedAt);
+      })
+      .map((conv) => {
+        const decrypted = decryptMessageDoc(conv);
         const preview =
           decrypted.type === "media"
             ? "[Media]"
-            : typeof decrypted.text === "string"
-              ? decrypted.text
-              : "[Message]";
+            : typeof decrypted.lastMessage === "string"
+            ? decrypted.lastMessage
+            : "[Message]";
 
-        conversations[otherUser] = {
-          userEmail: otherUser,
+        return {
+          userEmail: conv._id,
           lastMessage: preview,
-          timestamp: msgTime,
-          type: msg.type,
-          messageId: msg._id,
+          timestamp: conv.timestamp,
+          type: conv.type,
+          messageId: conv.messageId,
         };
-      }
-    }
-
-    const recentChats = Object.values(conversations).sort(
-      (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-    );
+      });
 
     res.json(recentChats);
   } catch (error) {

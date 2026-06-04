@@ -1,7 +1,7 @@
 // Admin Controller - Get all data from database
 const Message = require("../models/Message");
 const Feedback = require("../models/Feedback");
-const User = require("../modules/User");
+const User = require("../models/UserProfile");
 const { decryptMessageDoc } = require("../utils/messageCrypto");
 
 // Get all messages with sender details

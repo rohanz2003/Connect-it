@@ -1,8 +1,11 @@
+const UserProfile = require("../models/UserProfile");
+
 module.exports = (io, socket, users, userProfiles) => {
-  socket.on("join", (data) => {
+  socket.on("join", async (data) => {
     // Handle both old string format and new object format
     let userId = typeof data === 'string' ? data : data?.email;
     const profilePic = typeof data === 'object' ? data?.profilePic : null;
+    const displayName = typeof data === 'object' ? data?.displayName : null;
     
     if (!userId || userId.trim() === "") {
       console.log("❌ Invalid userId received");
@@ -15,28 +18,97 @@ module.exports = (io, socket, users, userProfiles) => {
     }
     users[userId].add(socket.id);
     
-    // Join a personal room named after the email to handle multiple tabs/reconnects
+    // Join a personal room named after the email
     socket.join(userId);
 
-    // Store profile picture if provided
-    if (profilePic) {
-      userProfiles[userId] = profilePic;
-      console.log(`👤 ${userId} profile picture updated`);
+    // Fetch profile from DB on join to sync
+    try {
+      const dbProfile = await UserProfile.findOne({ email: userId });
+      if (dbProfile) {
+        userProfiles[userId] = {
+          displayName: dbProfile.displayName,
+          profilePic: dbProfile.profilePic,
+          bio: dbProfile.bio
+        };
+        // Send existing profile info back to the user
+        socket.emit("user-profile-update", {
+          email: userId,
+          displayName: dbProfile.displayName,
+          profilePic: dbProfile.profilePic,
+          bio: dbProfile.bio
+        });
+      } else if (displayName || profilePic) {
+        // Create initial profile if it doesn't exist
+        await UserProfile.create({
+          email: userId,
+          displayName: displayName || userId.split('@')[0],
+          profilePic: profilePic
+        });
+      }
+    } catch (err) {
+      console.error("Error syncing profile from DB:", err.message);
     }
 
     console.log(`✅ ${userId} is online`);
-    console.log(`📊 Current online users: ${Object.keys(users).join(", ")}`);
-    
-    // Broadcast profile picture update to all clients
-    if (profilePic) {
-      io.emit("user-profile-update", {
-        email: userId,
-        profilePic: profilePic
-      });
-    }
     
     // Broadcast to all clients the updated online users list
     io.emit("online-users", Object.keys(users));
+
+    // Send all existing profile metadata to the newly joined user
+    try {
+      const allProfiles = await UserProfile.find({}, 'email displayName profilePic bio');
+      const profileMap = {};
+      allProfiles.forEach(p => {
+        profileMap[p.email.toLowerCase()] = {
+          displayName: p.displayName,
+          profilePic: p.profilePic,
+          bio: p.bio
+        };
+      });
+      socket.emit("all-user-metadata", profileMap);
+    } catch (err) {
+      console.error("Error fetching all profiles:", err.message);
+    }
+  });
+
+  socket.on("update-profile", async (data) => {
+    const { email, displayName, profilePic, bio } = data;
+    if (!email) return;
+
+    const userId = email.toLowerCase().trim();
+    
+    try {
+      // Persist to MongoDB Atlas
+      const updatedProfile = await UserProfile.findOneAndUpdate(
+        { email: userId },
+        { 
+          $set: { 
+            displayName: displayName || userId.split('@')[0], 
+            profilePic: profilePic, 
+            bio: bio 
+          } 
+        },
+        { upsert: true, new: true }
+      );
+
+      // Update in-memory cache
+      userProfiles[userId] = {
+        displayName: updatedProfile.displayName,
+        profilePic: updatedProfile.profilePic,
+        bio: updatedProfile.bio
+      };
+
+      console.log(`👤 Profile updated and saved to DB for ${userId}`);
+
+      io.emit("user-profile-update", {
+        email: userId,
+        displayName: updatedProfile.displayName,
+        profilePic: updatedProfile.profilePic,
+        bio: updatedProfile.bio
+      });
+    } catch (err) {
+      console.error("Error saving profile to DB:", err.message);
+    }
   });
 
   socket.on("leave", (data) => {

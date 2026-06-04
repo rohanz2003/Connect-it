@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { LogOut, Mail, ShieldCheck, ArrowLeft, MessageSquare, MessageCircle, Users, Star, TrendingUp, Send, Loader2 } from "lucide-react";
+import Avatar from "./Avatar";
 import "../styles/Admin.css";
 
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
@@ -588,14 +589,13 @@ function AdminDashboard() {
               <div className="users-grid">
                 {users.map((user, index) => (
                   <div key={index} className="user-card">
-                    <div className="user-avatar">
-                      {user.avatarUrl ? (
-                        <img src={user.avatarUrl} alt={user.email} />
-                      ) : (
-                        <div className="avatar-placeholder">
-                          {user.email.charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                    <div className="user-avatar-container">
+                      <Avatar 
+                        email={user.email}
+                        name={user.displayName}
+                        src={user.profilePic}
+                        size="lg"
+                      />
                     </div>
                     <h4 className="user-email">{user.email}</h4>
                     <p className="user-last-seen">

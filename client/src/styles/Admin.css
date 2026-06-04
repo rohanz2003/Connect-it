@@ -788,28 +788,10 @@
   box-shadow: var(--shadow-lg);
 }
 
-.user-avatar {
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 16px;
-  border-radius: 50%;
-  overflow: hidden;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.user-avatar-container {
   display: flex;
-  align-items: center;
   justify-content: center;
-}
-
-.user-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-placeholder {
-  color: white;
-  font-size: 32px;
-  font-weight: 700;
+  margin-bottom: 16px;
 }
 
 .user-email {

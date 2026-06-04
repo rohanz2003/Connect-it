@@ -84,6 +84,8 @@ function App() {
       <Route path="/feedback" element={<Feedback />} />
       
       <Route path="/admin" element={<Admin />} />
+      <Route path="/admin/login" element={<Admin />} />
+      <Route path="/admin/dashboard" element={<Admin />} />
     </Routes>
   );
 }

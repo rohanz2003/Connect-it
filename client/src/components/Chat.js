@@ -26,6 +26,7 @@ import useSocket from "../hooks/useSocket";
 import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
 import { fetchMessages, fetchRecentChats } from "../services/messageService";
 import { useNavigate } from "react-router-dom";
+import Avatar from "./Avatar";
 import "./Chat.css";
 
 const normalizeEmail = (email) => (email || "").toLowerCase().trim();
@@ -82,6 +83,10 @@ function Chat({ user: currentUser }) {
   const [replyTo, setReplyTo] = useState(null); // Message being replied to
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [newDisplayName, setNewDisplayName] = useState("");
+  const [newBio, setNewBio] = useState("");
+  const [userMetadata, setUserMetadata] = useState({}); // { email: { displayName, bio, profilePic } }
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -107,10 +112,36 @@ function Chat({ user: currentUser }) {
     }
   }, [zoomedImage]);
 
-  // Auto-scroll to bottom whenever messages or typing state changes
+  // Auto-scroll to bottom whenever messages or typing status change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, typingUser]);
+    if (!messagesEndRef.current) return;
+
+    const container = messagesEndRef.current.parentElement;
+
+    const scrollOptions = {
+      behavior: "smooth",
+      block: "end"
+    };
+
+    const handleScroll = () => {
+      const distanceFromBottom =
+        container.scrollHeight -
+        container.scrollTop -
+        container.clientHeight;
+
+      const isNearBottom = distanceFromBottom < 100; // Increased threshold for better reliability
+      const lastMsg = messages[messages.length - 1];
+      const isMyMessage = lastMsg?.sender?.toLowerCase() === user?.email?.toLowerCase();
+
+      if (isNearBottom || isMyMessage) {
+        messagesEndRef.current.scrollIntoView(scrollOptions);
+      }
+    };
+
+    // Small delay to allow images/animations to settle
+    const timeoutId = setTimeout(handleScroll, 100);
+    return () => clearTimeout(timeoutId);
+  }, [messages, user?.email, typingUser]);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -147,7 +178,37 @@ function Chat({ user: currentUser }) {
     });
   };
 
-  const getDisplayName = (email) => (email || "").split("@")[0];
+  const getDisplayName = (email) => {
+    if (!email) return "";
+    const lowerEmail = email.toLowerCase();
+    return userMetadata[lowerEmail]?.displayName || user?.displayName || email.split("@")[0];
+  };
+
+  const renderAvatar = (email, size = "md", customSrc = null) => {
+    if (!email) return null;
+    const lowerEmail = email.toLowerCase();
+    
+    // Check if this is the current user
+    const isMe = user && lowerEmail === user.email.toLowerCase();
+    
+    // Get the most up-to-date data from userMetadata or the current user state
+    const metadata = userMetadata[lowerEmail];
+    const src = customSrc || (isMe ? user?.profilePic : metadata?.profilePic) || userProfiles[lowerEmail];
+    const name = (isMe ? user?.displayName : metadata?.displayName) || email.split('@')[0];
+
+    return (
+      <Avatar 
+        email={lowerEmail}
+        name={name}
+        src={src}
+        size={size}
+        onClick={src ? (e) => {
+          e.stopPropagation();
+          handleZoomImage(src);
+        } : undefined}
+      />
+    );
+  };
 
   const chatHistoryRef = useRef({});
   useEffect(() => {
@@ -188,31 +249,38 @@ function Chat({ user: currentUser }) {
 
   useEffect(() => {
     if (!currentUser) {
+      const savedUser = localStorage.getItem("user");
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          setUser(parsed);
+          setNewDisplayName(parsed.displayName || parsed.email.split('@')[0]);
+          return;
+        } catch (e) {
+          console.error("Failed to parse saved user", e);
+        }
+      }
       navigate("/");
       return;
     }
 
     const userData = {
       email: currentUser.email.toLowerCase(),
-      profilePic: currentUser.profilePic,
-      uid: currentUser.uid
+      profilePic: currentUser.profilePic || localStorage.getItem(`profilePic_${currentUser.email.toLowerCase()}`),
+      uid: currentUser.uid,
+      displayName: currentUser.displayName || currentUser.email.split('@')[0]
     };
+    
     setUser(userData);
-    safeLocalStorageSet("user", JSON.stringify({
-      email: userData.email,
-      uid: userData.uid
-    }));
+    setNewDisplayName(userData.displayName);
+    
+    safeLocalStorageSet("user", JSON.stringify(userData));
 
     if (userData.profilePic) {
       setUserProfiles((prev) => ({
         ...prev,
         [userData.email.toLowerCase()]: userData.profilePic
       }));
-    }
-
-    const savedPicFromReg = localStorage.getItem(`profilePic_${userData.email.toLowerCase()}`);
-    if (savedPicFromReg && !userData.profilePic) {
-      setUser(prev => ({ ...prev, profilePic: savedPicFromReg }));
     }
   }, [currentUser, navigate]);
 
@@ -222,8 +290,9 @@ function Chat({ user: currentUser }) {
 
     const loadChatHistory = async () => {
       try {
+        const userKey = normalizeEmail(user.email);
         // 1. Load from localStorage first (for offline access)
-        const savedHistory = localStorage.getItem(`chatHistory_${user.email}`);
+        const savedHistory = localStorage.getItem(`chatHistory_${userKey}`);
         if (savedHistory) {
           try {
             const parsed = JSON.parse(savedHistory);
@@ -235,16 +304,16 @@ function Chat({ user: currentUser }) {
         }
 
         // 2. Fetch recent chats from server (to get the most up-to-date list)
-        const recentChats = await fetchRecentChats(user.email);
+        const recentChats = await fetchRecentChats(userKey);
         if (recentChats && recentChats.length > 0) {
           // Build chat history structure from recent chats for display purposes
           const historyFromServer = {};
           recentChats.forEach(chat => {
             if (chat.userEmail) {
-              const emailKey = chat.userEmail.toLowerCase();
+              const emailKey = normalizeEmail(chat.userEmail);
               historyFromServer[emailKey] = [{
                 _id: chat.messageId,
-                sender: user.email,
+                sender: userKey,
                 receiver: chat.userEmail,
                 text: chat.lastMessage,
                 type: chat.type,
@@ -257,7 +326,7 @@ function Chat({ user: currentUser }) {
           // Merge with existing localStorage data, preferring localStorage for full histories
           setChatHistory(prev => {
             const merged = { ...historyFromServer, ...prev };
-            persistHistory(merged, user.email);
+            persistHistory(merged, userKey);
             return merged;
           });
           console.log("✅ Loaded", recentChats.length, "recent chats from server");
@@ -276,7 +345,8 @@ function Chat({ user: currentUser }) {
     const handleJoin = () => {
       socket.emit("join", {
         email: user.email,
-        profilePic: user.profilePic || null
+        profilePic: user.profilePic || null,
+        displayName: user.displayName || user.email.split('@')[0]
       });
     };
 
@@ -291,6 +361,20 @@ function Chat({ user: currentUser }) {
     }
 
     socket.on("online-users", setOnlineUsers);
+
+    socket.on("all-user-metadata", (metadata) => {
+      console.log("📊 Received all user metadata:", Object.keys(metadata).length, "profiles");
+      setUserMetadata(prev => ({ ...prev, ...metadata }));
+      
+      // Also update userProfiles map for avatars
+      const profiles = {};
+      Object.keys(metadata).forEach(email => {
+        if (metadata[email].profilePic) {
+          profiles[email] = metadata[email].profilePic;
+        }
+      });
+      setUserProfiles(prev => ({ ...prev, ...profiles }));
+    });
 
     socket.on("typing", ({ from }) => {
       const activeChat = selectedUserRef.current;
@@ -339,20 +423,39 @@ function Chat({ user: currentUser }) {
       setUnreadMessages(unreadData);
     });
 
-    // Listen for profile picture updates
+    // Listen for profile picture and display name updates
     socket.on("user-profile-update", (data) => {
-      console.log("👤 Profile update:", data);
-      setUserProfiles((prev) => {
-        const updated = {
+      console.log("👤 Profile update received for:", data.email);
+      const isMe = user && data.email.toLowerCase() === user.email.toLowerCase();
+      
+      const updatedInfo = {
+        displayName: data.displayName,
+        profilePic: data.profilePic || null,
+        bio: data.bio || ""
+      };
+
+      if (isMe) {
+        setUser(prev => ({
           ...prev,
-          [data.email.toLowerCase()]: data.profilePic
-        };
-        // Save profiles to localStorage
-        if (user) {
-          localStorage.setItem(`userProfiles_${user.email.toLowerCase()}`, JSON.stringify(updated));
-        }
-        return updated;
-      });
+          ...updatedInfo
+        }));
+        
+        // Persist to local storage
+        localStorage.setItem("user", JSON.stringify({
+          ...user,
+          ...updatedInfo
+        }));
+      }
+
+      setUserMetadata((prev) => ({
+        ...prev,
+        [data.email.toLowerCase()]: updatedInfo
+      }));
+      
+      setUserProfiles((prev) => ({
+        ...prev,
+        [data.email.toLowerCase()]: data.profilePic || null
+      }));
     });
 
     const handleChatCleared = ({ user1, user2, scope }) => {
@@ -824,9 +927,12 @@ function Chat({ user: currentUser }) {
   const clearChatForPartner = (partnerEmail) => {
     if (!user || !socket?.connected || !partnerEmail) return;
 
+    const partner = normalizeEmail(partnerEmail);
+    const userKey = normalizeEmail(user.email);
+
     socket.emit(
       "clear-chat",
-      { user1: normalizeEmail(user.email), user2: normalizeEmail(partnerEmail) },
+      { user1: userKey, user2: partner },
       (ack) => {
         if (!ack?.ok) {
           alert("Failed to clear chat. Please try again.");
@@ -834,28 +940,27 @@ function Chat({ user: currentUser }) {
       }
     );
 
-    const partner = normalizeEmail(partnerEmail);
     setChatHistory((prev) => {
       const updated = { ...prev };
       delete updated[partner];
-      persistHistory(updated, user.email);
+      persistHistory(updated, userKey);
       return updated;
     });
 
     setUnreadMessages((prev) => {
-      const key = `${partner}_${normalizeEmail(user.email)}`;
+      const key = `${partner}_${userKey}`;
       if (!prev[key]) return prev;
       const next = { ...prev };
       delete next[key];
       try {
-        localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
+        localStorage.setItem(`unread_${userKey}`, JSON.stringify(next));
       } catch (e) {
         console.error("Failed to persist unread counts", e);
       }
       return next;
     });
 
-    if (selectedUser && normalizeEmail(selectedUser) === partner) {
+    if (selectedUserRef.current && normalizeEmail(selectedUserRef.current) === partner) {
       setMessages([]);
     }
   };
@@ -871,15 +976,23 @@ function Chat({ user: currentUser }) {
     }
   };
 
-  const handleClearAllHistory = () => {
+  const handleClearAllHistory = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (!user) return;
+    
     if (
       window.confirm(
         "Clear all recent chats from your list? This will not delete the messages from the server."
       )
     ) {
-      localStorage.removeItem(`chatHistory_${user.email}`);
-      localStorage.removeItem(`unread_${user.email}`);
+      // Clear all recent chats from local state and storage
+      const userKey = normalizeEmail(user.email);
+      localStorage.removeItem(`chatHistory_${userKey}`);
+      localStorage.removeItem(`unread_${userKey}`);
+      
       setChatHistory({});
       setMessages([]);
       setUnreadMessages({});
@@ -888,20 +1001,39 @@ function Chat({ user: currentUser }) {
   };
 
   const handleRemoveChatFromRecent = (e, partnerEmail) => {
-    e.stopPropagation(); // Prevent selecting the user
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation(); // CRITICAL: Stop the click from selecting the user
+    }
+    
     if (!user || !partnerEmail) return;
 
-    if (window.confirm(`Remove ${partnerEmail} from your recent chats?`)) {
+    if (window.confirm(`Remove ${getDisplayName(partnerEmail)} from your recent chats?`)) {
       const partner = normalizeEmail(partnerEmail);
+      const userKey = normalizeEmail(user.email);
       
       setChatHistory((prev) => {
         const updated = { ...prev };
         delete updated[partner];
-        persistHistory(updated, user.email);
+        persistHistory(updated, userKey);
         return updated;
       });
 
-      if (selectedUser && normalizeEmail(selectedUser) === partner) {
+      setUnreadMessages((prev) => {
+        const key = `${partner}_${userKey}`;
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        try {
+          localStorage.setItem(`unread_${userKey}`, JSON.stringify(next));
+        } catch (err) {
+          console.error("Failed to persist unread counts", err);
+        }
+        return next;
+      });
+
+      // If we are currently viewing this chat, clear it
+      if (selectedUserRef.current && normalizeEmail(selectedUserRef.current) === partner) {
         setMessages([]);
         setSelectedUser(null);
       }
@@ -935,9 +1067,9 @@ function Chat({ user: currentUser }) {
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        // Compress image to 150px max dimension
+        // Increase quality: 400px max dimension for clear avatars
         const canvas = document.createElement("canvas");
-        const MAX_SIZE = 150;
+        const MAX_SIZE = 400;
         let width = img.width, height = img.height;
         if (width > height) {
           if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
@@ -946,15 +1078,21 @@ function Chat({ user: currentUser }) {
         }
         canvas.width = width; canvas.height = height;
         const ctx = canvas.getContext("2d");
+        // Use high-quality image smoothing
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         ctx.drawImage(img, 0, 0, width, height);
-        const newPic = canvas.toDataURL("image/jpeg", 0.7);
+        // Use higher JPEG quality (0.9)
+        const newPic = canvas.toDataURL("image/jpeg", 0.9);
 
         const updatedUser = { ...user, profilePic: newPic };
         setUser(updatedUser);
 
         safeLocalStorageSet("user", JSON.stringify({
           email: updatedUser.email,
-          uid: updatedUser.uid
+          uid: updatedUser.uid,
+          displayName: updatedUser.displayName || user.email.split('@')[0],
+          profilePic: newPic
         }));
         safeLocalStorageSet(`profilePic_${user.email.toLowerCase()}`, newPic);
 
@@ -966,7 +1104,11 @@ function Chat({ user: currentUser }) {
 
         // 4. Inform the server
         if (socket) {
-          socket.emit("join", { email: user.email, profilePic: newPic });
+          socket.emit("update-profile", { 
+            email: user.email, 
+            profilePic: newPic,
+            displayName: user.displayName || user.email.split('@')[0]
+          });
         }
       };
       img.src = event.target.result;
@@ -974,11 +1116,63 @@ function Chat({ user: currentUser }) {
     reader.readAsDataURL(file);
   };
 
+  const handleRemoveProfilePic = () => {
+    if (!user || !socket) return;
+    
+    const updatedUser = { ...user, profilePic: null };
+    setUser(updatedUser);
+    
+    socket.emit("update-profile", {
+      email: user.email,
+      profilePic: "", // Empty string to clear in DB
+      displayName: user.displayName || user.email.split('@')[0],
+      bio: newBio
+    });
+    
+    safeLocalStorageSet("user", JSON.stringify({
+      email: updatedUser.email,
+      uid: updatedUser.uid,
+      displayName: updatedUser.displayName,
+      profilePic: null
+    }));
+    
+    setUserProfiles(prev => ({
+      ...prev,
+      [user.email.toLowerCase()]: null
+    }));
+    
+    alert("Profile picture removed!");
+  };
+
+  const handleUpdateDisplayName = () => {
+    if (!newDisplayName.trim() || !user || !socket) return;
+    
+    const updatedUser = { ...user, displayName: newDisplayName.trim() };
+    setUser(updatedUser);
+    
+    socket.emit("update-profile", {
+      email: user.email,
+      displayName: newDisplayName.trim(),
+      bio: newBio,
+      profilePic: user.profilePic // Preserve current pic
+    });
+    
+    safeLocalStorageSet("user", JSON.stringify({
+      email: updatedUser.email,
+      uid: updatedUser.uid,
+      displayName: updatedUser.displayName,
+      profilePic: updatedUser.profilePic
+    }));
+    
+    alert("Profile updated successfully!");
+  };
+
   const ensureSocketJoined = () => {
     if (!socket || !user) return;
     socket.emit("join", {
       email: normalizeEmail(user.email),
       profilePic: user.profilePic || null,
+      displayName: user.displayName || user.email.split('@')[0]
     });
   };
 
@@ -994,22 +1188,24 @@ function Chat({ user: currentUser }) {
   };
 
   const handleUserSelect = (u) => {
-    console.log(`👤 Selected user: ${u}`);
-    setSelectedUser(u);
+    const partner = normalizeEmail(u);
+    console.log(`👤 Selected user: ${partner}`);
+    setSelectedUser(partner);
     
     // Update messages when user is selected, ensuring chronological order
-    if (chatHistory[u]) {
-      setMessages(chatHistory[u].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
+    if (chatHistory[partner]) {
+      setMessages(chatHistory[partner].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
     }
 
     // Clear unread badge for this chat
     if (user) {
+      const userKey = normalizeEmail(user.email);
       setUnreadMessages(prev => {
-        const key = `${u.toLowerCase()}_${user.email.toLowerCase()}`;
+        const key = `${partner}_${userKey}`;
         if (!prev[key]) return prev;
         const next = { ...prev };
         delete next[key];
-        try { localStorage.setItem(`unread_${user.email}`, JSON.stringify(next)); } catch (e) { console.error('Failed to persist unread counts', e); }
+        try { localStorage.setItem(`unread_${userKey}`, JSON.stringify(next)); } catch (e) { console.error('Failed to persist unread counts', e); }
         return next;
       });
     }
@@ -1039,7 +1235,7 @@ function Chat({ user: currentUser }) {
   // Get unread count for a user
   const getUnreadCount = (otherUser) => {
     if (!user || !otherUser) return 0;
-    const key = `${otherUser.toLowerCase()}_${user.email.toLowerCase()}`;
+    const key = `${normalizeEmail(otherUser)}_${normalizeEmail(user.email)}`;
     return unreadMessages[key] || 0;
   };
 
@@ -1101,14 +1297,11 @@ function Chat({ user: currentUser }) {
 
         <div className="profile-card">
           <div className="profile-card-main">
-            <img
-              src={userProfiles[user.email.toLowerCase()] || user.profilePic || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80"}
-              alt={user.email}
-              className="profile-card-avatar"
-              onClick={() => handleZoomImage(userProfiles[user.email.toLowerCase()] || user.profilePic || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80")}
-            />
+            {renderAvatar(user.email, "md")}
             <div>
-              <span className="profile-name">{user.email.split("@")[0]}</span>
+              <span className="profile-name">
+                {user.displayName || user.email.split("@")[0]}
+              </span>
               <span className="profile-meta">
                 {isUserOnline(user.email) ? "Online" : "Offline"}
               </span>
@@ -1130,20 +1323,17 @@ function Chat({ user: currentUser }) {
               return (
                 <div
                   key={`recent-${i}`}
-                  className={`user-item ${selectedUser === u ? "active" : ""}`}
+                  className={`user-item ${normalizeEmail(selectedUser) === normalizeEmail(u) ? "active" : ""}`}
                   onClick={() => handleUserSelect(u)}
                 >
                   <div className="avatar-wrap">
-                    <img
-                      src={userProfiles[u] || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80"}
-                      alt={u}
-                      className="user-avatar"
-                      onClick={(e) => { e.stopPropagation(); handleZoomImage(userProfiles[u] || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80"); }}
-                    />
-                    {isUserOnline(u) && <span className="status-dot" />}
+                    {renderAvatar(u, "md")}
+                    {isUserOnline(u) && <span className="status-dot online" />}
                   </div>
                   <div className="user-item-copy">
-                    <span className="user-name">{u}</span>
+                    <span className="user-name">
+                      {getDisplayName(u)}
+                    </span>
                     <span className="user-last">{isUserOnline(u) ? "Online" : "Last active"}</span>
                   </div>
                   <div className="user-item-actions">
@@ -1172,20 +1362,17 @@ function Chat({ user: currentUser }) {
             {filteredOnlineUsers.length > 0 ? filteredOnlineUsers.map((u, i) => (
               <div
                 key={`online-${i}`}
-                className={`user-item ${selectedUser === u ? "active" : ""}`}
+                className={`user-item ${normalizeEmail(selectedUser) === normalizeEmail(u) ? "active" : ""}`}
                 onClick={() => handleUserSelect(u)}
               >
                 <div className="avatar-wrap">
-                  <img
-                    src={userProfiles[u] || "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80"}
-                    alt={u}
-                    className="user-avatar"
-                    onClick={(e) => { e.stopPropagation(); handleZoomImage(userProfiles[u] || "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80"); }}
-                  />
+                  {renderAvatar(u, "md")}
                   <span className="status-dot online" />
                 </div>
                 <div className="user-item-copy">
-                  <span className="user-name">{u}</span>
+                  <span className="user-name">
+                    {getDisplayName(u)}
+                  </span>
                   <span className="user-last">Available now</span>
                 </div>
                 {getUnreadCount(u) > 0 && (
@@ -1199,11 +1386,11 @@ function Chat({ user: currentUser }) {
         </div>
 
         <div className="sidebar-actions">
-          <button className="secondary-btn" onClick={handleClearAllHistory}>
-            <Trash2 size={16} /> Archive
+          <button className="secondary-btn" onClick={handleClearAllHistory} title="Clear all recent chats from sidebar">
+            <Trash2 size={16} /> Clear All
           </button>
-          <button className="secondary-btn">
-            <BellRing size={16} /> Help
+          <button className="secondary-btn" onClick={() => navigate("/feedback")}>
+            <MessageCircle size={16} /> Feedback
           </button>
         </div>
       </aside>
@@ -1212,15 +1399,14 @@ function Chat({ user: currentUser }) {
         <div className="chat-panel-header">
           <div className="chat-panel-title">
             <div className="header-avatar-wrap">
-              <img
-                src={selectedUser ? userProfiles[selectedUser] || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80" : "https://images.unsplash.com/photo-1503416997304-3cc562acfdc5?auto=format&fit=crop&w=200&q=80"}
-                alt={selectedUser || "Start"}
-                className="header-avatar"
-                onClick={() => selectedUser && handleZoomImage(userProfiles[selectedUser] || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80")}
-              />
+              {renderAvatar(selectedUser, "md")}
             </div>
             <div>
-              <h3>{selectedUser || "Welcome to Connect"}</h3>
+              <h3>
+                {selectedUser 
+                  ? getDisplayName(selectedUser) 
+                  : "Welcome to Connect"}
+              </h3>
               <p>{selectedUser ? (isUserOnline(selectedUser) ? "Online" : formatLastSeen(lastSeen[selectedUser])) : "Choose a conversation or create a new one."}</p>
             </div>
           </div>
@@ -1253,16 +1439,18 @@ function Chat({ user: currentUser }) {
                 </button>
               </>
             )}
-            <label htmlFor="update-profile-pic" className="icon-btn" title="Update Profile Picture" style={{ cursor: 'pointer' }}>
+            <button 
+              className="icon-btn" 
+              title="Settings" 
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                setNewDisplayName(user?.displayName || user?.email?.split('@')[0] || "");
+                setNewBio(user?.bio || "");
+                setShowSettings(true);
+              }}
+            >
               <Settings size={18} />
-            </label>
-            <input
-              id="update-profile-pic"
-              type="file"
-              accept="image/*"
-              onChange={handleUpdateProfilePic}
-              style={{ display: "none" }}
-            />
+            </button>
             <button
               className="logout-btn"
               type="button"
@@ -1273,6 +1461,87 @@ function Chat({ user: currentUser }) {
             </button>
           </div>
         </div>
+
+        {showSettings && (
+          <div className="logout-modal-overlay" onClick={() => setShowSettings(false)}>
+            <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="settings-header">
+                <h3>Settings</h3>
+                <button className="settings-close-btn" onClick={() => setShowSettings(false)}><X size={20} /></button>
+              </div>
+              
+              <div className="settings-body">
+                <div className="settings-section">
+                  <label className="settings-label">Profile Picture</label>
+                  <div className="settings-avatar-card">
+                    {renderAvatar(user.email, "lg")}
+                    <div className="avatar-actions-row">
+                      <label htmlFor="update-profile-pic-settings" className="change-dp-btn">
+                        Change Photo
+                      </label>
+                      {user.profilePic && (
+                        <button className="remove-dp-btn" onClick={handleRemoveProfilePic}>
+                          Remove Photo
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      id="update-profile-pic-settings"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleUpdateProfilePic}
+                      style={{ display: "none" }}
+                    />
+                  </div>
+                </div>
+
+                <div className="settings-section">
+                  <label className="settings-label">Display Name</label>
+                  <input 
+                    type="text" 
+                    value={newDisplayName} 
+                    onChange={(e) => setNewDisplayName(e.target.value)}
+                    placeholder="Enter your name"
+                    className="settings-input"
+                  />
+                  <p className="settings-hint">This name will be visible to everyone on the server.</p>
+                </div>
+
+                <div className="settings-section">
+                  <label className="settings-label">Bio / About</label>
+                  <textarea 
+                    value={newBio} 
+                    onChange={(e) => setNewBio(e.target.value)}
+                    placeholder="Tell others about yourself..."
+                    className="settings-input settings-textarea"
+                  />
+                </div>
+
+                <div className="settings-section">
+                  <label className="settings-label">Account Information</label>
+                  <div className="settings-info-card">
+                    <div className="info-row">
+                      <span className="info-label">Email</span>
+                      <span className="info-value">{user?.email}</span>
+                    </div>
+                    <div className="info-row">
+                      <span className="info-label">User ID</span>
+                      <span className="info-value"><code>{user?.uid?.slice(0, 12)}...</code></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="settings-footer">
+                <button className="logout-cancel-btn" onClick={() => setShowSettings(false)}>Cancel</button>
+                <button className="save-profile-btn" onClick={() => {
+                  handleUpdateDisplayName();
+                  setShowSettings(false);
+                }}>Save Changes</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showLogoutConfirm && (
           <div className="logout-modal-overlay" onClick={() => setShowLogoutConfirm(false)}>
@@ -1316,10 +1585,18 @@ function Chat({ user: currentUser }) {
                         initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.25 }}
-                        className={`message ${msg.sender === user.email ? "sent" : "received"}`}
-                        onContextMenu={(e) => handleContextMenu(e, msg)}
+                        className={`message-wrapper ${msg.sender === user.email ? "sent" : "received"}`}
                       >
-                        <div className="message-content">
+                        {msg.sender !== user.email && (
+                          <div className="message-avatar">
+                            {renderAvatar(msg.sender, "sm")}
+                          </div>
+                        )}
+                        <div
+                          className={`message ${msg.sender === user.email ? "sent" : "received"}`}
+                          onContextMenu={(e) => handleContextMenu(e, msg)}
+                        >
+                          <div className="message-content">
                           {msg.replyTo && (
                             <div className="reply-quote">
                               <small>{msg.replyTo.sender === user.email ? "You" : msg.replyTo.sender.split('@')[0]}</small>
@@ -1367,7 +1644,8 @@ function Chat({ user: currentUser }) {
                             <span className="read-receipt">✓✓</span>
                           )}
                         </div>
-                      </motion.div>
+                      </div>
+                    </motion.div>
                     </React.Fragment>
                   );
                 })
