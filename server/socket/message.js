@@ -1,5 +1,7 @@
 const Message = require("../models/Message");
 const ClearedChat = require("../models/ClearedChat");
+const UserProfile = require("../models/UserProfile");
+const ArchivedChat = require("../models/ArchivedChat");
 const { encryptPayload, decryptMessageDoc } = require("../utils/messageCrypto");
 const { normalizeEmail, getAuthenticatedEmail, getRoomId } = require("../utils/socketAuth");
 const { isDatabaseConnected } = require("../config/database");
@@ -13,7 +15,7 @@ const isUserOnline = (users, email) => {
 };
 
 module.exports = (io, socket, users) => {
-  socket.on("join-room", ({ user1, user2 }) => {
+  socket.on("join-room", async ({ user1, user2 }) => {
     const authUser = getAuthenticatedEmail(socket, users);
     const normalizedUser1 = normalizeEmail(user1);
     const normalizedUser2 = normalizeEmail(user2);
@@ -34,6 +36,16 @@ module.exports = (io, socket, users) => {
 
     socket.join(roomId);
     console.log(`✅ ${normalizedUser1} joined room: ${roomId}`);
+
+    // Update last activity for sender when they open a chat
+    try {
+      await UserProfile.findOneAndUpdate(
+        { email: normalizedUser1 },
+        { $set: { lastActivity: new Date(), isOnline: true } }
+      );
+    } catch (err) {
+      console.error("Error updating activity on room join:", err.message);
+    }
 
     if (!roomUsers[roomId]) roomUsers[roomId] = [];
     if (!roomUsers[roomId].includes(normalizedUser1)) {
@@ -155,9 +167,6 @@ module.exports = (io, socket, users) => {
       if (callback) callback({ ok: true, pending: true, tempId });
 
       try {
-        const UserProfile = require("../models/UserProfile");
-        const ArchivedChat = require("../models/ArchivedChat");
-        
         const saved = await Message.create({
           sender: normalizedSender,
           receiver: normalizedReceiver,

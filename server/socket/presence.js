@@ -73,13 +73,15 @@ module.exports = (io, socket, users, userProfiles) => {
 
     // Send all existing profile metadata to the newly joined user
     try {
-      const allProfiles = await UserProfile.find({}, 'email displayName profilePic bio');
+      const allProfiles = await UserProfile.find({}, 'email displayName profilePic bio lastSeen isOnline');
       const profileMap = {};
       allProfiles.forEach(p => {
         profileMap[p.email.toLowerCase()] = {
           displayName: p.displayName,
           profilePic: p.profilePic,
-          bio: p.bio
+          bio: p.bio,
+          lastSeen: p.lastSeen,
+          isOnline: p.isOnline
         };
       });
       socket.emit("all-user-metadata", profileMap);

@@ -123,6 +123,7 @@ function Chat({ user: currentUser }) {
   }, [zoomedImage]);
 
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const prevMessagesLengthRef = useRef(0);
 
   // Auto-scroll to bottom whenever messages change
   useEffect(() => {
@@ -135,7 +136,8 @@ function Chat({ user: currentUser }) {
         container.scrollHeight -
         container.scrollTop -
         container.clientHeight;
-      setIsNearBottom(distanceFromBottom < 150);
+      // Using a smaller threshold for more precise detection
+      setIsNearBottom(distanceFromBottom < 50);
     };
 
     container.addEventListener("scroll", handleScrollEvent);
@@ -143,29 +145,30 @@ function Chat({ user: currentUser }) {
   }, []);
 
   useEffect(() => {
-    if (!messagesEndRef.current || !isNearBottom) {
-      // If it's my message, we still want to scroll even if not near bottom
-      const lastMsg = messages[messages.length - 1];
-      const isMyMessage = lastMsg?.sender?.toLowerCase() === user?.email?.toLowerCase();
-      
-      if (isMyMessage) {
-        messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
-      }
-      return;
+    if (!messagesEndRef.current) return;
+
+    const isNewMessage = messages.length > prevMessagesLengthRef.current;
+    prevMessagesLengthRef.current = messages.length;
+
+    const lastMsg = messages[messages.length - 1];
+    const isMyMessage = lastMsg?.sender?.toLowerCase() === user?.email?.toLowerCase();
+
+    // Auto-scroll logic:
+    // 1. If we are near the bottom, stay pinned to the bottom for any update.
+    // 2. If we are NOT near bottom, only scroll down if we just sent a new message.
+    if (isNearBottom || (isNewMessage && isMyMessage)) {
+      const scrollOptions = {
+        behavior: "smooth",
+        block: "end"
+      };
+
+      const timeoutId = setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView(scrollOptions);
+        }
+      }, 100);
+      return () => clearTimeout(timeoutId);
     }
-
-    const scrollOptions = {
-      behavior: "smooth",
-      block: "end"
-    };
-
-    // Small delay to allow images/animations to settle
-    const timeoutId = setTimeout(() => {
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView(scrollOptions);
-      }
-    }, 100);
-    return () => clearTimeout(timeoutId);
   }, [messages, user?.email]);
 
   // Close context menu on outside click
@@ -349,13 +352,18 @@ function Chat({ user: currentUser }) {
       console.log("📊 Received all user metadata:", Object.keys(metadata).length, "profiles");
       setUserMetadata(prev => ({ ...prev, ...metadata }));
       
-      // Also update userProfiles map for avatars
+      // Update lastSeen and userProfiles map
+      const initialLastSeen = {};
       const profiles = {};
       Object.keys(metadata).forEach(email => {
+        if (metadata[email].lastSeen) {
+          initialLastSeen[email] = metadata[email].lastSeen;
+        }
         if (metadata[email].profilePic) {
           profiles[email] = metadata[email].profilePic;
         }
       });
+      setLastSeen(prev => ({ ...initialLastSeen, ...prev }));
       setUserProfiles(prev => ({ ...prev, ...profiles }));
     });
 
@@ -1323,7 +1331,9 @@ function Chat({ user: currentUser }) {
                     <span className="user-name">
                       {getDisplayName(u)}
                     </span>
-                    <span className="user-last">{isUserOnline(u) ? "Online" : "Last active"}</span>
+                    <span className="user-last">
+                      {isUserOnline(u) ? "Online" : formatLastSeen(lastSeen[u])}
+                    </span>
                   </div>
                   <div className="user-item-actions">
                     {unreadCount > 0 && (
