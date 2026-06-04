@@ -56,7 +56,13 @@ module.exports = (io, socket, users) => {
     if (unreadMessages[unreadKey]) {
       unreadMessages[unreadKey] = 0;
       if (isUserOnline(users, normalizedUser1)) {
-        io.to(normalizedUser1).emit("unread-update", unreadMessages);
+        const userUnreads = {};
+        Object.keys(unreadMessages).forEach(key => {
+          if (key.endsWith(`_${normalizedUser1}`)) {
+            userUnreads[key] = unreadMessages[key];
+          }
+        });
+        io.to(normalizedUser1).emit("unread-update", userUnreads);
       }
     }
   });
@@ -121,8 +127,8 @@ module.exports = (io, socket, users) => {
         if (existing) {
           const decrypted = decryptMessageDoc(existing);
           // Emit to both room and receiver personal room for duplicates too
-          io.to(roomId).to(normalizedReceiver).emit("receive-message", decrypted);
-          io.to(roomId).to(normalizedReceiver).emit("message-saved", {
+          io.to(normalizedReceiver).to(roomId).to(normalizedSender).emit("receive-message", decrypted);
+          io.to(normalizedReceiver).to(roomId).to(normalizedSender).emit("message-saved", {
             tempId,
             _id: existing._id,
             timestamp: existing.timestamp,
@@ -155,13 +161,23 @@ module.exports = (io, socket, users) => {
         pending: true,
       };
 
-      io.to(roomId).to(normalizedReceiver).emit("receive-message", optimisticMessage);
+      // 📢 Deliver to Receiver and Sender's other tabs
+      // Use the receiver's personal room (their email) and the shared roomId
+      io.to(normalizedReceiver).to(roomId).to(normalizedSender).emit("receive-message", optimisticMessage);
 
       const unreadKey = `${normalizedSender}_${normalizedReceiver}`;
       unreadMessages[unreadKey] = (unreadMessages[unreadKey] || 0) + 1;
 
+      // Only send unread updates relevant to the receiver to preserve privacy
       if (isUserOnline(users, normalizedReceiver)) {
-        io.to(normalizedReceiver).emit("unread-update", unreadMessages);
+        const receiverUnreads = {};
+        // Filter unreadMessages to only show counts where the receiver is the 'receiver'
+        Object.keys(unreadMessages).forEach(key => {
+          if (key.endsWith(`_${normalizedReceiver}`)) {
+            receiverUnreads[key] = unreadMessages[key];
+          }
+        });
+        io.to(normalizedReceiver).emit("unread-update", receiverUnreads);
       }
 
       if (callback) callback({ ok: true, pending: true, tempId });
@@ -193,7 +209,7 @@ module.exports = (io, socket, users) => {
           ]
         });
 
-        io.to(roomId).to(normalizedReceiver).emit("message-saved", {
+        io.to(normalizedReceiver).to(roomId).to(normalizedSender).emit("message-saved", {
           tempId: tempId || null,
           _id: saved._id,
           timestamp: saved.timestamp,
