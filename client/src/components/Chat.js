@@ -20,11 +20,12 @@ import {
   X,
   Minus,
   LogOut,
+  Archive,
 } from "lucide-react";
 import { auth } from "../firebase";
 import useSocket from "../hooks/useSocket";
 import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
-import { fetchMessages, fetchRecentChats } from "../services/messageService";
+import { fetchMessages, fetchRecentChats, archiveChat as archiveChatService, clearAllChats as clearAllChatsService } from "../services/messageService";
 import { useNavigate } from "react-router-dom";
 import Avatar from "./Avatar";
 import "./Chat.css";
@@ -112,7 +113,7 @@ function Chat({ user: currentUser }) {
     }
   }, [zoomedImage]);
 
-  // Auto-scroll to bottom whenever messages or typing status change
+  // Auto-scroll to bottom whenever messages change
   useEffect(() => {
     if (!messagesEndRef.current) return;
 
@@ -129,10 +130,11 @@ function Chat({ user: currentUser }) {
         container.scrollTop -
         container.clientHeight;
 
-      const isNearBottom = distanceFromBottom < 100; // Increased threshold for better reliability
+      const isNearBottom = distanceFromBottom < 150; 
       const lastMsg = messages[messages.length - 1];
       const isMyMessage = lastMsg?.sender?.toLowerCase() === user?.email?.toLowerCase();
 
+      // Only scroll if we are already near the bottom or if it's our own message
       if (isNearBottom || isMyMessage) {
         messagesEndRef.current.scrollIntoView(scrollOptions);
       }
@@ -141,7 +143,7 @@ function Chat({ user: currentUser }) {
     // Small delay to allow images/animations to settle
     const timeoutId = setTimeout(handleScroll, 100);
     return () => clearTimeout(timeoutId);
-  }, [messages, user?.email, typingUser]);
+  }, [messages, user?.email]); // Removed typingUser from dependencies to prevent jump-back
 
   // Close context menu on outside click
   useEffect(() => {
@@ -225,28 +227,6 @@ function Chat({ user: currentUser }) {
     }
   };
 
-  // Helper to safely persist limited chat history without large media blobs or bloat
-  const persistHistory = (historyObj, currentUserEmail) => {
-    if (!currentUserEmail) return;
-    try {
-      const sanitized = {};
-      Object.keys(historyObj).forEach(key => {
-        // Cap to last 30 messages and strip heavy base64 media content for storage
-        sanitized[key] = historyObj[key].slice(-30).map(m => ({
-          ...m,
-          text: m.type === 'media' ? { ...m.text, data: null, persisted: false } : m.text
-        }));
-      });
-      try {
-        localStorage.setItem(`chatHistory_${currentUserEmail}`, JSON.stringify(sanitized));
-      } catch (quotaError) {
-        console.warn("Chat history quota exceeded, skipping local persistence.");
-      }
-    } catch (e) {
-      console.error("Failed to persist chat history", e);
-    }
-  };
-
   useEffect(() => {
     if (!currentUser) {
       const savedUser = localStorage.getItem("user");
@@ -284,26 +264,15 @@ function Chat({ user: currentUser }) {
     }
   }, [currentUser, navigate]);
 
-  // Load chat history from localStorage and fetch recent chats on mount
+  // Load recent chats from server on mount
   useEffect(() => {
     if (!user) return;
 
     const loadChatHistory = async () => {
       try {
         const userKey = normalizeEmail(user.email);
-        // 1. Load from localStorage first (for offline access)
-        const savedHistory = localStorage.getItem(`chatHistory_${userKey}`);
-        if (savedHistory) {
-          try {
-            const parsed = JSON.parse(savedHistory);
-            setChatHistory(parsed);
-            console.log("✅ Loaded chat history from localStorage:", Object.keys(parsed).length, "conversations");
-          } catch (e) {
-            console.error("Failed to parse saved chat history", e);
-          }
-        }
-
-        // 2. Fetch recent chats from server (to get the most up-to-date list)
+        
+        // Fetch recent chats from server (source of truth)
         const recentChats = await fetchRecentChats(userKey);
         if (recentChats && recentChats.length > 0) {
           // Build chat history structure from recent chats for display purposes
@@ -311,6 +280,7 @@ function Chat({ user: currentUser }) {
           recentChats.forEach(chat => {
             if (chat.userEmail) {
               const emailKey = normalizeEmail(chat.userEmail);
+              // Initialize with the last message so the sidebar shows something
               historyFromServer[emailKey] = [{
                 _id: chat.messageId,
                 sender: userKey,
@@ -323,12 +293,7 @@ function Chat({ user: currentUser }) {
             }
           });
 
-          // Merge with existing localStorage data, preferring localStorage for full histories
-          setChatHistory(prev => {
-            const merged = { ...historyFromServer, ...prev };
-            persistHistory(merged, userKey);
-            return merged;
-          });
+          setChatHistory(historyFromServer);
           console.log("✅ Loaded", recentChats.length, "recent chats from server");
         }
       } catch (error) {
@@ -353,12 +318,6 @@ function Chat({ user: currentUser }) {
     // Join immediately and on every reconnection
     handleJoin();
     socket.on("connect", handleJoin);
-
-    // Restore unread counts
-    const storedUnread = localStorage.getItem(`unread_${user.email.toLowerCase()}`);
-    if (storedUnread) {
-      try { setUnreadMessages(JSON.parse(storedUnread)); } catch (e) { console.error('Failed to parse stored unread counts', e); }
-    }
 
     socket.on("online-users", setOnlineUsers);
 
@@ -417,6 +376,19 @@ function Chat({ user: currentUser }) {
       }));
     });
 
+    socket.on("user-status-change", ({ userId, isOnline, lastSeen: time }) => {
+      console.log(`🌐 Status change for ${userId}: ${isOnline ? 'Online' : 'Offline'}`);
+      
+      if (isOnline) {
+        setOnlineUsers(prev => [...new Set([...prev, userId])]);
+      } else {
+        setOnlineUsers(prev => prev.filter(u => normalizeEmail(u) !== normalizeEmail(userId)));
+        if (time) {
+          setLastSeen(prev => ({ ...prev, [userId]: time }));
+        }
+      }
+    });
+
     // Listen for unread message updates from server
     socket.on("unread-update", (unreadData) => {
       console.log("📬 Unread messages updated:", unreadData);
@@ -466,7 +438,6 @@ function Chat({ user: currentUser }) {
       setChatHistory((prev) => {
         const updated = { ...prev };
         delete updated[partner];
-        persistHistory(updated, user.email);
         return updated;
       });
 
@@ -475,11 +446,6 @@ function Chat({ user: currentUser }) {
         if (!prev[key]) return prev;
         const next = { ...prev };
         delete next[key];
-        try {
-          localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
-        } catch (e) {
-          console.error("Failed to persist unread counts", e);
-        }
         return next;
       });
 
@@ -503,7 +469,6 @@ function Chat({ user: currentUser }) {
         Object.keys(updated).forEach((key) => {
           updated[key] = applySaved(updated[key] || []);
         });
-        persistHistory(updated, user.email);
         return updated;
       });
 
@@ -543,7 +508,6 @@ function Chat({ user: currentUser }) {
           ...prev,
           [otherParty]: currentHistory.filter(m => (m._id !== messageId && m.tempId !== messageId))
         };
-        persistHistory(updated, user?.email);
         return updated;
       });
 
@@ -565,7 +529,6 @@ function Chat({ user: currentUser }) {
           ...prev,
           [otherParty]: upsertMessageInList(currentHistory, msg),
         };
-        persistHistory(updated, user.email);
         return updated;
       });
 
@@ -579,11 +542,6 @@ function Chat({ user: currentUser }) {
         setUnreadMessages((prev) => {
           const key = `${otherParty}_${normalizeEmail(user.email)}`;
           const newCounts = { ...prev, [key]: (prev[key] || 0) + 1 };
-          try {
-            localStorage.setItem(`unread_${user.email}`, JSON.stringify(newCounts));
-          } catch (e) {
-            console.error("Failed to persist unread counts", e);
-          }
           return newCounts;
         });
       }
@@ -597,6 +555,7 @@ function Chat({ user: currentUser }) {
       socket.off("typing");
       socket.off("stop-typing");
       socket.off("last-seen");
+      socket.off("user-status-change");
       socket.off("unread-update");
       socket.off("user-profile-update");
       socket.off("chat-cleared", handleChatCleared);
@@ -943,7 +902,6 @@ function Chat({ user: currentUser }) {
     setChatHistory((prev) => {
       const updated = { ...prev };
       delete updated[partner];
-      persistHistory(updated, userKey);
       return updated;
     });
 
@@ -952,11 +910,6 @@ function Chat({ user: currentUser }) {
       if (!prev[key]) return prev;
       const next = { ...prev };
       delete next[key];
-      try {
-        localStorage.setItem(`unread_${userKey}`, JSON.stringify(next));
-      } catch (e) {
-        console.error("Failed to persist unread counts", e);
-      }
       return next;
     });
 
@@ -976,7 +929,35 @@ function Chat({ user: currentUser }) {
     }
   };
 
-  const handleClearAllHistory = (e) => {
+  const handleArchiveChat = async (e, partnerEmail) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!user || !partnerEmail) return;
+
+    try {
+      await archiveChatService(user.email, partnerEmail);
+      const partner = normalizeEmail(partnerEmail);
+      
+      setChatHistory((prev) => {
+        const updated = { ...prev };
+        delete updated[partner];
+        return updated;
+      });
+
+      if (selectedUserRef.current && normalizeEmail(selectedUserRef.current) === partner) {
+        setSelectedUser(null);
+        setMessages([]);
+      }
+      alert("Chat archived successfully.");
+    } catch (err) {
+      console.error("Failed to archive chat:", err);
+      alert("Failed to archive chat. Please try again.");
+    }
+  };
+
+  const handleClearAllHistory = async (e) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -985,18 +966,25 @@ function Chat({ user: currentUser }) {
     
     if (
       window.confirm(
-        "Clear all recent chats from your list? This will not delete the messages from the server."
+        "Clear all recent chats from your list? This will hide them until a new message is sent."
       )
     ) {
-      // Clear all recent chats from local state and storage
-      const userKey = normalizeEmail(user.email);
-      localStorage.removeItem(`chatHistory_${userKey}`);
-      localStorage.removeItem(`unread_${userKey}`);
-      
-      setChatHistory({});
-      setMessages([]);
-      setUnreadMessages({});
-      setSelectedUser(null);
+      try {
+        await clearAllChatsService(user.email);
+        
+        setChatHistory({});
+        setMessages([]);
+        setUnreadMessages({});
+        setSelectedUser(null);
+        
+        // Clear local storage
+        const userKey = normalizeEmail(user.email);
+        localStorage.removeItem(`chatHistory_${userKey}`);
+        localStorage.removeItem(`unread_${userKey}`);
+      } catch (err) {
+        console.error("Failed to clear all chats:", err);
+        alert("Failed to clear all chats. Please try again.");
+      }
     }
   };
 
@@ -1012,10 +1000,12 @@ function Chat({ user: currentUser }) {
       const partner = normalizeEmail(partnerEmail);
       const userKey = normalizeEmail(user.email);
       
+      // Inform server to hide this chat
+      socket.emit("clear-chat", { user1: userKey, user2: partner });
+
       setChatHistory((prev) => {
         const updated = { ...prev };
         delete updated[partner];
-        persistHistory(updated, userKey);
         return updated;
       });
 
@@ -1024,11 +1014,6 @@ function Chat({ user: currentUser }) {
         if (!prev[key]) return prev;
         const next = { ...prev };
         delete next[key];
-        try {
-          localStorage.setItem(`unread_${userKey}`, JSON.stringify(next));
-        } catch (err) {
-          console.error("Failed to persist unread counts", err);
-        }
         return next;
       });
 
@@ -1205,7 +1190,6 @@ function Chat({ user: currentUser }) {
         if (!prev[key]) return prev;
         const next = { ...prev };
         delete next[key];
-        try { localStorage.setItem(`unread_${userKey}`, JSON.stringify(next)); } catch (e) { console.error('Failed to persist unread counts', e); }
         return next;
       });
     }
@@ -1340,6 +1324,13 @@ function Chat({ user: currentUser }) {
                     {unreadCount > 0 && (
                       <span className="unread-badge">{unreadCount}</span>
                     )}
+                    <button 
+                      className="remove-recent-btn" 
+                      onClick={(e) => handleArchiveChat(e, u)}
+                      title="Archive chat"
+                    >
+                      <Archive size={14} />
+                    </button>
                     <button 
                       className="remove-recent-btn" 
                       onClick={(e) => handleRemoveChatFromRecent(e, u)}

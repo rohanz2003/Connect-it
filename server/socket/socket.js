@@ -28,31 +28,9 @@ const initSocket = (server) => {
     handleTyping(io, socket, users);
     handleMessages(io, socket, users);
 
-    // Handle disconnect
+    // General socket logging
     socket.on("disconnect", () => {
-      for (let userId in users) {
-        const entry = users[userId];
-        // If we stored a Set of socket ids (new behavior)
-        if (entry && typeof entry.delete === "function") {
-          if (entry.has(socket.id)) {
-            entry.delete(socket.id);
-            if (entry.size === 0) {
-              delete users[userId];
-              console.log(`❌ ${userId} is offline`);
-            } else {
-              console.log(`🔁 ${userId} disconnected a socket, remaining connections: ${Array.from(entry).join(", ")}`);
-            }
-          }
-        } else {
-          // Legacy single-socket entry
-          if (entry === socket.id) {
-            delete users[userId];
-            console.log(`❌ ${userId} is offline`);
-          }
-        }
-      }
-      console.log("📊 Current online users:", Object.keys(users));
-      io.emit("online-users", Object.keys(users));
+      console.log("📊 User disconnected socket:", socket.id);
     });
   });
 

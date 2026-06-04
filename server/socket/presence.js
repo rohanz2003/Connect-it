@@ -49,10 +49,27 @@ module.exports = (io, socket, users, userProfiles) => {
       console.error("Error syncing profile from DB:", err.message);
     }
 
+    // Update status in DB
+    try {
+      await UserProfile.findOneAndUpdate(
+        { email: userId },
+        { 
+          $set: { 
+            isOnline: true,
+            lastActivity: new Date()
+          } 
+        },
+        { upsert: true }
+      );
+    } catch (err) {
+      console.error("Error updating online status:", err.message);
+    }
+
     console.log(`✅ ${userId} is online`);
     
     // Broadcast to all clients the updated online users list
     io.emit("online-users", Object.keys(users));
+    io.emit("user-status-change", { userId, isOnline: true });
 
     // Send all existing profile metadata to the newly joined user
     try {
@@ -111,7 +128,27 @@ module.exports = (io, socket, users, userProfiles) => {
     }
   });
 
-  socket.on("leave", (data) => {
+  const handleOffline = async (userId) => {
+    try {
+      const now = new Date();
+      await UserProfile.findOneAndUpdate(
+        { email: userId },
+        { 
+          $set: { 
+            isOnline: false,
+            lastSeen: now,
+            lastActivity: now
+          } 
+        }
+      );
+      io.emit("user-status-change", { userId, isOnline: false, lastSeen: now });
+      io.emit("online-users", Object.keys(users));
+    } catch (err) {
+      console.error("Error updating offline status:", err.message);
+    }
+  };
+
+  socket.on("leave", async (data) => {
     const userIdRaw = typeof data === 'string' ? data : data?.email;
     if (!userIdRaw) return;
 
@@ -124,10 +161,23 @@ module.exports = (io, socket, users, userProfiles) => {
     if (users[userId].size === 0) {
       delete users[userId];
       console.log(`❌ ${userId} is offline (leave event)`);
+      await handleOffline(userId);
     } else {
       console.log(`🔁 ${userId} left one session, remaining connections: ${Array.from(users[userId]).join(", ")}`);
     }
+  });
 
-    io.emit("online-users", Object.keys(users));
+  socket.on("disconnect", async () => {
+    for (const userId in users) {
+      if (users[userId].has(socket.id)) {
+        users[userId].delete(socket.id);
+        if (users[userId].size === 0) {
+          delete users[userId];
+          console.log(`❌ ${userId} is offline (disconnect)`);
+          await handleOffline(userId);
+        }
+        break;
+      }
+    }
   });
 };

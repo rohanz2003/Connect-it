@@ -1,5 +1,6 @@
 const Message = require("../models/Message");
 const ClearedChat = require("../models/ClearedChat");
+const ArchivedChat = require("../models/ArchivedChat");
 const { decryptMessageDoc } = require("../utils/messageCrypto");
 const { normalizeEmail } = require("../utils/socketAuth");
 
@@ -9,6 +10,11 @@ const getClearedAt = async (user, partner) => {
     partner: normalizeEmail(partner),
   }).lean();
   return record?.clearedAt || null;
+};
+
+const getArchivedPartners = async (user) => {
+  const archived = await ArchivedChat.find({ user: normalizeEmail(user) }).lean();
+  return archived.map(a => a.partner);
 };
 
 exports.getMessages = async (req, res) => {
@@ -86,9 +92,15 @@ exports.getRecentChats = async (req, res) => {
       clearedRecords.map((r) => [r.partner, r.clearedAt])
     );
 
+    const archivedPartners = await getArchivedPartners(normalizedEmail);
+
     const recentChats = conversations
       .filter((conv) => {
-        const clearedAt = clearedMap[conv._id];
+        const partner = conv._id;
+        // Filter out archived
+        if (archivedPartners.includes(partner)) return false;
+
+        const clearedAt = clearedMap[partner];
         if (!clearedAt) return true;
         return new Date(conv.timestamp) > new Date(clearedAt);
       })
@@ -114,5 +126,61 @@ exports.getRecentChats = async (req, res) => {
   } catch (error) {
     console.error("Error fetching recent chats:", error);
     res.status(500).json({ error: "Failed to fetch recent chats" });
+  }
+};
+
+exports.archiveChat = async (req, res) => {
+  try {
+    const { user, partner } = req.body;
+    await ArchivedChat.findOneAndUpdate(
+      { user: normalizeEmail(user), partner: normalizeEmail(partner) },
+      { archivedAt: new Date() },
+      { upsert: true }
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to archive chat" });
+  }
+};
+
+exports.unarchiveChat = async (req, res) => {
+  try {
+    const { user, partner } = req.body;
+    await ArchivedChat.deleteOne({
+      user: normalizeEmail(user),
+      partner: normalizeEmail(partner),
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to unarchive chat" });
+  }
+};
+
+exports.clearAllChats = async (req, res) => {
+  try {
+    const { userEmail } = req.body;
+    const normalized = normalizeEmail(userEmail);
+    // For "Clear All", we essentially want to set clearedAt for all conversations
+    // Get all unique partners
+    const partners = await Message.distinct("sender", { receiver: normalized });
+    const partners2 = await Message.distinct("receiver", { sender: normalized });
+    const allPartners = [...new Set([...partners, ...partners2])];
+
+    const now = new Date();
+    const ops = allPartners.map(p => ({
+      updateOne: {
+        filter: { user: normalized, partner: p },
+        update: { $set: { clearedAt: now } },
+        upsert: true
+      }
+    }));
+
+    if (ops.length > 0) {
+      await ClearedChat.bulkWrite(ops);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to clear all chats" });
   }
 };

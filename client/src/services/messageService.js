@@ -22,3 +22,18 @@ export const fetchRecentChats = async (userEmail) => {
     return [];
   }
 };
+
+export const archiveChat = async (user, partner) => {
+  const res = await axios.post(`${API_URL}/api/messages/archive`, { user, partner });
+  return res.data;
+};
+
+export const unarchiveChat = async (user, partner) => {
+  const res = await axios.post(`${API_URL}/api/messages/unarchive`, { user, partner });
+  return res.data;
+};
+
+export const clearAllChats = async (userEmail) => {
+  const res = await axios.post(`${API_URL}/api/messages/clear-all`, { userEmail });
+  return res.data;
+};

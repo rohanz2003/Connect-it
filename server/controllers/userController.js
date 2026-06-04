@@ -12,7 +12,9 @@ exports.createOrUpdateUser = async (req, res) => {
         lastSeen: lastSeen || new Date(), 
         email: email.toLowerCase(),
         displayName: displayName,
-        profilePic: profilePic
+        profilePic: profilePic,
+        isOnline: true,
+        lastActivity: new Date()
       },
       { upsert: true, new: true }
     );
@@ -45,9 +47,10 @@ exports.updateAvatar = async (req, res) => {
 
 exports.updateLastSeen = async (userId) => {
   try {
+    const now = new Date();
     await User.findOneAndUpdate(
       { email: userId },
-      { lastSeen: new Date() },
+      { lastSeen: now, lastActivity: now },
       { upsert: true }
     );
   } catch (err) {

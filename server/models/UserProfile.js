@@ -6,6 +6,8 @@ const userProfileSchema = new mongoose.Schema({
   profilePic: { type: String, default: "" }, // Base64 or URL
   bio: { type: String, default: "" },
   lastSeen: { type: Date, default: Date.now },
+  isOnline: { type: Boolean, default: false },
+  lastActivity: { type: Date, default: Date.now },
 }, { timestamps: true });
 
 module.exports = mongoose.model("UserProfile", userProfileSchema);

@@ -155,6 +155,9 @@ module.exports = (io, socket, users) => {
       if (callback) callback({ ok: true, pending: true, tempId });
 
       try {
+        const UserProfile = require("../models/UserProfile");
+        const ArchivedChat = require("../models/ArchivedChat");
+        
         const saved = await Message.create({
           sender: normalizedSender,
           receiver: normalizedReceiver,
@@ -165,6 +168,20 @@ module.exports = (io, socket, users) => {
           replyTo: replyTo || undefined,
           timestamp: msgTimestamp,
           seen: false,
+        });
+
+        // Update last activity for sender
+        await UserProfile.findOneAndUpdate(
+          { email: normalizedSender },
+          { $set: { lastActivity: new Date(), isOnline: true } }
+        );
+
+        // Auto-unarchive for both parties on new message
+        await ArchivedChat.deleteMany({
+          $or: [
+            { user: normalizedSender, partner: normalizedReceiver },
+            { user: normalizedReceiver, partner: normalizedSender }
+          ]
         });
 
         io.to(roomId).to(normalizedReceiver).emit("message-saved", {
