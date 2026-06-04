@@ -28,6 +28,7 @@ import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
 import { fetchMessages, fetchRecentChats, archiveChat as archiveChatService, clearAllChats as clearAllChatsService } from "../services/messageService";
 import { useNavigate } from "react-router-dom";
 import Avatar from "./Avatar";
+import ErrorBoundary from "./ErrorBoundary";
 import "./Chat.css";
 
 const normalizeEmail = (email) => (email || "").toLowerCase().trim();
@@ -64,7 +65,14 @@ function Chat({ user: currentUser }) {
   const socket = useSocket();
   const navigate = useNavigate();
 
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    if (currentUser) return currentUser;
+    const saved = localStorage.getItem("user");
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { return null; }
+    }
+    return null;
+  });
   const [message, setMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -196,7 +204,7 @@ function Chat({ user: currentUser }) {
   };
 
   const getDisplayName = (email) => {
-    if (!email) return "";
+    if (!email || typeof email !== 'string') return "User";
     const lowerEmail = email.toLowerCase();
     return userMetadata[lowerEmail]?.displayName || user?.displayName || email.split("@")[0];
   };
@@ -249,7 +257,7 @@ function Chat({ user: currentUser }) {
         try {
           const parsed = JSON.parse(savedUser);
           setUser(parsed);
-          setNewDisplayName(parsed.displayName || parsed.email.split('@')[0]);
+          setNewDisplayName(parsed.displayName || (parsed.email ? parsed.email.split('@')[0] : "User"));
           return;
         } catch (e) {
           console.error("Failed to parse saved user", e);
@@ -259,11 +267,12 @@ function Chat({ user: currentUser }) {
       return;
     }
 
+    const email = currentUser.email ? currentUser.email.toLowerCase() : "";
     const userData = {
-      email: currentUser.email.toLowerCase(),
-      profilePic: currentUser.profilePic || localStorage.getItem(`profilePic_${currentUser.email.toLowerCase()}`),
+      email: email,
+      profilePic: currentUser.profilePic || (email ? localStorage.getItem(`profilePic_${email}`) : null),
       uid: currentUser.uid,
-      displayName: currentUser.displayName || currentUser.email.split('@')[0]
+      displayName: currentUser.displayName || (email ? email.split('@')[0] : "User")
     };
     
     setUser(userData);
@@ -1190,9 +1199,10 @@ function Chat({ user: currentUser }) {
   };
 
   // Filter out current user from the user list
-  const otherOnlineUsers = onlineUsers.filter(u => 
-    u.toLowerCase().trim() !== user?.email?.toLowerCase().trim()
-  );
+  const otherOnlineUsers = onlineUsers.filter(u => {
+    if (!u || typeof u !== 'string') return false;
+    return u.toLowerCase().trim() !== user?.email?.toLowerCase().trim();
+  });
   
   // Get recent chats sorted by latest message
   const recentChats = Object.keys(chatHistory)
@@ -1235,10 +1245,11 @@ function Chat({ user: currentUser }) {
     );
   });
 
-  if (!user) return <h2>Loading...</h2>;
+  if (!user) return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><h2>Loading Connect Messenger...</h2></div>;
 
   return (
-    <div className={`chat-layout ${isDarkMode ? "dark" : ""}`}>
+    <ErrorBoundary>
+      <div className={`chat-layout ${isDarkMode ? "dark" : ""}`}>
       <aside className="sidebar">
         <div className="sidebar-top">
           <div className="brand-head">
@@ -1278,7 +1289,7 @@ function Chat({ user: currentUser }) {
             {renderAvatar(user.email, "md")}
             <div>
               <span className="profile-name">
-                {user.displayName || user.email.split("@")[0]}
+                {user.displayName || (user.email ? user.email.split("@")[0] : "User")}
               </span>
               <span className="profile-meta">
                 {isUserOnline(user.email) ? "Online" : "Offline"}
@@ -1429,7 +1440,7 @@ function Chat({ user: currentUser }) {
               title="Settings" 
               style={{ cursor: 'pointer' }}
               onClick={() => {
-                setNewDisplayName(user?.displayName || user?.email?.split('@')[0] || "");
+                setNewDisplayName(user?.displayName || (user?.email ? user.email.split('@')[0] : ""));
                 setNewBio(user?.bio || "");
                 setTempProfilePic(null); // Reset temp pic
                 setShowSettings(true);
@@ -1859,6 +1870,7 @@ function Chat({ user: currentUser }) {
         <button className="bottom-nav-btn"><Settings size={18} /><span>More</span></button>
       </nav>
     </div>
+    </ErrorBoundary>
   );
 }
 

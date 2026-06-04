@@ -31,9 +31,10 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
+        const email = currentUser.email || "";
         const mappedUser = {
-          email: currentUser.email,
-          profilePic: currentUser.photoURL || localStorage.getItem(`profilePic_${currentUser.email.toLowerCase()}`),
+          email: email,
+          profilePic: currentUser.photoURL || (email ? localStorage.getItem(`profilePic_${email.toLowerCase()}`) : null),
           uid: currentUser.uid
         };
         setUser(mappedUser);
@@ -42,7 +43,7 @@ function App() {
           uid: mappedUser.uid
         });
 
-        if (!safeLocalStorageSet("user", storedUserPayload)) {
+        if (email && !safeLocalStorageSet("user", storedUserPayload)) {
           Object.keys(localStorage).forEach(key => {
             if (key.startsWith('chatHistory_') || key.startsWith('unread_') || key.startsWith('userProfiles_')) {
               localStorage.removeItem(key);
