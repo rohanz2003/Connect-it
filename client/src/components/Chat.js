@@ -854,23 +854,10 @@ function Chat({ user: currentUser }) {
             (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
           );
           
+          // Set the active messages list immediately inside the same render cycle
+          setMessages(merged);
+          
           return { ...prev, [partner]: merged };
-        });
-
-        // Set the active messages list immediately
-        setMessages(() => {
-          const partner = currentSelectedUser;
-          const currentLiveForPartner = chatHistoryRef.current[partner] || [];
-          
-          const historyIds = new Set(history.map(m => m._id).filter(Boolean));
-          const historyTempIds = new Set(history.map(m => m.tempId).filter(Boolean));
-          
-          const uniqueLiveMessages = currentLiveForPartner.filter(m => 
-            !historyIds.has(m._id) && !historyTempIds.has(m.tempId)
-          );
-          
-          const merged = [...history, ...uniqueLiveMessages];
-          return merged.sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt));
         });
 
       } catch (err) {

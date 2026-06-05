@@ -37,15 +37,11 @@ module.exports = (io, socket, users) => {
     socket.join(roomId);
     console.log(`✅ ${normalizedUser1} joined room: ${roomId}`);
 
-    // Update last activity for sender when they open a chat
-    try {
-      await UserProfile.findOneAndUpdate(
-        { email: normalizedUser1 },
-        { $set: { lastActivity: new Date(), isOnline: true } }
-      );
-    } catch (err) {
-      console.error("Error updating activity on room join:", err.message);
-    }
+    // Non-blocking DB update
+    UserProfile.findOneAndUpdate(
+      { email: normalizedUser1 },
+      { $set: { lastActivity: new Date(), isOnline: true } }
+    ).catch(err => console.error("Error updating activity on room join:", err.message));
 
     if (!roomUsers[roomId]) roomUsers[roomId] = [];
     if (!roomUsers[roomId].includes(normalizedUser1)) {
@@ -200,7 +196,6 @@ module.exports = (io, socket, users) => {
             timestamp: saved.timestamp,
             type: saved.type,
             mediaType: saved.mediaType
-          });
           });
         } catch (dbErr) {
           console.error(`❌ DB Error for message from ${normalizedSender}:`, dbErr.message);

@@ -21,16 +21,14 @@ module.exports = (io, socket, users, userProfiles) => {
     // Join a personal room named after the email
     socket.join(userId);
 
-    // Fetch profile from DB on join to sync
-    try {
-      const dbProfile = await UserProfile.findOne({ email: userId });
+    // Fetch profile from DB on join to sync (Non-blocking)
+    UserProfile.findOne({ email: userId }).then(dbProfile => {
       if (dbProfile) {
         userProfiles[userId] = {
           displayName: dbProfile.displayName,
           profilePic: dbProfile.profilePic,
           bio: dbProfile.bio
         };
-        // Broadcast profile info to EVERYONE so they see the profile pic of the joining user
         io.emit("user-profile-update", {
           email: userId,
           displayName: dbProfile.displayName,
@@ -43,31 +41,22 @@ module.exports = (io, socket, users, userProfiles) => {
           displayName: displayName || userId.split('@')[0],
           profilePic: profilePic
         };
-        // Create initial profile if it doesn't exist
-        await UserProfile.create(newProfile);
-        
-        // Broadcast new profile to everyone
+        UserProfile.create(newProfile).catch(err => console.error(err));
         io.emit("user-profile-update", newProfile);
       }
-    } catch (err) {
-      console.error("Error syncing profile from DB:", err.message);
-    }
+    }).catch(err => console.error("Error fetching profile on join:", err.message));
 
-    // Update status in DB
-    try {
-      await UserProfile.findOneAndUpdate(
-        { email: userId },
-        { 
-          $set: { 
-            isOnline: true,
-            lastActivity: new Date()
-          } 
-        },
-        { upsert: true }
-      );
-    } catch (err) {
-      console.error("Error updating online status:", err.message);
-    }
+    // Non-blocking update online status
+    UserProfile.findOneAndUpdate(
+      { email: userId },
+      { 
+        $set: { 
+          isOnline: true,
+          lastActivity: new Date()
+        } 
+      },
+      { upsert: true }
+    ).catch(err => console.error("Error updating online status:", err.message));
 
     console.log(`✅ ${userId} is online`);
     
@@ -75,10 +64,8 @@ module.exports = (io, socket, users, userProfiles) => {
     io.emit("online-users", Object.keys(users));
     io.emit("user-status-change", { userId, isOnline: true });
 
-    // Send all existing profile metadata to the newly joined user
-    try {
-      // Include profilePic so the joining user sees everyone's avatar
-      const allProfiles = await UserProfile.find({}, 'email displayName profilePic bio lastSeen isOnline');
+    // Send all existing profile metadata to the newly joined user (Non-blocking)
+    UserProfile.find({}, 'email displayName profilePic bio lastSeen isOnline').then(allProfiles => {
       const profileMap = {};
       allProfiles.forEach(p => {
         const emailKey = p.email.toLowerCase();
@@ -91,9 +78,7 @@ module.exports = (io, socket, users, userProfiles) => {
         };
       });
       socket.emit("all-user-metadata", profileMap);
-    } catch (err) {
-      console.error("Error fetching all profiles:", err.message);
-    }
+    }).catch(err => console.error("Error fetching all profiles:", err.message));
   });
 
   socket.on("update-profile", async (data) => {
@@ -136,24 +121,21 @@ module.exports = (io, socket, users, userProfiles) => {
     }
   });
 
-  const handleOffline = async (userId) => {
-    try {
-      const now = new Date();
-      await UserProfile.findOneAndUpdate(
-        { email: userId },
-        { 
-          $set: { 
-            isOnline: false,
-            lastSeen: now,
-            lastActivity: now
-          } 
-        }
-      );
-      io.emit("user-status-change", { userId, isOnline: false, lastSeen: now });
-      io.emit("online-users", Object.keys(users));
-    } catch (err) {
-      console.error("Error updating offline status:", err.message);
-    }
+  const handleOffline = (userId) => {
+    const now = new Date();
+    UserProfile.findOneAndUpdate(
+      { email: userId },
+      { 
+        $set: { 
+          isOnline: false,
+          lastSeen: now,
+          lastActivity: now
+        } 
+      }
+    ).catch(err => console.error("Error updating offline status:", err.message));
+    
+    io.emit("user-status-change", { userId, isOnline: false, lastSeen: now });
+    io.emit("online-users", Object.keys(users));
   };
 
   socket.on("leave", async (data) => {
@@ -169,20 +151,20 @@ module.exports = (io, socket, users, userProfiles) => {
     if (users[userId].size === 0) {
       delete users[userId];
       console.log(`❌ ${userId} is offline (leave event)`);
-      await handleOffline(userId);
+      handleOffline(userId);
     } else {
       console.log(`🔁 ${userId} left one session, remaining connections: ${Array.from(users[userId]).join(", ")}`);
     }
   });
 
-  socket.on("disconnect", async () => {
+  socket.on("disconnect", () => {
     for (const userId in users) {
       if (users[userId].has(socket.id)) {
         users[userId].delete(socket.id);
         if (users[userId].size === 0) {
           delete users[userId];
           console.log(`❌ ${userId} is offline (disconnect)`);
-          await handleOffline(userId);
+          handleOffline(userId);
         }
         break;
       }
