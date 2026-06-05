@@ -8,7 +8,7 @@ import Landing from "./components/Landing";
 import Feedback from "./components/Feedback";
 import Admin from "./components/Admin";
 
-// ✅ Protected Route
+// ✅ Protected Route ()
 const PrivateRoute = ({ children, loading, user }) => {
   if (loading) return <div>Loading Security Session...</div>;
   return user ? children : <Navigate to="/login" />;
