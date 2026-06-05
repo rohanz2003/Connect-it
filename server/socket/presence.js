@@ -30,20 +30,24 @@ module.exports = (io, socket, users, userProfiles) => {
           profilePic: dbProfile.profilePic,
           bio: dbProfile.bio
         };
-        // Send existing profile info back to the user
-        socket.emit("user-profile-update", {
+        // Broadcast profile info to EVERYONE so they see the profile pic of the joining user
+        io.emit("user-profile-update", {
           email: userId,
           displayName: dbProfile.displayName,
           profilePic: dbProfile.profilePic,
           bio: dbProfile.bio
         });
       } else if (displayName || profilePic) {
-        // Create initial profile if it doesn't exist
-        await UserProfile.create({
+        const newProfile = {
           email: userId,
           displayName: displayName || userId.split('@')[0],
           profilePic: profilePic
-        });
+        };
+        // Create initial profile if it doesn't exist
+        await UserProfile.create(newProfile);
+        
+        // Broadcast new profile to everyone
+        io.emit("user-profile-update", newProfile);
       }
     } catch (err) {
       console.error("Error syncing profile from DB:", err.message);
@@ -73,10 +77,12 @@ module.exports = (io, socket, users, userProfiles) => {
 
     // Send all existing profile metadata to the newly joined user
     try {
+      // Include profilePic so the joining user sees everyone's avatar
       const allProfiles = await UserProfile.find({}, 'email displayName profilePic bio lastSeen isOnline');
       const profileMap = {};
       allProfiles.forEach(p => {
-        profileMap[p.email.toLowerCase()] = {
+        const emailKey = p.email.toLowerCase();
+        profileMap[emailKey] = {
           displayName: p.displayName,
           profilePic: p.profilePic,
           bio: p.bio,
