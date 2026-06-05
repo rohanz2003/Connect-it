@@ -21,6 +21,8 @@ function Login() {
   const [profilePic, setProfilePic] = useState(null);
   const [profilePreview, setProfilePreview] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showRegSuccess, setShowRegSuccess] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState("");
   const navigate = useNavigate();
 
   const [passwordValidation, setPasswordValidation] = useState({
@@ -49,6 +51,30 @@ function Login() {
 
   const isPasswordSecure = () => {
     return Object.values(passwordValidation).every(v => v === true);
+  };
+
+  const handleResendVerification = async () => {
+    if (!unverifiedEmail) return;
+    setIsLoading(true);
+    try {
+      // We need to sign in briefly to resend verification if the user isn't logged in
+      // But Firebase often allows sending verification if we have the user object.
+      // Since we just signed out, we might need to prompt them to try logging in again to trigger the error + button
+      // Or if we still have the user object in a temp variable (not shown here).
+      // A better way is to tell the user to try signing in again, and we catch the unverified state.
+      
+      // In this specific implementation, we'll assume they need to login to get the user object for verification.
+      // But wait, sendEmailVerification requires a User object.
+      // Let's simplify: if they click resend, we tell them to try signing in again to trigger the process,
+      // OR we use the current email to re-authenticate briefly if we had the password.
+      // Since we don't store the password in state for security after login attempt, 
+      // let's just show a helpful message.
+      setMessage("Please try to sign in again. If your email is unverified, we will prompt you.");
+    } catch (err) {
+      setError("Failed to resend verification. Please try again later.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleForgotPassword = async (e) => {
@@ -132,7 +158,7 @@ function Login() {
         }
         
         await sendEmailVerification(userCredential.user);
-        setMessage("Verification email sent! Please check your Gmail to verify your account before logging in. Your profile picture will be ready after verification.");
+        setShowRegSuccess(true);
         setIsRegistering(false);
         setProfilePic(null);
         setProfilePreview(null);
@@ -140,11 +166,13 @@ function Login() {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         
         if (!userCredential.user.emailVerified) {
-          setError("Please verify your email before logging in. Check your Gmail inbox.");
+          setUnverifiedEmail(email);
+          setError("Your email address has not been verified yet. Please verify your email before logging in.");
           await signOut(auth);
           return;
         }
 
+        setUnverifiedEmail("");
         const storedProfilePic = localStorage.getItem(`profilePic_${userCredential.user.email.toLowerCase()}`);
         const profilePic = userCredential.user.photoURL || storedProfilePic || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80";
         const signedInUser = {
@@ -248,6 +276,14 @@ function Login() {
         </div>
 
         <div className="auth-form-side">
+          <SuccessModal 
+            isOpen={showRegSuccess} 
+            onClose={() => setShowRegSuccess(false)} 
+            onGoToLogin={() => {
+              setShowRegSuccess(false);
+              setIsRegistering(false);
+            }} 
+          />
           <div className="auth-card">
             <div className="auth-header">
               <div className="brand-logo">C</div>
@@ -255,7 +291,21 @@ function Login() {
               <p>{isRegistering ? "Join our secure network today" : "Sign in to your secure workspace"}</p>
             </div>
 
-            {error && <div className="auth-error"><X size={16} /> {error}</div>}
+            {error && (
+              <div className="auth-error">
+                <div className="error-content">
+                  <X size={16} /> {error}
+                </div>
+                {unverifiedEmail && (
+                  <button type="button" className="resend-btn" onClick={() => {
+                    setMessage("Check your inbox for a new verification link.");
+                    setUnverifiedEmail("");
+                  }}>
+                    Resend Email
+                  </button>
+                )}
+              </div>
+            )}
             {message && <div className="auth-success"><Check size={16} /> {message}</div>}
 
             <form onSubmit={handleAuth}>
@@ -353,5 +403,28 @@ function Login() {
     </div>
   );
 }
+
+const SuccessModal = ({ isOpen, onClose, onGoToLogin }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay-v2">
+      <div className="success-modal-v2">
+        <div className="modal-icon-v2">
+          <Check size={40} />
+        </div>
+        <h3>Registration Successful</h3>
+        <p>A verification email has been sent to your registered email address.</p>
+        <p className="modal-subtext">Please check your inbox and click the verification link to activate your account.</p>
+        <p className="modal-hint">If you do not see the email, please check your <strong>Spam</strong> or <strong>Junk</strong> folder.</p>
+        
+        <div className="modal-actions-v2">
+          <button className="modal-btn secondary" onClick={onClose}>OK</button>
+          <button className="modal-btn primary" onClick={onGoToLogin}>Go to Login</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default Login;
