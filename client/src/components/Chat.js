@@ -22,6 +22,8 @@ import {
   LogOut,
   Archive,
   Download,
+  Loader2,
+  Check,
 } from "lucide-react";
 import { auth } from "../firebase";
 import useSocket from "../hooks/useSocket";
@@ -88,7 +90,9 @@ function Chat({ user: currentUser }) {
   const [mediaUploadProgress, setMediaUploadProgress] = useState(0); // Track progress percentage
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem("theme") === "dark");
   const [isChatMinimized, setIsChatMinimized] = useState(false); // Track if chat is minimized
-  const [zoomedImage, setZoomedImage] = useState(null); // State for image zoom feature
+  const [zoomedImage, setZoomedImage] = useState(null);
+  const [isProfileZoom, setIsProfileZoom] = useState(false); // To distinguish between media and DP zoom
+  const [zoomUserInfo, setZoomUserInfo] = useState({ name: "", email: "" }); // State for image zoom feature
   const [isZoomMinimized, setIsZoomMinimized] = useState(false); // Track zoom bubble state
   const [contextMenu, setContextMenu] = useState(null); // { x, y, message }
   const [replyTo, setReplyTo] = useState(null); // Message being replied to
@@ -114,8 +118,10 @@ function Chat({ user: currentUser }) {
     localStorage.setItem("theme", isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
 
-  const handleZoomImage = (src) => {
+  const handleZoomImage = (src, isProfile = false, userInfo = null) => {
     setZoomedImage(src);
+    setIsProfileZoom(isProfile);
+    if (userInfo) setZoomUserInfo(userInfo);
     setIsZoomMinimized(false);
   };
 
@@ -242,7 +248,7 @@ function Chat({ user: currentUser }) {
         size={size}
         onClick={src ? (e) => {
           e.stopPropagation();
-          handleZoomImage(src);
+          handleZoomImage(src, true, { name, email: lowerEmail });
         } : undefined}
       />
     );
@@ -1698,6 +1704,7 @@ function Chat({ user: currentUser }) {
                           )}
                           {msg.type === "media" ? (
                             <div className="media-message">
+                              {msg.pending && <div className="media-loading-overlay"><Loader2 className="spinner" size={24} /></div>}
                               {msg.mediaType === "image" && msg.text?.data?.startsWith("data:image/") && (
                                 <img src={msg.text.data} alt="Shared" className="media-image" onClick={() => handleZoomImage(msg.text.data)} />
                               )}
@@ -1953,17 +1960,22 @@ function Chat({ user: currentUser }) {
       )}
 
       {zoomedImage && (
-        <div className="image-zoom-overlay" onClick={() => setZoomedImage(null)}>
+        <div className={`image-zoom-overlay ${isProfileZoom ? 'profile-zoom' : 'media-zoom'}`} onClick={() => setZoomedImage(null)}>
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="whatsapp-zoom-content"
+            initial={isProfileZoom ? { scale: 0.5, opacity: 0, borderRadius: '50%' } : { scale: 0.9, opacity: 0 }}
+            animate={isProfileZoom ? { scale: 1, opacity: 1, borderRadius: '0%' } : { scale: 1, opacity: 1 }}
+            exit={isProfileZoom ? { scale: 0.5, opacity: 0, borderRadius: '50%' } : { scale: 0.9, opacity: 0 }}
+            className={isProfileZoom ? "whatsapp-profile-content" : "whatsapp-zoom-content"}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="zoom-top-bar">
               <div className="zoom-info">
-                <span className="zoom-user-name">Profile Picture</span>
+                <span className="zoom-user-name">
+                  {isProfileZoom ? (zoomUserInfo.name || "Profile Picture") : "Media View"}
+                </span>
+                {isProfileZoom && zoomUserInfo.email && (
+                  <span className="zoom-user-email">{zoomUserInfo.email}</span>
+                )}
               </div>
               <div className="zoom-actions">
                 <button 
@@ -1984,7 +1996,11 @@ function Chat({ user: currentUser }) {
             </div>
             
             <div className="zoom-image-container">
-              <img src={zoomedImage} alt="Profile Full View" />
+              <img 
+                src={zoomedImage} 
+                alt="Full View" 
+                className={isProfileZoom ? "profile-img-full" : "media-img-full"}
+              />
             </div>
           </motion.div>
         </div>

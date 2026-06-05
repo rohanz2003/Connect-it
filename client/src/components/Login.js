@@ -408,21 +408,28 @@ const SuccessModal = ({ isOpen, onClose, onGoToLogin }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay-v2">
-      <div className="success-modal-v2">
+    <div className="modal-overlay-v2" onClick={onClose}>
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="success-modal-v2" 
+        onClick={e => e.stopPropagation()}
+      >
         <div className="modal-icon-v2">
-          <Check size={40} />
+          <Check size={44} strokeWidth={3} />
         </div>
         <h3>Registration Successful</h3>
-        <p>A verification email has been sent to your registered email address.</p>
-        <p className="modal-subtext">Please check your inbox and click the verification link to activate your account.</p>
-        <p className="modal-hint">If you do not see the email, please check your <strong>Spam</strong> or <strong>Junk</strong> folder.</p>
+        <p className="modal-main-text">Your account has been created successfully!</p>
+        <div className="modal-info-box">
+          <p className="modal-subtext">A verification link was sent to your email.</p>
+          <p className="modal-hint">Please check your <strong>Inbox</strong> or <strong>Spam</strong> folder to activate your account.</p>
+        </div>
         
         <div className="modal-actions-v2">
-          <button className="modal-btn secondary" onClick={onClose}>OK</button>
-          <button className="modal-btn primary" onClick={onGoToLogin}>Go to Login</button>
+          <button className="modal-btn secondary" onClick={onClose}>Maybe Later</button>
+          <button className="modal-btn primary" onClick={onGoToLogin}>Login Now</button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

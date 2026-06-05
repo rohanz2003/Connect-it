@@ -356,51 +356,74 @@
 .success-modal-v2 {
   background: var(--card-bg);
   width: 100%;
-  max-width: 440px;
-  padding: 40px 30px;
-  border-radius: 20px;
+  max-width: 480px;
+  padding: 50px 40px;
+  border-radius: 24px;
   text-align: center;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .modal-icon-v2 {
-  width: 80px;
-  height: 80px;
-  background: #e7f3ff;
+  width: 90px;
+  height: 90px;
+  background: rgba(21, 101, 216, 0.1);
   color: var(--primary-color);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 24px;
+  margin: 0 auto 30px;
+  box-shadow: 0 0 20px rgba(21, 101, 216, 0.2);
 }
 
 .success-modal-v2 h3 {
-  font-size: 24px;
-  font-weight: 800;
+  font-size: 28px;
+  font-weight: 850;
   color: var(--text-main);
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  letter-spacing: -0.5px;
 }
 
 .success-modal-v2 p {
-  font-size: 16px;
+  font-size: 17px;
   color: var(--text-main);
-  line-height: 1.5;
-  margin-bottom: 8px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.modal-main-text {
+  font-weight: 700 !important;
+  color: var(--text-main);
+  margin-bottom: 24px !important;
+}
+
+.modal-info-box {
+  background: rgba(21, 101, 216, 0.05);
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(21, 101, 216, 0.1);
 }
 
 .modal-subtext {
-  font-weight: 500;
+  font-size: 15px !important;
+  font-weight: 600;
+  margin-bottom: 8px !important;
 }
 
 .modal-hint {
   font-size: 14px !important;
   color: var(--text-muted) !important;
-  background: #f5f6f7;
-  padding: 12px;
-  border-radius: 10px;
-  margin-top: 16px;
+  margin-top: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+.dark .modal-hint {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
 }
 
 .modal-actions-v2 {
