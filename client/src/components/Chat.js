@@ -631,36 +631,51 @@ function Chat({ user: currentUser }) {
   }, [socket, user]);
 
   useEffect(() => {
+    let isCancelled = false;
     const syncChat = async () => {
       if (!user || !selectedUser || !socket) return;
 
-      console.log(`📍 Joining room and fetching history: ${user.email} ↔ ${selectedUser}`);
+      const currentSelectedUser = normalizeEmail(selectedUser);
+      console.log(`📍 Joining room and fetching history: ${user.email} ↔ ${currentSelectedUser}`);
 
       // 1. Join room
-      socket.emit("join-room", { user1: user.email, user2: selectedUser });
+      socket.emit("join-room", { user1: user.email, user2: currentSelectedUser });
       
       // 2. Mark messages as read on server
-      socket.emit("mark-as-read", { user1: user.email, user2: selectedUser });
+      socket.emit("mark-as-read", { user1: user.email, user2: currentSelectedUser });
       
-      // 3. Fetch full history from Database (Fixes the "no msg show" issue)
+      // 3. Fetch full history from Database
       try {
-        const history = await fetchMessages(user.email, selectedUser) || [];
+        const history = await fetchMessages(user.email, currentSelectedUser) || [];
         
-        // Use the new selectedUser variable to ensure we are updating the correct history entry
-        const partner = normalizeEmail(selectedUser);
-        
-        setChatHistory(prev => ({ ...prev, [partner]: history }));
-        
-        // CRITICAL FIX: Do not merge with 'prev' messages state, as it may contain data from a previous user.
-        // Instead, we only merge history with any "live" messages that arrived specifically for this partner
-        // while the fetch was in progress. We can get these from the current chatHistoryRef.
+        if (isCancelled) return;
+
+        setChatHistory(prev => {
+          const partner = currentSelectedUser;
+          const currentHistory = prev[partner] || [];
+          
+          const historyIds = new Set(history.map(m => m._id).filter(Boolean));
+          const historyTempIds = new Set(history.map(m => m.tempId).filter(Boolean));
+          
+          const uniqueLiveMessages = currentHistory.filter(m => 
+            !historyIds.has(m._id) && !historyTempIds.has(m.tempId)
+          );
+          
+          const merged = [...history, ...uniqueLiveMessages].sort(
+            (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
+          );
+          
+          return { ...prev, [partner]: merged };
+        });
+
         setMessages(() => {
+          const partner = currentSelectedUser;
+          // We get the latest from chatHistoryRef which might have been updated by socket events
           const currentLiveForPartner = chatHistoryRef.current[partner] || [];
           
           const historyIds = new Set(history.map(m => m._id).filter(Boolean));
           const historyTempIds = new Set(history.map(m => m.tempId).filter(Boolean));
           
-          // Only keep messages from chatHistory that aren't already in the fetched history
           const uniqueLiveMessages = currentLiveForPartner.filter(m => 
             !historyIds.has(m._id) && !historyTempIds.has(m.tempId)
           );
@@ -670,11 +685,13 @@ function Chat({ user: currentUser }) {
         });
       } catch (err) {
         console.error("Failed to fetch messages:", err);
-        const partner = normalizeEmail(selectedUser);
+        if (isCancelled) return;
+        
+        const partner = currentSelectedUser;
         const cached = chatHistoryRef.current[partner];
         if (cached?.length) {
           setMessages(
-            cached.sort(
+            [...cached].sort(
               (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
             )
           );
@@ -683,6 +700,9 @@ function Chat({ user: currentUser }) {
     };
 
     syncChat();
+    return () => {
+      isCancelled = true;
+    };
   }, [selectedUser, user, socket]);
 
   const stopTyping = () => {
@@ -1086,18 +1106,22 @@ function Chat({ user: currentUser }) {
 
   const handleUserSelect = (u) => {
     const partner = normalizeEmail(u);
-    console.log(`👤 Selected user: ${partner}`);
+    console.log(`👤 Selecting user: ${partner}`);
     
-    // CRITICAL FIX: Always clear or update messages immediately to prevent carry-over from previous chat
-    if (chatHistory[partner]) {
-      setMessages([...chatHistory[partner]].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
+    // 1. Immediately update ref to prevent race conditions in socket listeners
+    selectedUserRef.current = partner;
+    
+    // 2. Immediately update messages state from history
+    if (chatHistoryRef.current[partner]) {
+      setMessages([...chatHistoryRef.current[partner]].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
     } else {
       setMessages([]);
     }
     
+    // 3. Update state
     setSelectedUser(partner);
 
-    // Clear unread badge for this chat
+    // 4. Clear unread badge for this chat
     if (user) {
       const userKey = normalizeEmail(user.email);
       setUnreadMessages(prev => {
