@@ -230,6 +230,40 @@ module.exports = (io, socket, users) => {
     }
   });
 
+  socket.on("message-delivered", async ({ messageId, sender, receiver }) => {
+    try {
+      const authUser = getAuthenticatedEmail(socket, users);
+      const normalizedReceiver = normalizeEmail(receiver);
+      if (!authUser || authUser !== normalizedReceiver) return;
+
+      const now = new Date();
+      await Message.updateMany(
+        { 
+          $or: [{ _id: messageId }, { tempId: messageId }],
+          sender: normalizeEmail(sender), 
+          receiver: normalizedReceiver,
+          status: "sent"
+        },
+        { 
+          $set: { 
+            status: "delivered",
+            deliveredAt: now
+          } 
+        }
+      );
+
+      const roomId = getRoomId(sender, receiver);
+      io.to(roomId).emit("message-delivered", {
+        messageId,
+        sender: normalizeEmail(sender),
+        receiver: normalizedReceiver,
+        deliveredAt: now
+      });
+    } catch (err) {
+      console.warn("message-delivered failed:", err.message);
+    }
+  });
+
   socket.on("mark-as-read", ({ user1, user2 }) => {
     const authUser = getAuthenticatedEmail(socket, users);
     const normalizedUser1 = normalizeEmail(user1);
@@ -239,10 +273,19 @@ module.exports = (io, socket, users) => {
     const unreadKey = `${normalizedUser2}_${normalizedUser1}`;
     unreadMessages[unreadKey] = 0;
 
+    const now = new Date();
     Message.updateMany(
-      { sender: normalizedUser2, receiver: normalizedUser1, seen: false },
-      { seen: true }
+      { sender: normalizedUser2, receiver: normalizedUser1, status: { $ne: "read" } },
+      { $set: { status: "read", seen: true, readAt: now } }
     ).catch((err) => console.warn("mark-as-read DB update failed:", err.message));
+
+    // Also notify sender that messages are read
+    const roomId = getRoomId(normalizedUser1, normalizedUser2);
+    io.to(roomId).emit("messages-read", {
+      sender: normalizedUser2,
+      receiver: normalizedUser1,
+      readAt: now
+    });
 
     if (isUserOnline(users, normalizedUser1)) {
       io.to(normalizedUser1).emit("unread-update", unreadMessages);
@@ -255,15 +298,17 @@ module.exports = (io, socket, users) => {
       const normalizedReceiver = normalizeEmail(receiver);
       if (!authUser || authUser !== normalizedReceiver) return;
 
+      const now = new Date();
       await Message.updateMany(
-        { sender: normalizeEmail(sender), receiver: normalizedReceiver, seen: false },
-        { seen: true }
+        { sender: normalizeEmail(sender), receiver: normalizedReceiver, status: { $ne: "read" } },
+        { $set: { status: "read", seen: true, readAt: now } }
       );
 
       const roomId = getRoomId(sender, receiver);
       io.to(roomId).emit("message-seen", {
         sender: normalizeEmail(sender),
         receiver: normalizedReceiver,
+        readAt: now
       });
     } catch (err) {
       console.warn("seen-message failed:", err.message);

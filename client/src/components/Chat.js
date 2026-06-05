@@ -157,7 +157,15 @@ const MessageItem = React.memo(({ msg, user, renderAvatar, handleZoomImage, hand
             {msg.pending && <span className="message-status pending">Sending…</span>}
             {msg.failed && <span className="message-status failed">Failed</span>}
             {msg.sender === user.email && !msg.pending && !msg.failed && (
-              <span className="read-receipt">✓✓</span>
+              <span className={`message-status-dot ${msg.status || (msg.seen ? 'read' : 'sent')}`}>
+                {msg.status === 'read' || msg.seen ? (
+                  <span className="dot-read">●●</span>
+                ) : msg.status === 'delivered' ? (
+                  <span className="dot-delivered">●●</span>
+                ) : (
+                  <span className="dot-sent">●</span>
+                )}
+              </span>
             )}
           </div>
         </div>
@@ -665,11 +673,11 @@ function Chat({ user: currentUser }) {
 
     socket.on("chat-cleared", handleChatCleared);
 
-    const handleMessageSaved = ({ tempId, _id, timestamp }) => {
+    const handleMessageSaved = ({ tempId, _id, timestamp, status }) => {
       const applySaved = (list) =>
         list.map((m) =>
           m.tempId === tempId
-            ? { ...m, _id, timestamp: timestamp || m.timestamp, pending: false }
+            ? { ...m, _id, timestamp: timestamp || m.timestamp, pending: false, status: status || "sent" }
             : m
         );
 
@@ -760,6 +768,13 @@ function Chat({ user: currentUser }) {
           user2: otherParty,
         });
       } else if (normalizeEmail(msg.sender) !== normalizeEmail(user.email)) {
+        // Not active chat, but we are online and received it -> emit delivered
+        socket.emit("message-delivered", {
+          messageId: msg._id || msg.tempId,
+          sender: otherParty,
+          receiver: normalizeEmail(user.email)
+        });
+
         setUnreadMessages((prev) => {
           const key = `${otherParty}_${normalizeEmail(user.email)}`;
           const newCounts = { ...prev, [key]: (prev[key] || 0) + 1 };
@@ -769,6 +784,43 @@ function Chat({ user: currentUser }) {
     };
 
     socket.on("receive-message", handleIncomingMessage);
+
+    const updateMessageStatus = (sender, receiver, status, messageId = null) => {
+      const otherParty = normalizeEmail(user.email) === normalizeEmail(sender) ? normalizeEmail(receiver) : normalizeEmail(sender);
+      
+      const applyStatus = (list) =>
+        list.map((m) => {
+          if (messageId && m._id !== messageId && m.tempId !== messageId) return m;
+          // Only upgrade status, don't downgrade
+          if (m.status === "read") return m;
+          if (m.status === "delivered" && status === "sent") return m;
+          return { ...m, status, seen: status === "read" };
+        });
+
+      setChatHistory((prev) => {
+        if (!prev[otherParty]) return prev;
+        return {
+          ...prev,
+          [otherParty]: applyStatus(prev[otherParty])
+        };
+      });
+
+      if (selectedUserRef.current && normalizeEmail(selectedUserRef.current) === otherParty) {
+        setMessages((prev) => applyStatus(prev));
+      }
+    };
+
+    socket.on("message-delivered", ({ messageId, sender, receiver }) => {
+      updateMessageStatus(sender, receiver, "delivered", messageId);
+    });
+
+    socket.on("messages-read", ({ sender, receiver }) => {
+      updateMessageStatus(sender, receiver, "read");
+    });
+
+    socket.on("message-seen", ({ sender, receiver }) => {
+      updateMessageStatus(sender, receiver, "read");
+    });
 
     return () => {
       socket.off("connect", handleJoin);
@@ -784,6 +836,9 @@ function Chat({ user: currentUser }) {
       socket.off("message-error", handleMessageError);
       socket.off("message-deleted");
       socket.off("receive-message", handleIncomingMessage);
+      socket.off("message-delivered");
+      socket.off("messages-read");
+      socket.off("message-seen");
     };
   }, [socket, user]);
 
