@@ -941,6 +941,7 @@ body {
   flex: 1;
   overflow-y: auto;
   background: var(--background-white);
+  position: relative; /* For floating typing indicator */
 }
 
 .chat-messages {
@@ -1259,31 +1260,42 @@ body {
 }
 
 /* Typing Indicator */
-.typing-indicator {
+.typing-indicator-floating {
+  position: absolute;
+  bottom: 10px;
+  left: 20px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 14px;
-  background: var(--border-light);
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--background-white);
   border-radius: var(--radius-lg);
-  width: fit-content;
-  color: var(--text-secondary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-color);
+  z-index: 10;
   font-size: 13px;
+  color: var(--text-secondary);
+  pointer-events: none;
 }
 
-.typing-indicator span {
+.typing-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.typing-dots span {
   width: 6px;
   height: 6px;
-  background: var(--text-secondary);
+  background: var(--primary-color);
   border-radius: var(--radius-full);
   animation: typing-pulse 1.4s infinite;
 }
 
-.typing-indicator span:nth-child(2) {
+.typing-dots span:nth-child(2) {
   animation-delay: 0.2s;
 }
 
-.typing-indicator span:nth-child(3) {
+.typing-dots span:nth-child(3) {
   animation-delay: 0.4s;
 }
 

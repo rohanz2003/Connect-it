@@ -99,6 +99,7 @@ function Chat({ user: currentUser }) {
   const [userMetadata, setUserMetadata] = useState({}); // { email: { displayName, bio, profilePic } }
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const lastTypingEmitRef = useRef(0);
   const messagesEndRef = useRef(null);
 
   // Use Ref to track selectedUser for the socket listener to avoid stale closures
@@ -718,41 +719,33 @@ function Chat({ user: currentUser }) {
     const val = e.target.value;
     setMessage(val);
 
-    if (!user || !selectedUser || !socket) {
-      console.warn("❌ Typing aborted: missing user, selectedUser, or socket");
-      return;
-    }
-
-    if (!socket.connected) {
-      console.warn("❌ Socket not connected, typing not sent");
-      return;
-    }
-
-    const normalizedUser = normalizeEmail(user.email);
-    const normalizedSelected = normalizeEmail(selectedUser);
-
-    if (!normalizedUser || !normalizedSelected) {
-      console.warn("❌ Typing aborted: invalid email normalization", { user: user.email, selected: selectedUser });
-      return;
-    }
+    if (!user || !selectedUser || !socket) return;
 
     if (val.trim() === "") {
       stopTyping();
       return;
     }
 
-    const typingPayload = { from: normalizedUser, to: normalizedSelected };
-    console.log("📤 Emitting typing:", typingPayload);
-    socket.emit("typing", typingPayload);
+    const now = Date.now();
+    // Only emit "typing" every 2 seconds to avoid spamming the server
+    if (now - lastTypingEmitRef.current > 2000) {
+      const normalizedUser = normalizeEmail(user.email);
+      const normalizedSelected = normalizeEmail(selectedUser);
+
+      if (normalizedUser && normalizedSelected) {
+        const typingPayload = { from: normalizedUser, to: normalizedSelected };
+        socket.emit("typing", typingPayload);
+        lastTypingEmitRef.current = now;
+      }
+    }
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
     typingTimeoutRef.current = setTimeout(() => {
-      console.log("⏱️ Typing timeout reached - auto stopping typing");
       stopTyping();
-    }, 3000); // Timeout for better UX
+    }, 3000);
   };
 
   const sendMessage = () => {
@@ -1654,21 +1647,6 @@ function Chat({ user: currentUser }) {
                 })
               )}
 
-              <AnimatePresence>
-                {typingUser && typingUser !== user.email && (
-                  <motion.div
-                    className="typing-indicator"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    title="Someone is typing..."
-                  >
-                    <span />
-                    <span />
-                    <span />
-                  </motion.div>
-                )}
-              </AnimatePresence>
               <div ref={messagesEndRef} />
             </div>
           ) : (
@@ -1679,6 +1657,24 @@ function Chat({ user: currentUser }) {
               </div>
             </div>
           )}
+          
+          <AnimatePresence>
+            {typingUser && typingUser !== user.email && (
+              <motion.div
+                className="typing-indicator-floating"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+              >
+                <div className="typing-dots">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <span>{getDisplayName(typingUser)} is typing...</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         )}
 
