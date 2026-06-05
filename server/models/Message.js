@@ -26,7 +26,11 @@ const messageSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-messageSchema.index({ sender: 1, receiver: 1, timestamp: 1 });
-messageSchema.index({ receiver: 1, sender: 1, timestamp: 1 });
+messageSchema.index({ sender: 1, receiver: 1, timestamp: -1 });
+messageSchema.index({ receiver: 1, sender: 1, timestamp: -1 });
+messageSchema.index({ timestamp: -1 });
+messageSchema.index({ tempId: 1 }, { sparse: true });
+messageSchema.index({ sender: 1, timestamp: -1 });
+messageSchema.index({ receiver: 1, timestamp: -1 });
 
 module.exports = mongoose.model("Message", messageSchema);

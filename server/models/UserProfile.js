@@ -10,4 +10,8 @@ const userProfileSchema = new mongoose.Schema({
   lastActivity: { type: Date, default: Date.now },
 }, { timestamps: true });
 
+userProfileSchema.index({ email: 1 });
+userProfileSchema.index({ isOnline: 1 });
+userProfileSchema.index({ lastActivity: -1 });
+
 module.exports = mongoose.model("UserProfile", userProfileSchema);

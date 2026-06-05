@@ -19,7 +19,7 @@ const getArchivedPartners = async (user) => {
 
 exports.getMessages = async (req, res) => {
   try {
-    const { user1, user2 } = req.query;
+    const { user1, user2, before, limit = 50 } = req.query;
     if (!user1 || !user2) {
       return res.status(400).json({ error: "user1 and user2 are required" });
     }
@@ -39,12 +39,29 @@ exports.getMessages = async (req, res) => {
       query.timestamp = { $gt: clearedAt };
     }
 
+    // Cursor-based pagination using 'before' timestamp
+    if (before) {
+      const beforeDate = new Date(before);
+      if (query.timestamp) {
+        query.timestamp.$lt = beforeDate;
+      } else {
+        query.timestamp = { $lt: beforeDate };
+      }
+    }
+
     const messages = await Message.find(query)
-      .sort({ timestamp: 1 })
-      .limit(500)
+      .sort({ timestamp: -1 }) // Get newest first for pagination
+      .limit(parseInt(limit))
       .lean();
 
-    res.json(messages.map(decryptMessageDoc));
+    // Reverse to return in chronological order
+    const results = messages.reverse().map(decryptMessageDoc);
+    
+    res.json({
+      messages: results,
+      hasMore: messages.length === parseInt(limit),
+      oldestTimestamp: messages.length > 0 ? messages[0].timestamp : null
+    });
   } catch (error) {
     console.error("getMessages error:", error);
     res.status(500).json({ error: "Failed to fetch messages", details: error.message });
@@ -67,6 +84,16 @@ exports.getRecentChats = async (req, res) => {
           $or: [{ sender: normalizedEmail }, { receiver: normalizedEmail }],
         },
       },
+      {
+        $project: {
+          sender: 1,
+          receiver: 1,
+          text: 1,
+          timestamp: 1,
+          type: 1,
+          _id: 1,
+        },
+      },
       { $sort: { timestamp: -1 } },
       {
         $group: {
@@ -84,6 +111,7 @@ exports.getRecentChats = async (req, res) => {
         },
       },
       { $sort: { timestamp: -1 } },
+      { $limit: 100 }, // Limit to top 100 conversations for performance
     ]);
 
     // Get cleared chat records to filter out hidden conversations
