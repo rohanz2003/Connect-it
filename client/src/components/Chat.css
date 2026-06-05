@@ -1083,10 +1083,10 @@ body {
 .message-status-dot {
   display: inline-flex;
   align-items: center;
-  margin-left: 4px;
+  margin-left: 6px;
   line-height: 1;
-  font-size: 10px;
-  letter-spacing: -1px;
+  font-size: 18px; /* Enlarged to 18px for better visibility */
+  letter-spacing: -2.5px; /* Keep dots close */
 }
 
 .message-status-dot.sent .dot-sent {
@@ -1327,11 +1327,16 @@ body.dark-mode .message-status-dot.read .dot-read {
 }
 
 .typing-dots span {
-  width: 6px;
-  height: 6px;
+  width: 8px; /* Increased from 6px */
+  height: 8px; /* Increased from 6px */
   background: var(--primary-color);
   border-radius: var(--radius-full);
   animation: typing-pulse 1.4s infinite;
+}
+
+.typing-text {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .typing-dots span:nth-child(2) {

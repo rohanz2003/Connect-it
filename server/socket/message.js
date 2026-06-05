@@ -128,6 +128,9 @@ module.exports = (io, socket, users) => {
         return;
       }
 
+      const isReceiverOnline = isUserOnline(users, normalizedReceiver);
+      const initialStatus = isReceiverOnline ? "delivered" : "sent";
+
       const optimisticMessage = {
         _id: tempId || `temp-${Date.now()}`,
         sender: normalizedSender,
@@ -139,6 +142,7 @@ module.exports = (io, socket, users) => {
         replyTo: replyTo || null,
         timestamp: msgTimestamp,
         seen: false,
+        status: initialStatus,
         pending: true,
       };
 
@@ -149,7 +153,7 @@ module.exports = (io, socket, users) => {
       const unreadKey = `${normalizedSender}_${normalizedReceiver}`;
       unreadMessages[unreadKey] = (unreadMessages[unreadKey] || 0) + 1;
 
-      if (isUserOnline(users, normalizedReceiver)) {
+      if (isReceiverOnline) {
         const receiverUnreads = {};
         Object.keys(unreadMessages).forEach(key => {
           if (key.endsWith(`_${normalizedReceiver}`)) {
@@ -176,6 +180,8 @@ module.exports = (io, socket, users) => {
               replyTo: replyTo || undefined,
               timestamp: msgTimestamp,
               seen: false,
+              status: initialStatus,
+              deliveredAt: initialStatus === "delivered" ? new Date() : undefined
             }),
             UserProfile.findOneAndUpdate(
               { email: normalizedSender },
@@ -195,7 +201,8 @@ module.exports = (io, socket, users) => {
             _id: saved._id,
             timestamp: saved.timestamp,
             type: saved.type,
-            mediaType: saved.mediaType
+            mediaType: saved.mediaType,
+            status: saved.status
           });
         } catch (dbErr) {
           console.error(`❌ DB Error for message from ${normalizedSender}:`, dbErr.message);
@@ -230,7 +237,7 @@ module.exports = (io, socket, users) => {
     }
   });
 
-  socket.on("message-delivered", async ({ messageId, sender, receiver }) => {
+  const handleMessageDelivered = async ({ messageId, sender, receiver }) => {
     try {
       const authUser = getAuthenticatedEmail(socket, users);
       const normalizedReceiver = normalizeEmail(receiver);
@@ -253,67 +260,62 @@ module.exports = (io, socket, users) => {
       );
 
       const roomId = getRoomId(sender, receiver);
-      io.to(roomId).emit("message-delivered", {
+      const payload = {
         messageId,
         sender: normalizeEmail(sender),
         receiver: normalizedReceiver,
         deliveredAt: now
-      });
+      };
+      io.to(roomId).emit("message-delivered", payload);
+      io.to(roomId).emit("messageDelivered", payload);
     } catch (err) {
-      console.warn("message-delivered failed:", err.message);
+      console.warn("messageDelivered failed:", err.message);
     }
-  });
+  };
 
-  socket.on("mark-as-read", ({ user1, user2 }) => {
-    const authUser = getAuthenticatedEmail(socket, users);
-    const normalizedUser1 = normalizeEmail(user1);
-    const normalizedUser2 = normalizeEmail(user2);
-    if (!authUser || authUser !== normalizedUser1) return;
-
-    const unreadKey = `${normalizedUser2}_${normalizedUser1}`;
-    unreadMessages[unreadKey] = 0;
-
-    const now = new Date();
-    Message.updateMany(
-      { sender: normalizedUser2, receiver: normalizedUser1, status: { $ne: "read" } },
-      { $set: { status: "read", seen: true, readAt: now } }
-    ).catch((err) => console.warn("mark-as-read DB update failed:", err.message));
-
-    // Also notify sender that messages are read
-    const roomId = getRoomId(normalizedUser1, normalizedUser2);
-    io.to(roomId).emit("messages-read", {
-      sender: normalizedUser2,
-      receiver: normalizedUser1,
-      readAt: now
-    });
-
-    if (isUserOnline(users, normalizedUser1)) {
-      io.to(normalizedUser1).emit("unread-update", unreadMessages);
-    }
-  });
-
-  socket.on("seen-message", async ({ sender, receiver }) => {
+  const handleMessageRead = async (data) => {
     try {
+      const author = normalizeEmail(data.sender || data.user2);
+      const reader = normalizeEmail(data.receiver || data.user1);
+
+      if (!author || !reader) return;
+
       const authUser = getAuthenticatedEmail(socket, users);
-      const normalizedReceiver = normalizeEmail(receiver);
-      if (!authUser || authUser !== normalizedReceiver) return;
+      if (!authUser || authUser !== reader) return;
+
+      const unreadKey = `${author}_${reader}`;
+      unreadMessages[unreadKey] = 0;
 
       const now = new Date();
       await Message.updateMany(
-        { sender: normalizeEmail(sender), receiver: normalizedReceiver, status: { $ne: "read" } },
+        { sender: author, receiver: reader, status: { $ne: "read" } },
         { $set: { status: "read", seen: true, readAt: now } }
       );
 
-      const roomId = getRoomId(sender, receiver);
-      io.to(roomId).emit("message-seen", {
-        sender: normalizeEmail(sender),
-        receiver: normalizedReceiver,
+      const roomId = getRoomId(author, reader);
+      const payload = {
+        sender: author,
+        receiver: reader,
         readAt: now
-      });
+      };
+      
+      io.to(roomId).emit("messages-read", payload);
+      io.to(roomId).emit("message-seen", payload);
+      io.to(roomId).emit("messageRead", payload);
+
+      if (isUserOnline(users, reader)) {
+        io.to(reader).emit("unread-update", unreadMessages);
+      }
     } catch (err) {
-      console.warn("seen-message failed:", err.message);
+      console.warn("messageRead failed:", err.message);
     }
-  });
+  };
+
+  socket.on("message-delivered", handleMessageDelivered);
+  socket.on("messageDelivered", handleMessageDelivered);
+  socket.on("mark-as-read", handleMessageRead);
+  socket.on("seen-message", handleMessageRead);
+  socket.on("messageRead", handleMessageRead);
 
   // Per-user soft clear (WhatsApp-style): only hides for the requesting user
   socket.on("clear-chat", async ({ user1, user2, keepInRecent = false }, callback) => {

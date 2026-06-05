@@ -524,6 +524,7 @@ function Chat({ user: currentUser }) {
         profilePic: user.profilePic || null,
         displayName: user.displayName || user.email.split('@')[0]
       });
+      socket.emit("userOnline", { email: user.email });
     };
 
     // Join immediately and on every reconnection
@@ -552,33 +553,28 @@ function Chat({ user: currentUser }) {
     });
 
     socket.on("typing", ({ from }) => {
+      console.log("📥 Received typing event from:", from);
       const activeChat = selectedUserRef.current;
       const normalizedFrom = normalizeEmail(from);
       const normalizedActiveChat = normalizeEmail(activeChat);
-      console.log(`📨 Typing listener triggered: from=${normalizedFrom}, activeChat=${normalizedActiveChat}, match=${normalizedFrom === normalizedActiveChat}`);
       
       if (normalizedFrom && normalizedActiveChat && normalizedFrom === normalizedActiveChat) {
-        console.log(`✅ Typing indicator set for ${normalizedFrom}`);
         setTypingUser(normalizedFrom);
-      } else {
-        console.warn(`❌ Typing mismatch or empty: normalizedFrom=[${normalizedFrom}], normalizedActiveChat=[${normalizedActiveChat}]`);
       }
     });
 
     socket.on("stop-typing", ({ from }) => {
+      console.log("📥 Received stop-typing event from:", from);
       const activeChat = selectedUserRef.current;
       const normalizedFrom = normalizeEmail(from);
       const normalizedActiveChat = normalizeEmail(activeChat);
-      console.log(`📨 Stop-typing listener triggered: from=${normalizedFrom}, activeChat=${normalizedActiveChat}, match=${normalizedFrom === normalizedActiveChat}`);
       
       if (normalizedFrom && normalizedActiveChat && normalizedFrom === normalizedActiveChat) {
-        console.log(`✅ Typing indicator cleared`);
         setTypingUser(null);
         return;
       }
       setTypingUser((currentTypingUser) => {
         if (currentTypingUser && normalizeEmail(currentTypingUser) === normalizedFrom) {
-          console.log(`✅ Fallback stop-typing cleared for ${normalizedFrom}`);
           return null;
         }
         return currentTypingUser;
@@ -597,12 +593,45 @@ function Chat({ user: currentUser }) {
       
       if (isOnline) {
         setOnlineUsers(prev => [...new Set([...prev, userId])]);
+        // Re-emit join to make sure status is synced
+        socket.emit("join", {
+          email: user.email,
+          profilePic: user.profilePic || null,
+          displayName: user.displayName || user.email.split('@')[0]
+        });
       } else {
         setOnlineUsers(prev => prev.filter(u => normalizeEmail(u) !== normalizeEmail(userId)));
         if (time) {
           setLastSeen(prev => ({ ...prev, [userId]: time }));
         }
       }
+    });
+
+    socket.on("bulk-delivered", ({ receiver }) => {
+      // Bulk update all messages sent to 'receiver' that are 'sent' to 'delivered'
+      // This is triggered when 'receiver' comes online. We are 'receiver'.
+      // The server will also broadcast 'user-came-online' to the senders.
+    });
+
+    socket.on("user-came-online", ({ userId }) => {
+      // Another user came online. If we sent them messages that are 'sent', update them to 'delivered' locally.
+      setChatHistory((prev) => {
+        const otherParty = normalizeEmail(userId);
+        if (!prev[otherParty]) return prev;
+        
+        const updatedList = prev[otherParty].map(m => {
+          if (m.sender === normalizeEmail(user.email) && m.status === "sent") {
+            return { ...m, status: "delivered" };
+          }
+          return m;
+        });
+
+        if (selectedUserRef.current && normalizeEmail(selectedUserRef.current) === otherParty) {
+          setMessages(updatedList);
+        }
+
+        return { ...prev, [otherParty]: updatedList };
+      });
     });
 
     // Listen for unread message updates from server
@@ -767,9 +796,18 @@ function Chat({ user: currentUser }) {
           user1: normalizeEmail(user.email),
           user2: otherParty,
         });
+        socket.emit("messageRead", {
+          sender: otherParty,
+          receiver: normalizeEmail(user.email)
+        });
       } else if (normalizeEmail(msg.sender) !== normalizeEmail(user.email)) {
         // Not active chat, but we are online and received it -> emit delivered
         socket.emit("message-delivered", {
+          messageId: msg._id || msg.tempId,
+          sender: otherParty,
+          receiver: normalizeEmail(user.email)
+        });
+        socket.emit("messageDelivered", {
           messageId: msg._id || msg.tempId,
           sender: otherParty,
           receiver: normalizeEmail(user.email)
@@ -810,17 +848,39 @@ function Chat({ user: currentUser }) {
       }
     };
 
-    socket.on("message-delivered", ({ messageId, sender, receiver }) => {
-      updateMessageStatus(sender, receiver, "delivered", messageId);
-    });
+    const handleDelivered = ({ messageId, sender, receiver }) => {
+      if (!messageId && receiver) {
+        setChatHistory((prev) => {
+          const otherParty = normalizeEmail(receiver);
+          if (!prev[otherParty]) return prev;
+          
+          const updatedList = prev[otherParty].map(m => {
+            if (m.sender === normalizeEmail(user.email) && m.status === "sent") {
+              return { ...m, status: "delivered" };
+            }
+            return m;
+          });
 
-    socket.on("messages-read", ({ sender, receiver }) => {
-      updateMessageStatus(sender, receiver, "read");
-    });
+          if (selectedUserRef.current && normalizeEmail(selectedUserRef.current) === otherParty) {
+            setMessages(updatedList);
+          }
 
-    socket.on("message-seen", ({ sender, receiver }) => {
+          return { ...prev, [otherParty]: updatedList };
+        });
+      } else {
+        updateMessageStatus(sender, receiver, "delivered", messageId);
+      }
+    };
+
+    const handleRead = ({ sender, receiver }) => {
       updateMessageStatus(sender, receiver, "read");
-    });
+    };
+
+    socket.on("message-delivered", handleDelivered);
+    socket.on("messageDelivered", handleDelivered);
+    socket.on("messages-read", handleRead);
+    socket.on("message-seen", handleRead);
+    socket.on("messageRead", handleRead);
 
     return () => {
       socket.off("connect", handleJoin);
@@ -836,9 +896,11 @@ function Chat({ user: currentUser }) {
       socket.off("message-error", handleMessageError);
       socket.off("message-deleted");
       socket.off("receive-message", handleIncomingMessage);
-      socket.off("message-delivered");
-      socket.off("messages-read");
-      socket.off("message-seen");
+      socket.off("message-delivered", handleDelivered);
+      socket.off("messageDelivered", handleDelivered);
+      socket.off("messages-read", handleRead);
+      socket.off("message-seen", handleRead);
+      socket.off("messageRead", handleRead);
     };
   }, [socket, user]);
 
@@ -850,6 +912,11 @@ function Chat({ user: currentUser }) {
         socket.emit("leave", { email: user.email.toLowerCase() });
       } else {
         socket.emit("join", { email: user.email.toLowerCase(), profilePic: user.profilePic || null });
+        socket.emit("userOnline", { email: user.email });
+        if (selectedUserRef.current) {
+          socket.emit("mark-as-read", { user1: user.email, user2: selectedUserRef.current });
+          socket.emit("messageRead", { sender: selectedUserRef.current, receiver: user.email });
+        }
       }
     };
 
@@ -879,6 +946,7 @@ function Chat({ user: currentUser }) {
       
       // 2. Mark messages as read on server
       socket.emit("mark-as-read", { user1: user.email, user2: currentSelectedUser });
+      socket.emit("messageRead", { sender: currentSelectedUser, receiver: user.email });
       
       // 3. Fetch full history from Database
       try {
@@ -1911,7 +1979,7 @@ function Chat({ user: currentUser }) {
           )}
           
           <AnimatePresence>
-            {typingUser && typingUser !== user.email && (
+            {typingUser && selectedUser && normalizeEmail(typingUser) === normalizeEmail(selectedUser) && (
               <motion.div
                 className="typing-indicator-floating"
                 initial={{ opacity: 0, y: 10 }}
@@ -1923,6 +1991,7 @@ function Chat({ user: currentUser }) {
                   <span />
                   <span />
                 </div>
+                <span className="typing-text" style={{ marginLeft: "8px", fontWeight: "500" }}>{getDisplayName(typingUser)} is typing...</span>
               </motion.div>
             )}
           </AnimatePresence>

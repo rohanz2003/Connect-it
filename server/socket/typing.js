@@ -7,6 +7,8 @@ module.exports = (io, socket, users) => {
     
     if (!normalizedFrom || !target) return;
 
+    console.log(`💬 Typing event: ${normalizedFrom} -> ${target}`);
+
     // We emit directly to the target room. 
     // If the user is offline, the room will be empty and no one receives it.
     // This is more robust than checking the 'users' object which might be out of sync.
@@ -18,6 +20,8 @@ module.exports = (io, socket, users) => {
     const target = normalizeEmail(to);
     
     if (!normalizedFrom || !target) return;
+
+    console.log(`🔇 Stop-typing event: ${normalizedFrom} -> ${target}`);
 
     socket.to(target).emit("stop-typing", { from: normalizedFrom });
   });

@@ -63,6 +63,38 @@ module.exports = (io, socket, users, userProfiles) => {
     // Broadcast to all clients the updated online users list
     io.emit("online-users", Object.keys(users));
     io.emit("user-status-change", { userId, isOnline: true });
+    
+    // --- Automatic Delivery Update ---
+    const deliverPendingMessages = async (targetUserId) => {
+      try {
+        const Message = require("../models/Message");
+        const pendingMessages = await Message.find({ receiver: targetUserId, status: "sent" });
+        if (pendingMessages.length > 0) {
+          const now = new Date();
+          await Message.updateMany(
+            { receiver: targetUserId, status: "sent" },
+            { $set: { status: "delivered", deliveredAt: now } }
+          );
+
+          // Notify the newly online user to update their local states
+          socket.emit("bulk-delivered", { receiver: targetUserId });
+
+          // Notify senders
+          const senders = [...new Set(pendingMessages.map(m => m.sender))];
+          senders.forEach(sender => {
+            io.to(sender).emit("messageDelivered", { receiver: targetUserId, deliveredAt: now });
+            io.to(sender).emit("message-delivered", { receiver: targetUserId, deliveredAt: now });
+          });
+
+          // Legacy/compatibility broadcast
+          socket.broadcast.emit("user-came-online", { userId: targetUserId });
+        }
+      } catch (err) {
+        console.error("Error auto-delivering messages:", err.message);
+      }
+    };
+
+    deliverPendingMessages(userId);
 
     // Send all existing profile metadata to the newly joined user (Non-blocking)
     UserProfile.find({}, 'email displayName profilePic bio lastSeen isOnline').then(allProfiles => {
@@ -137,6 +169,56 @@ module.exports = (io, socket, users, userProfiles) => {
     io.emit("user-status-change", { userId, isOnline: false, lastSeen: now });
     io.emit("online-users", Object.keys(users));
   };
+
+  socket.on("userOnline", async (data) => {
+    let userId = typeof data === 'string' ? data : data?.email;
+    if (!userId || userId.trim() === "") return;
+    userId = userId.trim().toLowerCase();
+
+    console.log(`📡 userOnline received for ${userId}`);
+
+    if (!users[userId]) {
+      users[userId] = new Set();
+    }
+    users[userId].add(socket.id);
+    socket.join(userId);
+
+    // Sync online status in database
+    UserProfile.findOneAndUpdate(
+      { email: userId },
+      { $set: { isOnline: true, lastActivity: new Date() } },
+      { upsert: true }
+    ).catch(err => console.error("Error updating status on userOnline:", err.message));
+
+    // Broadcast status change
+    io.emit("online-users", Object.keys(users));
+    io.emit("user-status-change", { userId, isOnline: true });
+
+    // Update pending messages to delivered
+    try {
+      const Message = require("../models/Message");
+      const pendingMessages = await Message.find({ receiver: userId, status: "sent" });
+      if (pendingMessages.length > 0) {
+        const now = new Date();
+        await Message.updateMany(
+          { receiver: userId, status: "sent" },
+          { $set: { status: "delivered", deliveredAt: now } }
+        );
+
+        // Notify each sender
+        const senders = [...new Set(pendingMessages.map(m => m.sender))];
+        senders.forEach(sender => {
+          io.to(sender).emit("messageDelivered", { receiver: userId, deliveredAt: now });
+          io.to(sender).emit("message-delivered", { receiver: userId, deliveredAt: now });
+        });
+        
+        socket.emit("bulk-delivered", { receiver: userId });
+        socket.broadcast.emit("user-came-online", { userId });
+      }
+    } catch (err) {
+      console.error("Error delivering pending messages for userOnline:", err.message);
+    }
+  });
 
   socket.on("leave", async (data) => {
     const userIdRaw = typeof data === 'string' ? data : data?.email;
