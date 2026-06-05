@@ -85,6 +85,7 @@ function Chat({ user: currentUser }) {
   const [unreadMessages, setUnreadMessages] = useState({}); // Track unread counts
   const [userProfiles, setUserProfiles] = useState({}); // Store user profile pictures
   const [isMediaSending, setIsMediaSending] = useState(false); // Track media upload state
+  const [mediaUploadProgress, setMediaUploadProgress] = useState(0); // Track progress percentage
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem("theme") === "dark");
   const [isChatMinimized, setIsChatMinimized] = useState(false); // Track if chat is minimized
   const [zoomedImage, setZoomedImage] = useState(null); // State for image zoom feature
@@ -660,18 +661,21 @@ function Chat({ user: currentUser }) {
       
       // 3. Fetch full history from Database
       try {
-        const history = await fetchMessages(user.email, currentSelectedUser) || [];
+        const response = await fetchMessages(user.email, currentSelectedUser);
+        const history = response?.messages || [];
         
         if (isCancelled) return;
 
         setChatHistory(prev => {
           const partner = currentSelectedUser;
-          const currentHistory = prev[partner] || [];
+          // IMPORTANT: If we have cached messages, we show them, but we MUST merge with fresh data
+          const currentInHistory = prev[partner] || [];
           
+          // Deduplicate
           const historyIds = new Set(history.map(m => m._id).filter(Boolean));
           const historyTempIds = new Set(history.map(m => m.tempId).filter(Boolean));
           
-          const uniqueLiveMessages = currentHistory.filter(m => 
+          const uniqueLiveMessages = currentInHistory.filter(m => 
             !historyIds.has(m._id) && !historyTempIds.has(m.tempId)
           );
           
@@ -682,9 +686,9 @@ function Chat({ user: currentUser }) {
           return { ...prev, [partner]: merged };
         });
 
+        // Set the active messages list immediately
         setMessages(() => {
           const partner = currentSelectedUser;
-          // We get the latest from chatHistoryRef which might have been updated by socket events
           const currentLiveForPartner = chatHistoryRef.current[partner] || [];
           
           const historyIds = new Set(history.map(m => m._id).filter(Boolean));
@@ -697,6 +701,7 @@ function Chat({ user: currentUser }) {
           const merged = [...history, ...uniqueLiveMessages];
           return merged.sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt));
         });
+
       } catch (err) {
         console.error("Failed to fetch messages:", err);
         if (isCancelled) return;
@@ -883,8 +888,19 @@ function Chat({ user: currentUser }) {
     const tempId = `${Date.now()}-${Math.random()}`;
 
     const reader = new FileReader();
+    
+    // Progress tracking for reader
+    reader.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const progress = Math.round((event.loaded / event.total) * 100);
+        setMediaUploadProgress(progress);
+      }
+    };
+
     reader.onload = () => {
       try {
+        setMediaUploadProgress(100); // Reader finished
+        
         if (isImage) {
           // Compress image before sending
           const img = new Image();
@@ -917,12 +933,14 @@ function Chat({ user: currentUser }) {
           };
           img.src = reader.result;
         } else {
+          // For Video/Audio, we show "processing" briefly then send
           sendFinalMedia(reader.result, file.name, file.type, file.size);
         }
       } catch (err) {
         console.error("❌ Error processing file:", err);
         alert("❌ Error sending file. Please try again.");
         setIsMediaSending(false);
+        setMediaUploadProgress(0);
       }
     };
 
@@ -962,6 +980,7 @@ function Chat({ user: currentUser }) {
         }
       });
       setIsMediaSending(false);
+      setMediaUploadProgress(0);
       e.target.value = null;
       setReplyTo(null);
     };
@@ -1879,15 +1898,43 @@ function Chat({ user: currentUser }) {
               transform: 'translateX(-50%)',
               background: 'var(--primary-color)',
               color: 'white',
-              padding: '8px 16px',
-              borderRadius: '20px',
+              padding: '12px 24px',
+              borderRadius: '30px',
               fontSize: '14px',
-              fontWeight: '500',
+              fontWeight: '600',
               zIndex: 2000,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              minWidth: '200px'
             }}
           >
-            Sending media...
+            <div className="progress-circle-mini" style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              border: '3px solid rgba(255,255,255,0.2)',
+              borderTopColor: 'white',
+              animation: 'spin 1s linear infinite'
+            }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ marginBottom: '2px' }}>Sending media... {mediaUploadProgress}%</div>
+              <div style={{ 
+                width: '100%', 
+                height: '4px', 
+                background: 'rgba(255,255,255,0.2)', 
+                borderRadius: '2px',
+                overflow: 'hidden'
+              }}>
+                <div style={{ 
+                  width: `${mediaUploadProgress}%`, 
+                  height: '100%', 
+                  background: 'white',
+                  transition: 'width 0.3s ease'
+                }} />
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

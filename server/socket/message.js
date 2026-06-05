@@ -198,6 +198,9 @@ module.exports = (io, socket, users) => {
             tempId: tempId || null,
             _id: saved._id,
             timestamp: saved.timestamp,
+            type: saved.type,
+            mediaType: saved.mediaType
+          });
           });
         } catch (dbErr) {
           console.error(`❌ DB Error for message from ${normalizedSender}:`, dbErr.message);
