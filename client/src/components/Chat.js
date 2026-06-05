@@ -8,6 +8,7 @@ import {
   BellRing,
   Settings,
   Smile,
+  Paperclip,
   Home,
   Send,
   Trash2,
@@ -82,6 +83,7 @@ function Chat({ user: currentUser }) {
   const [selectedUser, setSelectedUser] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState({}); // Track unread counts
   const [userProfiles, setUserProfiles] = useState({}); // Store user profile pictures
+  const [isMediaSending, setIsMediaSending] = useState(false); // Track media upload state
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem("theme") === "dark");
   const [isChatMinimized, setIsChatMinimized] = useState(false); // Track if chat is minimized
   const [zoomedImage, setZoomedImage] = useState(null); // State for image zoom feature
@@ -834,6 +836,134 @@ function Chat({ user: currentUser }) {
     setReplyTo(null);
   };
 
+  const handleMediaShare = (e) => {
+    const file = e.target.files[0];
+    if (!file || !user || !selectedUser || !socket) return;
+
+    // Check if socket is connected
+    if (!socket.connected) {
+      alert("❌ You are offline. Please check your connection.");
+      e.target.value = null;
+      return;
+    }
+
+    // Prevent multiple sends
+    if (isMediaSending) {
+      alert("⏳ File is already being sent. Please wait...");
+      e.target.value = null;
+      return;
+    }
+
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+    const isAudio = file.type.startsWith('audio/');
+    
+    // Validate file size - 3MB for images, 15MB for others
+    const maxSize = isImage ? 3 * 1024 * 1024 : 15 * 1024 * 1024;
+    
+    if (file.size > maxSize) {
+      alert(`File size must be less than ${isImage ? '3MB' : '15MB'}. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      e.target.value = null;
+      return;
+    }
+
+    setIsMediaSending(true);
+    const tempId = `${Date.now()}-${Math.random()}`;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        if (isImage) {
+          // Compress image before sending
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const MAX_WIDTH = 1200;
+            const MAX_HEIGHT = 1200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+              }
+            } else {
+              if (height > MAX_HEIGHT) {
+                width *= MAX_HEIGHT / height;
+                height = MAX_HEIGHT;
+              }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
+            sendFinalMedia(compressedDataUrl, file.name, file.type, file.size);
+          };
+          img.src = reader.result;
+        } else {
+          sendFinalMedia(reader.result, file.name, file.type, file.size);
+        }
+      } catch (err) {
+        console.error("❌ Error processing file:", err);
+        alert("❌ Error sending file. Please try again.");
+        setIsMediaSending(false);
+      }
+    };
+
+    const sendFinalMedia = (dataUrl, name, type, size) => {
+      const newMsg = {
+        sender: user.email,
+        receiver: selectedUser,
+        text: { name, type, size, data: dataUrl },
+        type: "media",
+        mediaType: type.split('/')[0],
+        tempId: tempId,
+        timestamp: new Date().toISOString()
+      };
+
+      if (replyTo) {
+        newMsg.replyTo = {
+          id: replyTo._id || replyTo.tempId,
+          text: replyTo.type === 'media' ? 'Media file' : replyTo.text,
+          sender: replyTo.sender
+        };
+      }
+
+      const optimisticMsg = { ...newMsg, pending: true, _id: tempId };
+      const partner = normalizeEmail(selectedUser);
+
+      setChatHistory((prev) => ({
+        ...prev,
+        [partner]: upsertMessageInList(prev[partner] || [], optimisticMsg),
+      }));
+      setMessages((prev) => upsertMessageInList(prev, optimisticMsg));
+
+      socket.emit("send-message", newMsg, (ack) => {
+        if (!ack || ack.ok === false) {
+          setMessages((prev) =>
+            prev.map((m) => (m.tempId === tempId ? { ...m, failed: true, pending: false } : m))
+          );
+        }
+      });
+      setIsMediaSending(false);
+      e.target.value = null;
+      setReplyTo(null);
+    };
+
+    reader.onerror = () => {
+      console.error("❌ Error reading file");
+      alert("❌ Error reading file. Please try again.");
+      setIsMediaSending(false);
+      e.target.value = null;
+    };
+
+    reader.readAsDataURL(file);
+  };
+
   const clearChatForPartner = (partnerEmail, keepInRecent = false) => {
     if (!user || !socket?.connected || !partnerEmail) return;
 
@@ -1546,6 +1676,12 @@ function Chat({ user: currentUser }) {
                                   Your browser does not support video playback
                                 </video>
                               )}
+                              {msg.mediaType === "audio" && msg.text?.data?.startsWith("data:audio/") && (
+                                <audio controls className="media-audio">
+                                  <source src={msg.text.data} type={msg.text.type} />
+                                  Your browser does not support audio playback
+                                </audio>
+                              )}
                               {msg.mediaType === "application" && msg.text?.data?.startsWith("data:application/") && (
                                 <div className="media-file">
                                   <span>📎 {msg.text.name}</span>
@@ -1640,6 +1776,17 @@ function Chat({ user: currentUser }) {
           >
             <Smile size={18} />
           </button>
+          <label htmlFor="media-upload" className="secondary-icon-btn" title="Send Media">
+            <Paperclip size={18} />
+          </label>
+          <input
+            id="media-upload"
+            type="file"
+            accept="image/*,video/*,audio/*,application/pdf,.doc,.docx,.txt"
+            onChange={handleMediaShare}
+            style={{ display: "none" }}
+            disabled={!selectedUser || isMediaSending}
+          />
           <input
             type="text"
             placeholder={selectedUser ? "Write a message..." : "Select a conversation to send a message"}
@@ -1705,6 +1852,33 @@ function Chat({ user: currentUser }) {
             </div>
           </div>
         </aside>
+
+      <AnimatePresence>
+        {isMediaSending && (
+          <motion.div
+            className="toast-notice"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            style={{
+              position: 'fixed',
+              bottom: '80px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'var(--primary-color)',
+              color: 'white',
+              padding: '8px 16px',
+              borderRadius: '20px',
+              fontSize: '14px',
+              fontWeight: '500',
+              zIndex: 2000,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+            }}
+          >
+            Sending media...
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {contextMenu && (
         <div className="context-menu" style={{ top: contextMenu.y, left: contextMenu.x }}>

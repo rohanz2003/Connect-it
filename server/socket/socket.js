@@ -13,8 +13,8 @@ const initSocket = (server) => {
       credentials: true,
     },
     transports: ["websocket", "polling"],
-    pingTimeout: 60000,
-    pingInterval: 25000,
+    pingTimeout: 120000,
+    pingInterval: 30000,
   });
 
   // Global users tracking
