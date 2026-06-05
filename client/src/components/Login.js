@@ -8,7 +8,7 @@ import {
   sendPasswordResetEmail,
   signOut,
 } from "firebase/auth";
-import { Check, X, Shield, Lock, Mail, ArrowRight, ArrowLeft, Camera, Loader2 } from "lucide-react";
+import { Check, X, Shield, Lock, Mail, ArrowRight, ArrowLeft, Camera, Loader2, PlusCircle } from "lucide-react";
 import "./Login.css";
 
 function Login() {
