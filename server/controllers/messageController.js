@@ -19,13 +19,14 @@ const getArchivedPartners = async (user) => {
 
 exports.getMessages = async (req, res) => {
   try {
-    const { user1, user2 } = req.query;
+    const { user1, user2, before, limit = 50 } = req.query;
     if (!user1 || !user2) {
       return res.status(400).json({ error: "user1 and user2 are required" });
     }
 
     const u1 = normalizeEmail(user1);
     const u2 = normalizeEmail(user2);
+    const pageSize = Math.min(parseInt(limit), 100);
 
     const clearedAt = await getClearedAt(u1, u2);
     const query = {
@@ -39,12 +40,34 @@ exports.getMessages = async (req, res) => {
       query.timestamp = { $gt: clearedAt };
     }
 
+    if (before) {
+      const beforeDate = new Date(before);
+      if (!isNaN(beforeDate)) {
+        query.timestamp = { 
+          ...(query.timestamp || {}), 
+          $lt: beforeDate 
+        };
+      }
+    }
+
+    // We sort by -1 to get the latest messages first, then reverse them in JS
     const messages = await Message.find(query)
-      .sort({ timestamp: 1 })
-      .limit(500)
+      .sort({ timestamp: -1 })
+      .limit(pageSize)
       .lean();
 
-    res.json(messages.map(decryptMessageDoc));
+    // Decrypt and reverse to chronological order
+    const decryptedMessages = messages.map(decryptMessageDoc).reverse();
+    
+    // Check if there are more messages
+    const hasMore = messages.length === pageSize;
+    const oldestTimestamp = messages.length > 0 ? messages[messages.length - 1].timestamp : null;
+
+    res.json({
+      messages: decryptedMessages,
+      hasMore,
+      oldestTimestamp
+    });
   } catch (error) {
     console.error("getMessages error:", error);
     res.status(500).json({ error: "Failed to fetch messages", details: error.message });

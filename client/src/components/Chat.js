@@ -53,16 +53,118 @@ const isSameMessage = (a, b) => {
 const upsertMessageInList = (list, msg) => {
   const idx = list.findIndex((m) => isSameMessage(m, msg));
   if (idx === -1) {
+    // If it's a new message, we can just append if it's newer than the last message
+    if (list.length === 0 || new Date(msg.timestamp || msg.createdAt) >= new Date(list[list.length - 1].timestamp || list[list.length - 1].createdAt)) {
+      return [...list, msg];
+    }
+    // Otherwise, insert and sort (rare case for late-arriving messages)
     return [...list, msg].sort(
       (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
     );
   }
   const updated = [...list];
   updated[idx] = { ...updated[idx], ...msg };
-  return updated.sort(
-    (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
-  );
+  // Only sort if the timestamp actually changed and might have affected order
+  const timestampChanged = (msg.timestamp || msg.createdAt) && 
+                           (new Date(msg.timestamp || msg.createdAt).getTime() !== new Date(list[idx].timestamp || list[idx].createdAt).getTime());
+  
+  if (timestampChanged) {
+    return updated.sort(
+      (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
+    );
+  }
+  return updated;
 };
+
+const MessageItem = React.memo(({ msg, user, renderAvatar, handleZoomImage, handleContextMenu, formatDay, formatMessageTime, showDay }) => {
+  return (
+    <React.Fragment>
+      {showDay && (
+        <div className="day-separator">
+          <span>{formatDay(msg.timestamp || msg.createdAt)}</span>
+        </div>
+      )}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        className={`message-wrapper ${msg.sender === user.email ? "sent" : "received"}`}
+      >
+        {msg.sender !== user.email && (
+          <div className="message-avatar">
+            {renderAvatar(msg.sender, "sm")}
+          </div>
+        )}
+        <div
+          className={`message ${msg.sender === user.email ? "sent" : "received"}`}
+          onContextMenu={(e) => handleContextMenu(e, msg)}
+        >
+          <div className="message-content">
+            {msg.replyTo && (
+              <div className="reply-quote">
+                <small>{msg.replyTo.sender === user.email ? "You" : msg.replyTo.sender.split('@')[0]}</small>
+                <p>{msg.replyTo.text}</p>
+              </div>
+            )}
+            {msg.type === "media" ? (
+              <div className="media-message">
+                {msg.pending && <div className="media-loading-overlay"><Loader2 className="spinner" size={24} /></div>}
+                {msg.mediaType === "image" && msg.text?.data?.startsWith("data:image/") && (
+                  <img 
+                    src={msg.text.data} 
+                    alt="Shared" 
+                    className="media-image" 
+                    onClick={() => handleZoomImage(msg.text.data)} 
+                    loading="lazy"
+                  />
+                )}
+                {msg.mediaType === "video" && msg.text?.data?.startsWith("data:video/") && (
+                  <video controls className="media-video" preload="metadata">
+                    <source src={msg.text.data} type={msg.text.type} />
+                    Your browser does not support video playback
+                  </video>
+                )}
+                {msg.mediaType === "audio" && msg.text?.data?.startsWith("data:audio/") && (
+                  <audio controls className="media-audio" preload="metadata">
+                    <source src={msg.text.data} type={msg.text.type} />
+                    Your browser does not support audio playback
+                  </audio>
+                )}
+                {msg.mediaType === "application" && msg.text?.data?.startsWith("data:application/") && (
+                  <div className="media-file">
+                    <span>📎 {msg.text.name}</span>
+                    <a href={msg.text.data} download={msg.text.name} className="download-btn">Download</a>
+                  </div>
+                )}
+                {msg.text?.data && msg.mediaType !== "image" && msg.mediaType !== "video" && msg.mediaType !== "audio" && msg.mediaType !== "application" && (
+                  <div className="media-file">
+                    <span>📎 {msg.text?.name || "Attachment"}</span>
+                    {msg.text?.data && (
+                      <a href={msg.text.data} download={msg.text?.name} className="download-btn">Download</a>
+                    )}
+                  </div>
+                )}
+                {!msg.text?.data && msg.type === "media" && (
+                  <span className="media-unavailable">Media unavailable (reload chat)</span>
+                )}
+              </div>
+            ) : (
+              msg.text
+            )}
+          </div>
+          <div className="message-meta">
+            <span>{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
+            {msg.pending && <span className="message-status pending">Sending…</span>}
+            {msg.failed && <span className="message-status failed">Failed</span>}
+            {msg.sender === user.email && !msg.pending && !msg.failed && (
+              <span className="read-receipt">✓✓</span>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </React.Fragment>
+  );
+});
 
 function Chat({ user: currentUser }) {
   const socket = useSocket();
@@ -103,6 +205,12 @@ function Chat({ user: currentUser }) {
   const [newBio, setNewBio] = useState("");
   const [tempProfilePic, setTempProfilePic] = useState(null);
   const [userMetadata, setUserMetadata] = useState({}); // { email: { displayName, bio, profilePic } }
+  
+  // Pagination state
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [oldestTimestamp, setOldestTimestamp] = useState(null);
+
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const lastTypingEmitRef = useRef(0);
@@ -146,6 +254,53 @@ function Chat({ user: currentUser }) {
   const prevMessagesLengthRef = useRef(0);
   const scrollContainerRef = useRef(null);
 
+  const loadMoreMessages = async () => {
+    if (!user || !selectedUser || !hasMore || isLoadingMore || !oldestTimestamp) return;
+
+    setIsLoadingMore(true);
+    try {
+      const response = await fetchMessages(user.email, selectedUser, oldestTimestamp);
+      const olderMessages = Array.isArray(response) ? response : (response?.messages || []);
+      
+      const newHasMore = response?.hasMore || false;
+      const newOldestTimestamp = response?.oldestTimestamp || null;
+
+      if (olderMessages.length > 0) {
+        const container = scrollContainerRef.current;
+        const previousScrollHeight = container.scrollHeight;
+
+        setChatHistory(prev => {
+          const partner = normalizeEmail(selectedUser);
+          const current = prev[partner] || [];
+          const merged = [...olderMessages, ...current].sort(
+            (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
+          );
+          return { ...prev, [partner]: merged };
+        });
+
+        setMessages(prev => {
+          const merged = [...olderMessages, ...prev].sort(
+            (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
+          );
+          return merged;
+        });
+
+        setHasMore(newHasMore);
+        setOldestTimestamp(newOldestTimestamp);
+
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop = container.scrollHeight - previousScrollHeight;
+          }
+        });
+      }
+    } catch (err) {
+      console.error("Error loading more messages:", err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
   // Scroll event handler to detect if user is near bottom
   const handleScrollEvent = () => {
     if (!scrollContainerRef.current) return;
@@ -154,6 +309,11 @@ function Chat({ user: currentUser }) {
     // If within 100px of bottom, consider "pinned"
     const nearBottom = distanceFromBottom < 100;
     setIsNearBottom(nearBottom);
+
+    // Load more when near top
+    if (container.scrollTop < 100 && hasMore && !isLoadingMore) {
+      loadMoreMessages();
+    }
   };
 
   useEffect(() => {
@@ -672,6 +832,11 @@ function Chat({ user: currentUser }) {
         
         if (isCancelled) return;
 
+        const newHasMore = response?.hasMore || false;
+        const newOldestTimestamp = response?.oldestTimestamp || null;
+        setHasMore(newHasMore);
+        setOldestTimestamp(newOldestTimestamp);
+
         setChatHistory(prev => {
           const partner = currentSelectedUser;
           // IMPORTANT: If we have cached messages, we show them, but we MUST merge with fresh data
@@ -840,22 +1005,25 @@ function Chat({ user: currentUser }) {
     const optimisticMsg = { ...newMsg, pending: true, _id: tempId };
     const partner = normalizeEmail(selectedUser);
 
-    setChatHistory((prev) => ({
-      ...prev,
-      [partner]: upsertMessageInList(prev[partner] || [], optimisticMsg),
-    }));
+    setChatHistory((prev) => {
+      const current = prev[partner] || [];
+      return {
+        ...prev,
+        [partner]: upsertMessageInList(current, optimisticMsg),
+      };
+    });
     setMessages((prev) => upsertMessageInList(prev, optimisticMsg));
 
     socket.emit("send-message", newMsg, (ack) => {
-      if (ack && ack.ok === false) {
+      if (!ack || ack.ok === false) {
         setMessages((prev) =>
           prev.map((m) => (m.tempId === tempId ? { ...m, failed: true, pending: false } : m))
         );
       }
+      setIsMediaSending(false);
+      setMediaUploadProgress(0);
     });
-
-    stopTyping();
-    setMessage("");
+    e.target.value = null;
     setReplyTo(null);
   };
 
@@ -1674,85 +1842,17 @@ function Chat({ user: currentUser }) {
                   const previousMsg = messages[i - 1];
                   const showDay = !previousMsg || new Date(msg.timestamp || msg.createdAt).toDateString() !== new Date(previousMsg.timestamp || previousMsg.createdAt).toDateString();
                   return (
-                    <React.Fragment key={msg._id || msg.tempId || `msg-${i}`}>
-                      {showDay && (
-                        <div className="day-separator">
-                          <span>{formatDay(msg.timestamp || msg.createdAt)}</span>
-                        </div>
-                      )}
-                      <motion.div
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25 }}
-                        className={`message-wrapper ${msg.sender === user.email ? "sent" : "received"}`}
-                      >
-                        {msg.sender !== user.email && (
-                          <div className="message-avatar">
-                            {renderAvatar(msg.sender, "sm")}
-                          </div>
-                        )}
-                        <div
-                          className={`message ${msg.sender === user.email ? "sent" : "received"}`}
-                          onContextMenu={(e) => handleContextMenu(e, msg)}
-                        >
-                          <div className="message-content">
-                          {msg.replyTo && (
-                            <div className="reply-quote">
-                              <small>{msg.replyTo.sender === user.email ? "You" : msg.replyTo.sender.split('@')[0]}</small>
-                              <p>{msg.replyTo.text}</p>
-                            </div>
-                          )}
-                          {msg.type === "media" ? (
-                            <div className="media-message">
-                              {msg.pending && <div className="media-loading-overlay"><Loader2 className="spinner" size={24} /></div>}
-                              {msg.mediaType === "image" && msg.text?.data?.startsWith("data:image/") && (
-                                <img src={msg.text.data} alt="Shared" className="media-image" onClick={() => handleZoomImage(msg.text.data)} />
-                              )}
-                              {msg.mediaType === "video" && msg.text?.data?.startsWith("data:video/") && (
-                                <video controls className="media-video">
-                                  <source src={msg.text.data} type={msg.text.type} />
-                                  Your browser does not support video playback
-                                </video>
-                              )}
-                              {msg.mediaType === "audio" && msg.text?.data?.startsWith("data:audio/") && (
-                                <audio controls className="media-audio">
-                                  <source src={msg.text.data} type={msg.text.type} />
-                                  Your browser does not support audio playback
-                                </audio>
-                              )}
-                              {msg.mediaType === "application" && msg.text?.data?.startsWith("data:application/") && (
-                                <div className="media-file">
-                                  <span>📎 {msg.text.name}</span>
-                                  <a href={msg.text.data} download={msg.text.name} className="download-btn">Download</a>
-                                </div>
-                              )}
-                              {msg.text?.data && msg.mediaType !== "image" && msg.mediaType !== "video" && msg.mediaType !== "application" && (
-                                <div className="media-file">
-                                  <span>📎 {msg.text?.name || "Attachment"}</span>
-                                  {msg.text?.data && (
-                                    <a href={msg.text.data} download={msg.text?.name} className="download-btn">Download</a>
-                                  )}
-                                </div>
-                              )}
-                              {!msg.text?.data && msg.type === "media" && (
-                                <span className="media-unavailable">Media unavailable (reload chat)</span>
-                              )}
-                            </div>
-                          ) : (
-                            msg.text
-                          )}
-                        </div>
-                        <div className="message-meta">
-                          <span>{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
-                          {msg.pending && <span className="message-status pending">Sending…</span>}
-                          {msg.failed && <span className="message-status failed">Failed</span>}
-                          {msg.sender === user.email && !msg.pending && !msg.failed && (
-                            <span className="read-receipt">✓✓</span>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                    </React.Fragment>
+                    <MessageItem
+                      key={msg._id || msg.tempId || `msg-${i}`}
+                      msg={msg}
+                      user={user}
+                      renderAvatar={renderAvatar}
+                      handleZoomImage={handleZoomImage}
+                      handleContextMenu={handleContextMenu}
+                      formatDay={formatDay}
+                      formatMessageTime={formatMessageTime}
+                      showDay={showDay}
+                    />
                   );
                 })
               )}
@@ -1781,7 +1881,6 @@ function Chat({ user: currentUser }) {
                   <span />
                   <span />
                 </div>
-                <span>{getDisplayName(typingUser)} is typing...</span>
               </motion.div>
             )}
           </AnimatePresence>
