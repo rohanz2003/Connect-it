@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, Link } from "react-router-dom";
 import { auth } from "../firebase";
 import {
@@ -276,14 +277,18 @@ function Login() {
         </div>
 
         <div className="auth-form-side">
-          <SuccessModal 
-            isOpen={showRegSuccess} 
-            onClose={() => setShowRegSuccess(false)} 
-            onGoToLogin={() => {
-              setShowRegSuccess(false);
-              setIsRegistering(false);
-            }} 
-          />
+          <AnimatePresence>
+            {showRegSuccess && (
+              <SuccessModal 
+                isOpen={showRegSuccess} 
+                onClose={() => setShowRegSuccess(false)} 
+                onGoToLogin={() => {
+                  setShowRegSuccess(false);
+                  setIsRegistering(false);
+                }} 
+              />
+            )}
+          </AnimatePresence>
           <div className="auth-card">
             <div className="auth-header">
               <div className="brand-logo">C</div>
@@ -405,8 +410,6 @@ function Login() {
 }
 
 const SuccessModal = ({ isOpen, onClose, onGoToLogin }) => {
-  if (!isOpen) return null;
-
   return (
     <div className="modal-overlay-v2" onClick={onClose}>
       <motion.div 
