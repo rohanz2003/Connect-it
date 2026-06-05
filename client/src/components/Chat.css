@@ -1316,6 +1316,7 @@ body {
   display: flex;
   align-items: flex-end;
   gap: 8px;
+  position: relative; /* Added to anchor the absolute emoji picker */
 }
 
 .secondary-icon-btn {

@@ -8,7 +8,6 @@ import {
   BellRing,
   Settings,
   Smile,
-  Paperclip,
   Home,
   Send,
   Trash2,
@@ -83,7 +82,6 @@ function Chat({ user: currentUser }) {
   const [selectedUser, setSelectedUser] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState({}); // Track unread counts
   const [userProfiles, setUserProfiles] = useState({}); // Store user profile pictures
-  const [isMediaSending, setIsMediaSending] = useState(false); // Track media upload state
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem("theme") === "dark");
   const [isChatMinimized, setIsChatMinimized] = useState(false); // Track if chat is minimized
   const [zoomedImage, setZoomedImage] = useState(null); // State for image zoom feature
@@ -814,107 +812,6 @@ function Chat({ user: currentUser }) {
     stopTyping();
     setMessage("");
     setReplyTo(null);
-  };
-
-  const handleMediaShare = (e) => {
-    const file = e.target.files[0];
-    if (!file || !user || !selectedUser || !socket) return;
-
-    // Check if socket is connected
-    if (!socket.connected) {
-      alert("❌ You are offline. Please check your connection.");
-      e.target.value = null;
-      return;
-    }
-
-    ensureSocketJoined();
-
-    // Prevent multiple sends
-    if (isMediaSending) {
-      alert("⏳ File is already being sent. Please wait...");
-      e.target.value = null;
-      return;
-    }
-
-    // Validate file size - REDUCED to prevent socket timeout
-    const isImage = file.type.startsWith('image/');
-    const maxSize = isImage ? 3 * 1024 * 1024 : 10 * 1024 * 1024; // 3MB images, 10MB others
-    
-    if (file.size > maxSize) {
-      alert(`File size must be less than ${isImage ? '3MB' : '10MB'}. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB`);
-      e.target.value = null;
-      return;
-    }
-
-    setIsMediaSending(true);
-    const tempId = `${Date.now()}-${Math.random()}`;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        // Don't send huge base64 strings - compress image if possible
-        let fileData = {
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          data: reader.result
-        };
-
-        console.log(`📎 Sending file: ${file.name} (${(file.size / 1024).toFixed(2)}KB)`);
-
-        // Create message object
-        const newMsg = {
-          sender: user.email,
-          receiver: selectedUser,
-          text: fileData,
-          type: "media",
-          mediaType: file.type.split('/')[0],
-          tempId: tempId,
-          timestamp: new Date().toISOString()
-        };
-
-        const optimisticMsg = { ...newMsg, pending: true, _id: tempId };
-        const partner = normalizeEmail(selectedUser);
-
-        setChatHistory((prev) => ({
-          ...prev,
-          [partner]: upsertMessageInList(prev[partner] || [], optimisticMsg),
-        }));
-        setMessages((prev) => upsertMessageInList(prev, optimisticMsg));
-
-        socket.emit("send-message", newMsg, (ack) => {
-          if (!ack || ack.ok === false) {
-            setMessages((prev) =>
-              prev.map((m) => (m.tempId === tempId ? { ...m, failed: true, pending: false } : m))
-            );
-          }
-        });
-        
-      } catch (err) {
-        console.error("❌ Error processing file:", err);
-        alert("❌ Error sending file. Please try again.");
-      } finally {
-        setIsMediaSending(false);
-        e.target.value = null;
-      }
-    };
-
-    reader.onerror = () => {
-      console.error("❌ Error reading file");
-      alert("❌ Error reading file. Please try again.");
-      setIsMediaSending(false);
-      e.target.value = null;
-    };
-
-    // Read file as base64 but with a safety check
-    try {
-      reader.readAsDataURL(file);
-    } catch (err) {
-      console.error("❌ Cannot read file:", err);
-      alert("❌ Cannot read this file. Please try another.");
-      setIsMediaSending(false);
-      e.target.value = null;
-    }
   };
 
   const clearChatForPartner = (partnerEmail, keepInRecent = false) => {
@@ -1719,9 +1616,6 @@ function Chat({ user: currentUser }) {
           >
             <Smile size={18} />
           </button>
-          <button className="secondary-icon-btn" title="Attach file">
-            <Paperclip size={18} />
-          </button>
           <input
             type="text"
             placeholder={selectedUser ? "Write a message..." : "Select a conversation to send a message"}
@@ -1734,17 +1628,6 @@ function Chat({ user: currentUser }) {
             }}
             disabled={!selectedUser}
           />
-          <label htmlFor="media-input" className="secondary-icon-btn" title="Upload media">
-            <PlusCircle size={18} />
-          </label>
-          <input
-            id="media-input"
-            type="file"
-            accept="image/*,video/*,.pdf,.doc,.docx,.txt"
-            onChange={handleMediaShare}
-            disabled={!selectedUser}
-            style={{ display: "none" }}
-          />
           <button className="send-btn" onClick={sendMessage} disabled={!selectedUser}>
             <Send size={18} />
           </button>
@@ -1753,64 +1636,51 @@ function Chat({ user: currentUser }) {
       </main>
 
       <aside className="dashboard-panel">
-        <div className="dashboard-card welcome-card">
-          <div className="dashboard-card-head">
-            <div>
-              <span className="eyebrow">Good day</span>
-              <h4>Ready to connect?</h4>
+          <div className="dashboard-card welcome-card">
+            <div className="dashboard-card-head">
+              <div>
+                <span className="eyebrow">Good day</span>
+                <h4>Ready to connect?</h4>
+              </div>
+              <Home size={20} />
             </div>
-            <Home size={20} />
+            <p>Start a new chat, review mentions, and stay updated with your team activity.</p>
           </div>
-          <p>Start a new chat, review mentions, and stay updated with your team activity.</p>
-        </div>
 
-        <div className="dashboard-card stats-card">
-          <div className="dashboard-card-head">
-            <span className="eyebrow">Analytics</span>
-            <span>Live insights</span>
+          <div className="dashboard-card stats-card">
+            <div className="dashboard-card-head">
+              <span className="eyebrow">Analytics</span>
+              <span>Live insights</span>
+            </div>
+            <div className="stats-grid">
+              <div className="stat-item">
+                <span>24</span>
+                <small>Active chats</small>
+              </div>
+              <div className="stat-item">
+                <span>8</span>
+                <small>Unread</small>
+              </div>
+              <div className="stat-item">
+                <span>3</span>
+                <small>New contacts</small>
+              </div>
+            </div>
+            <div className="bar-chart" />
           </div>
-          <div className="stats-grid">
-            <div className="stat-item">
-              <span>24</span>
-              <small>Active chats</small>
-            </div>
-            <div className="stat-item">
-              <span>8</span>
-              <small>Unread</small>
-            </div>
-            <div className="stat-item">
-              <span>3</span>
-              <small>New contacts</small>
-            </div>
-          </div>
-          <div className="bar-chart" />
-        </div>
 
-        <div className="dashboard-card actions-card">
-          <div className="dashboard-card-head">
-            <span className="eyebrow">Quick actions</span>
-            <span>Faster workflow</span>
+          <div className="dashboard-card actions-card">
+            <div className="dashboard-card-head">
+              <span className="eyebrow">Quick actions</span>
+              <span>Faster workflow</span>
+            </div>
+            <div className="action-list">
+              <button className="action-pill"><PlusCircle size={16} /> Start new chat</button>
+              <button className="action-pill"><Users size={16} /> Invite team member</button>
+              <button className="action-pill"><Layers size={16} /> View activity</button>
+            </div>
           </div>
-          <div className="action-list">
-            <button className="action-pill"><PlusCircle size={16} /> Start new chat</button>
-            <button className="action-pill"><Users size={16} /> Invite team member</button>
-            <button className="action-pill"><Layers size={16} /> View activity</button>
-          </div>
-        </div>
-      </aside>
-
-      <AnimatePresence>
-        {isMediaSending && (
-          <motion.div
-            className="toast-notice"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
-          >
-            Uploading file...
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </aside>
 
       {contextMenu && (
         <div className="context-menu" style={{ top: contextMenu.y, left: contextMenu.x }}>
