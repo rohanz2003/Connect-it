@@ -1023,7 +1023,7 @@ function Chat({ user: currentUser }) {
       setIsMediaSending(false);
       setMediaUploadProgress(0);
     });
-    e.target.value = null;
+    setMessage("");
     setReplyTo(null);
   };
 
