@@ -1665,10 +1665,16 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.9); /* WhatsApp dark overlay */
-  backdrop-filter: blur(5px);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
   z-index: 3000;
   padding: 0;
+  transition: all 0.3s ease;
+}
+
+.image-zoom-overlay.profile-zoom {
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(15px);
 }
 
 .whatsapp-zoom-content {
@@ -1677,6 +1683,17 @@ body {
   display: flex; 
   flex-direction: column;
   position: relative;
+}
+
+.whatsapp-profile-content {
+  width: auto;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: transparent;
 }
 
 .zoom-top-bar {
@@ -1692,6 +1709,14 @@ body {
   z-index: 10;
 }
 
+.profile-zoom .zoom-top-bar {
+  background: transparent;
+  position: fixed;
+  top: 20px;
+  width: 100%;
+  padding: 0 30px;
+}
+
 .zoom-user-name {
   color: white;
   font-size: 16px;
@@ -1705,25 +1730,26 @@ body {
 }
 
 .zoom-action-btn {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.1);
   border: none;
   color: white;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  transition: background 0.2s;
+  transition: all 0.2s;
 }
 
 .zoom-action-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
 }
 
 .zoom-action-btn.close:hover {
-  background: rgba(255, 59, 48, 0.2);
+  background: rgba(255, 59, 48, 0.4);
 }
 
 .zoom-image-container {
@@ -1735,27 +1761,25 @@ body {
   overflow: hidden;
 }
 
-.whatsapp-profile-content {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  background: black;
+.profile-zoom .zoom-image-container {
+  padding: 0;
 }
 
 .zoom-user-email {
-  display: block;
+  display: block; 
   font-size: 13px;
   color: rgba(255, 255, 255, 0.7);
   margin-top: 2px;
 }
 
 .profile-img-full {
-  max-width: 100%;
-  max-height: 80vh;
-  object-fit: contain;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.1), 0 20px 50px rgba(0, 0, 0, 0.5);
+  border: 3px solid white;
+  background: #333;
 }
 
 .media-img-full {
@@ -1784,6 +1808,11 @@ body {
 }
 
 @media (max-width: 480px) {
+  .profile-img-full {
+    width: 280px;
+    height: 280px;
+  }
+  
   .zoom-image-container img {
     max-width: 100%;
     max-height: 70vh;

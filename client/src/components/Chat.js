@@ -2058,52 +2058,54 @@ function Chat({ user: currentUser }) {
         </div>
       )}
 
-      {zoomedImage && (
-        <div className={`image-zoom-overlay ${isProfileZoom ? 'profile-zoom' : 'media-zoom'}`} onClick={() => setZoomedImage(null)}>
-          <motion.div
-            initial={isProfileZoom ? { scale: 0.5, opacity: 0, borderRadius: '50%' } : { scale: 0.9, opacity: 0 }}
-            animate={isProfileZoom ? { scale: 1, opacity: 1, borderRadius: '0%' } : { scale: 1, opacity: 1 }}
-            exit={isProfileZoom ? { scale: 0.5, opacity: 0, borderRadius: '50%' } : { scale: 0.9, opacity: 0 }}
-            className={isProfileZoom ? "whatsapp-profile-content" : "whatsapp-zoom-content"}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="zoom-top-bar">
-              <div className="zoom-info">
-                <span className="zoom-user-name">
-                  {isProfileZoom ? (zoomUserInfo.name || "Profile Picture") : "Media View"}
-                </span>
-                {isProfileZoom && zoomUserInfo.email && (
-                  <span className="zoom-user-email">{zoomUserInfo.email}</span>
-                )}
+      <AnimatePresence>
+        {zoomedImage && (
+          <div className={`image-zoom-overlay ${isProfileZoom ? 'profile-zoom' : 'media-zoom'}`} onClick={() => setZoomedImage(null)}>
+            <motion.div
+              initial={isProfileZoom ? { scale: 0.5, opacity: 0 } : { scale: 0.9, opacity: 0 }}
+              animate={isProfileZoom ? { scale: 1, opacity: 1 } : { scale: 1, opacity: 1 }}
+              exit={isProfileZoom ? { scale: 0.5, opacity: 0 } : { scale: 0.9, opacity: 0 }}
+              className={isProfileZoom ? "whatsapp-profile-content" : "whatsapp-zoom-content"}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="zoom-top-bar">
+                <div className="zoom-info">
+                  <span className="zoom-user-name">
+                    {isProfileZoom ? (zoomUserInfo.name || "Profile Picture") : "Media View"}
+                  </span>
+                  {isProfileZoom && zoomUserInfo.email && (
+                    <span className="zoom-user-email">{zoomUserInfo.email}</span>
+                  )}
+                </div>
+                <div className="zoom-actions">
+                  <button 
+                    className="zoom-action-btn" 
+                    onClick={handleDownloadImage}
+                    title="Save to device"
+                  >
+                    <Download size={20} />
+                  </button>
+                  <button 
+                    className="zoom-action-btn close" 
+                    onClick={() => setZoomedImage(null)}
+                    title="Close"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
               </div>
-              <div className="zoom-actions">
-                <button 
-                  className="zoom-action-btn" 
-                  onClick={handleDownloadImage}
-                  title="Save to device"
-                >
-                  <Download size={20} />
-                </button>
-                <button 
-                  className="zoom-action-btn close" 
-                  onClick={() => setZoomedImage(null)}
-                  title="Close"
-                >
-                  <X size={24} />
-                </button>
+              
+              <div className="zoom-image-container">
+                <img 
+                  src={zoomedImage} 
+                  alt="Full View" 
+                  className={isProfileZoom ? "profile-img-full" : "media-img-full"}
+                />
               </div>
-            </div>
-            
-            <div className="zoom-image-container">
-              <img 
-                src={zoomedImage} 
-                alt="Full View" 
-                className={isProfileZoom ? "profile-img-full" : "media-img-full"}
-              />
-            </div>
-          </motion.div>
-        </div>
-      )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <button
         className="mobile-logout-fab"
