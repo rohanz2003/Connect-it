@@ -648,14 +648,26 @@ function Chat({ user: currentUser }) {
       try {
         const history = await fetchMessages(user.email, selectedUser) || [];
         
-        setChatHistory(prev => ({ ...prev, [selectedUser]: history }));
-        setMessages(prev => {
-          // Merge history with any new messages that arrived via socket while fetching
+        // Use the new selectedUser variable to ensure we are updating the correct history entry
+        const partner = normalizeEmail(selectedUser);
+        
+        setChatHistory(prev => ({ ...prev, [partner]: history }));
+        
+        // CRITICAL FIX: Do not merge with 'prev' messages state, as it may contain data from a previous user.
+        // Instead, we only merge history with any "live" messages that arrived specifically for this partner
+        // while the fetch was in progress. We can get these from the current chatHistoryRef.
+        setMessages(() => {
+          const currentLiveForPartner = chatHistoryRef.current[partner] || [];
+          
           const historyIds = new Set(history.map(m => m._id).filter(Boolean));
           const historyTempIds = new Set(history.map(m => m.tempId).filter(Boolean));
-          const uniqueLiveMessages = prev.filter(m => !historyIds.has(m._id) && !historyTempIds.has(m.tempId));
+          
+          // Only keep messages from chatHistory that aren't already in the fetched history
+          const uniqueLiveMessages = currentLiveForPartner.filter(m => 
+            !historyIds.has(m._id) && !historyTempIds.has(m.tempId)
+          );
+          
           const merged = [...history, ...uniqueLiveMessages];
-          // Always sort to ensure chronological order regardless of fetch timing
           return merged.sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt));
         });
       } catch (err) {
@@ -1178,12 +1190,15 @@ function Chat({ user: currentUser }) {
   const handleUserSelect = (u) => {
     const partner = normalizeEmail(u);
     console.log(`👤 Selected user: ${partner}`);
-    setSelectedUser(partner);
     
-    // Update messages when user is selected, ensuring chronological order
+    // CRITICAL FIX: Always clear or update messages immediately to prevent carry-over from previous chat
     if (chatHistory[partner]) {
-      setMessages(chatHistory[partner].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
+      setMessages([...chatHistory[partner]].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
+    } else {
+      setMessages([]);
     }
+    
+    setSelectedUser(partner);
 
     // Clear unread badge for this chat
     if (user) {
