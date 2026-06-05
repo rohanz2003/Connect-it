@@ -21,6 +21,7 @@ import {
   Minus,
   LogOut,
   Archive,
+  Download,
 } from "lucide-react";
 import { auth } from "../firebase";
 import useSocket from "../hooks/useSocket";
@@ -115,6 +116,17 @@ function Chat({ user: currentUser }) {
   const handleZoomImage = (src) => {
     setZoomedImage(src);
     setIsZoomMinimized(false);
+  };
+
+  const handleDownloadImage = (e) => {
+    e.stopPropagation();
+    if (!zoomedImage) return;
+    const link = document.createElement("a");
+    link.href = zoomedImage;
+    link.download = `profile-picture-${Date.now()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   useEffect(() => {
@@ -1893,50 +1905,39 @@ function Chat({ user: currentUser }) {
         </div>
       )}
 
-      {zoomedImage && isZoomMinimized && (
-        <div className="zoom-minimized-bubble">
-          <img src={zoomedImage} alt="Minimized preview" />
-          <div className="zoom-minimized-copy">
-            <strong>Profile preview minimized</strong>
-            <span>Tap to expand</span>
-          </div>
-          <button
-            className="zoom-minimized-close"
-            onClick={() => {
-              setZoomedImage(null);
-              setIsZoomMinimized(false);
-            }}
-            aria-label="Close preview"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
-
-      {zoomedImage && !isZoomMinimized && (
-        <div className="image-zoom-overlay" onClick={() => { setZoomedImage(null); setIsZoomMinimized(false); }}>
+      {zoomedImage && (
+        <div className="image-zoom-overlay" onClick={() => setZoomedImage(null)}>
           <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
+            initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="zoom-content"
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="whatsapp-zoom-content"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="zoom-header">
-              <div className="zoom-title">Profile picture preview</div>
-              <button className="close-zoom" onClick={() => { setZoomedImage(null); setIsZoomMinimized(false); }} aria-label="Close preview">
-                <X size={24} />
-              </button>
+            <div className="zoom-top-bar">
+              <div className="zoom-info">
+                <span className="zoom-user-name">Profile Picture</span>
+              </div>
+              <div className="zoom-actions">
+                <button 
+                  className="zoom-action-btn" 
+                  onClick={handleDownloadImage}
+                  title="Save to device"
+                >
+                  <Download size={20} />
+                </button>
+                <button 
+                  className="zoom-action-btn close" 
+                  onClick={() => setZoomedImage(null)}
+                  title="Close"
+                >
+                  <X size={24} />
+                </button>
+              </div>
             </div>
-            <div className="zoom-image-circle">
-              <img src={zoomedImage} alt="Zoomed DP" />
-            </div>
-            <div className="zoom-controls">
-              <button className="zoom-control-btn min" onClick={() => setIsZoomMinimized(true)} title="Minimize preview">
-                <Minus size={20} />
-              </button>
-              <button className="zoom-control-btn close" onClick={() => { setZoomedImage(null); setIsZoomMinimized(false); }} title="Close preview">
-                <X size={20} />
-              </button>
+            
+            <div className="zoom-image-container">
+              <img src={zoomedImage} alt="Profile Full View" />
             </div>
           </motion.div>
         </div>
