@@ -89,7 +89,7 @@ exports.getRecentChats = async (req, res) => {
     // Get cleared chat records to filter out hidden conversations
     const clearedRecords = await ClearedChat.find({ user: normalizedEmail }).lean();
     const clearedMap = Object.fromEntries(
-      clearedRecords.map((r) => [r.partner, r.clearedAt])
+      clearedRecords.map((r) => [r.partner, { clearedAt: r.clearedAt, keepInRecent: r.keepInRecent }])
     );
 
     const archivedPartners = await getArchivedPartners(normalizedEmail);
@@ -100,9 +100,13 @@ exports.getRecentChats = async (req, res) => {
         // Filter out archived
         if (archivedPartners.includes(partner)) return false;
 
-        const clearedAt = clearedMap[partner];
-        if (!clearedAt) return true;
-        return new Date(conv.timestamp) > new Date(clearedAt);
+        const record = clearedMap[partner];
+        if (!record) return true;
+        
+        // If keepInRecent is true, always show even if clearedAt is after last message
+        if (record.keepInRecent) return true;
+
+        return new Date(conv.timestamp) > new Date(record.clearedAt);
       })
       .map((conv) => {
         const decrypted = decryptMessageDoc(conv);

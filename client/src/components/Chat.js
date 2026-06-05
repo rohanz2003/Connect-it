@@ -124,52 +124,48 @@ function Chat({ user: currentUser }) {
 
   const [isNearBottom, setIsNearBottom] = useState(true);
   const prevMessagesLengthRef = useRef(0);
+  const scrollContainerRef = useRef(null);
 
-  // Auto-scroll to bottom whenever messages change
+  // Scroll event handler to detect if user is near bottom
+  const handleScrollEvent = () => {
+    if (!scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    // If within 100px of bottom, consider "pinned"
+    const nearBottom = distanceFromBottom < 100;
+    setIsNearBottom(nearBottom);
+  };
+
   useEffect(() => {
     if (!messagesEndRef.current) return;
-
     const container = messagesEndRef.current.parentElement;
-
-    const handleScrollEvent = () => {
-      const distanceFromBottom =
-        container.scrollHeight -
-        container.scrollTop -
-        container.clientHeight;
-      // Using a smaller threshold for more precise detection
-      setIsNearBottom(distanceFromBottom < 50);
-    };
-
+    scrollContainerRef.current = container;
     container.addEventListener("scroll", handleScrollEvent);
     return () => container.removeEventListener("scroll", handleScrollEvent);
   }, []);
 
+  // Intelligent Auto-Scroll Logic
   useEffect(() => {
     if (!messagesEndRef.current) return;
 
-    const isNewMessage = messages.length > prevMessagesLengthRef.current;
+    const isNewMessageAdded = messages.length > prevMessagesLengthRef.current;
     prevMessagesLengthRef.current = messages.length;
 
     const lastMsg = messages[messages.length - 1];
     const isMyMessage = lastMsg?.sender?.toLowerCase() === user?.email?.toLowerCase();
 
-    // Auto-scroll logic:
-    // 1. If we are near the bottom, stay pinned to the bottom for any update.
-    // 2. If we are NOT near bottom, only scroll down if we just sent a new message.
-    if (isNearBottom || (isNewMessage && isMyMessage)) {
-      const scrollOptions = {
-        behavior: "smooth",
-        block: "end"
-      };
-
-      const timeoutId = setTimeout(() => {
+    // 🚩 CRITICAL SCROLL CONDITIONS:
+    // 1. We only auto-scroll if a NEW message was actually added to the list
+    // 2. AND (we were already near the bottom OR it's a message WE just sent)
+    if (isNewMessageAdded && (isNearBottom || isMyMessage)) {
+      // Use requestAnimationFrame for smoother, more reliable scrolling than setTimeout
+      requestAnimationFrame(() => {
         if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView(scrollOptions);
+          messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
         }
-      }, 100);
-      return () => clearTimeout(timeoutId);
+      });
     }
-  }, [messages, user?.email]);
+  }, [messages, user?.email]); // Dependencies are strictly messages and current user
 
   // Close context menu on outside click
   useEffect(() => {
@@ -430,7 +426,8 @@ function Chat({ user: currentUser }) {
     // Listen for profile picture and display name updates
     socket.on("user-profile-update", (data) => {
       console.log("👤 Profile update received for:", data.email);
-      const isMe = user && data.email.toLowerCase() === user.email.toLowerCase();
+      const normalizedUpdateEmail = data.email.toLowerCase();
+      const isMe = user && normalizedUpdateEmail === user.email.toLowerCase();
       
       const updatedInfo = {
         displayName: data.displayName,
@@ -453,12 +450,12 @@ function Chat({ user: currentUser }) {
 
       setUserMetadata((prev) => ({
         ...prev,
-        [data.email.toLowerCase()]: updatedInfo
+        [normalizedUpdateEmail]: updatedInfo
       }));
       
       setUserProfiles((prev) => ({
         ...prev,
-        [data.email.toLowerCase()]: data.profilePic || null
+        [normalizedUpdateEmail]: data.profilePic || null
       }));
     });
 
@@ -496,16 +493,28 @@ function Chat({ user: currentUser }) {
             : m
         );
 
-      setChatHistory((prev) => {
-        const updated = { ...prev };
-        Object.keys(updated).forEach((key) => {
-          updated[key] = applySaved(updated[key] || []);
-        });
-        return updated;
-      });
-
+      // Only update the selectedUser's messages and the corresponding entry in chatHistory
       if (selectedUserRef.current) {
+        const partner = normalizeEmail(selectedUserRef.current);
+        setChatHistory((prev) => {
+          if (!prev[partner]) return prev;
+          return {
+            ...prev,
+            [partner]: applySaved(prev[partner])
+          };
+        });
         setMessages((prev) => applySaved(prev));
+      } else {
+        // Fallback for when no user is selected but a message was saved in background
+        setChatHistory((prev) => {
+          const updated = { ...prev };
+          Object.keys(updated).forEach((key) => {
+            if (updated[key].some(m => m.tempId === tempId)) {
+              updated[key] = applySaved(updated[key]);
+            }
+          });
+          return updated;
+        });
       }
     };
 
@@ -609,27 +618,15 @@ function Chat({ user: currentUser }) {
       }
     };
 
-    const handleBlur = () => {
-      socket.emit("leave", { email: user.email.toLowerCase() });
-    };
-
-    const handleFocus = () => {
-      socket.emit("join", { email: user.email.toLowerCase(), profilePic: user.profilePic || null });
-    };
-
     const handleBeforeUnload = () => {
       socket.emit("leave", { email: user.email.toLowerCase() });
     };
 
     document.addEventListener("visibilitychange", emitVisiblePresence);
-    window.addEventListener("blur", handleBlur);
-    window.addEventListener("focus", handleFocus);
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
       document.removeEventListener("visibilitychange", emitVisiblePresence);
-      window.removeEventListener("blur", handleBlur);
-      window.removeEventListener("focus", handleFocus);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [socket, user]);
@@ -915,7 +912,7 @@ function Chat({ user: currentUser }) {
     }
   };
 
-  const clearChatForPartner = (partnerEmail) => {
+  const clearChatForPartner = (partnerEmail, keepInRecent = false) => {
     if (!user || !socket?.connected || !partnerEmail) return;
 
     const partner = normalizeEmail(partnerEmail);
@@ -923,7 +920,7 @@ function Chat({ user: currentUser }) {
 
     socket.emit(
       "clear-chat",
-      { user1: userKey, user2: partner },
+      { user1: userKey, user2: partner, keepInRecent },
       (ack) => {
         if (!ack?.ok) {
           alert("Failed to clear chat. Please try again.");
@@ -931,19 +928,21 @@ function Chat({ user: currentUser }) {
       }
     );
 
-    setChatHistory((prev) => {
-      const updated = { ...prev };
-      delete updated[partner];
-      return updated;
-    });
+    if (!keepInRecent) {
+      setChatHistory((prev) => {
+        const updated = { ...prev };
+        delete updated[partner];
+        return updated;
+      });
 
-    setUnreadMessages((prev) => {
-      const key = `${partner}_${userKey}`;
-      if (!prev[key]) return prev;
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
+      setUnreadMessages((prev) => {
+        const key = `${partner}_${userKey}`;
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
 
     if (selectedUserRef.current && normalizeEmail(selectedUserRef.current) === partner) {
       setMessages([]);
@@ -954,10 +953,10 @@ function Chat({ user: currentUser }) {
     if (!selectedUser) return;
     if (
       window.confirm(
-        "Clear this chat for you only? The other person will still see all messages."
+        "Clear all messages in this chat? The conversation will stay in your list."
       )
     ) {
-      clearChatForPartner(selectedUser);
+      clearChatForPartner(selectedUser, true);
     }
   };
 

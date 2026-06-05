@@ -4,6 +4,7 @@ const clearedChatSchema = new mongoose.Schema({
   user: { type: String, required: true, lowercase: true, trim: true },
   partner: { type: String, required: true, lowercase: true, trim: true },
   clearedAt: { type: Date, default: Date.now },
+  keepInRecent: { type: Boolean, default: false },
 });
 
 clearedChatSchema.index({ user: 1, partner: 1 }, { unique: true });

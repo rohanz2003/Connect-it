@@ -122,22 +122,7 @@ module.exports = (io, socket, users) => {
       const roomId = getRoomId(normalizedSender, normalizedReceiver);
       const msgTimestamp = timestamp ? new Date(timestamp) : new Date();
 
-      if (tempId) {
-        const existing = await Message.findOne({ tempId }).lean();
-        if (existing) {
-          const decrypted = decryptMessageDoc(existing);
-          // Emit to both room and receiver personal room for duplicates too
-          io.to(normalizedReceiver).to(roomId).to(normalizedSender).emit("receive-message", decrypted);
-          io.to(normalizedReceiver).to(roomId).to(normalizedSender).emit("message-saved", {
-            tempId,
-            _id: existing._id,
-            timestamp: existing.timestamp,
-          });
-          if (callback) callback({ ok: true, _id: existing._id, duplicate: true });
-          return;
-        }
-      }
-
+      // 1. Encryption (Fast, synchronous-like)
       let encryptedText;
       try {
         encryptedText = encryptPayload(text);
@@ -161,17 +146,15 @@ module.exports = (io, socket, users) => {
         pending: true,
       };
 
-      // 📢 Deliver to Receiver and Sender's other tabs
-      // Use the receiver's personal room (their email) and the shared roomId
+      // 2. 🚀 INSTANT DELIVERY (Before any DB ops)
       io.to(normalizedReceiver).to(roomId).to(normalizedSender).emit("receive-message", optimisticMessage);
 
+      // 3. Update Unread (Fast, in-memory)
       const unreadKey = `${normalizedSender}_${normalizedReceiver}`;
       unreadMessages[unreadKey] = (unreadMessages[unreadKey] || 0) + 1;
 
-      // Only send unread updates relevant to the receiver to preserve privacy
       if (isUserOnline(users, normalizedReceiver)) {
         const receiverUnreads = {};
-        // Filter unreadMessages to only show counts where the receiver is the 'receiver'
         Object.keys(unreadMessages).forEach(key => {
           if (key.endsWith(`_${normalizedReceiver}`)) {
             receiverUnreads[key] = unreadMessages[key];
@@ -182,46 +165,45 @@ module.exports = (io, socket, users) => {
 
       if (callback) callback({ ok: true, pending: true, tempId });
 
-      try {
-        const saved = await Message.create({
-          sender: normalizedSender,
-          receiver: normalizedReceiver,
-          text: encryptedText,
-          type: type || "text",
-          mediaType: mediaType || null,
-          tempId: tempId || undefined,
-          replyTo: replyTo || undefined,
-          timestamp: msgTimestamp,
-          seen: false,
-        });
+      // 4. Background DB Operations (Non-blocking for the socket response)
+      (async () => {
+        try {
+          // Parallelize independent DB tasks
+          const [saved] = await Promise.all([
+            Message.create({
+              sender: normalizedSender,
+              receiver: normalizedReceiver,
+              text: encryptedText,
+              type: type || "text",
+              mediaType: mediaType || null,
+              tempId: tempId || undefined,
+              replyTo: replyTo || undefined,
+              timestamp: msgTimestamp,
+              seen: false,
+            }),
+            UserProfile.findOneAndUpdate(
+              { email: normalizedSender },
+              { $set: { lastActivity: new Date(), isOnline: true } }
+            ),
+            ArchivedChat.deleteMany({
+              $or: [
+                { user: normalizedSender, partner: normalizedReceiver },
+                { user: normalizedReceiver, partner: normalizedSender }
+              ]
+            })
+          ]);
 
-        // Update last activity for sender
-        await UserProfile.findOneAndUpdate(
-          { email: normalizedSender },
-          { $set: { lastActivity: new Date(), isOnline: true } }
-        );
-
-        // Auto-unarchive for both parties on new message
-        await ArchivedChat.deleteMany({
-          $or: [
-            { user: normalizedSender, partner: normalizedReceiver },
-            { user: normalizedReceiver, partner: normalizedSender }
-          ]
-        });
-
-        io.to(normalizedReceiver).to(roomId).to(normalizedSender).emit("message-saved", {
-          tempId: tempId || null,
-          _id: saved._id,
-          timestamp: saved.timestamp,
-        });
-      } catch (dbErr) {
-        console.error(`❌ Failed to save message from ${normalizedSender} to ${normalizedReceiver}:`, dbErr.message);
-        socket.emit("message-error", {
-          tempId,
-          error: "Failed to save message",
-          details: dbErr.message
-        });
-      }
+          // Notify about successful save
+          io.to(normalizedReceiver).to(roomId).to(normalizedSender).emit("message-saved", {
+            tempId: tempId || null,
+            _id: saved._id,
+            timestamp: saved.timestamp,
+          });
+        } catch (dbErr) {
+          console.error(`❌ DB Error for message from ${normalizedSender}:`, dbErr.message);
+          socket.emit("message-error", { tempId, error: "Failed to save message" });
+        }
+      })();
     } catch (err) {
       console.error("❌ Error sending message:", err.message);
       if (callback) callback({ ok: false, error: err.message });
@@ -291,7 +273,7 @@ module.exports = (io, socket, users) => {
   });
 
   // Per-user soft clear (WhatsApp-style): only hides for the requesting user
-  socket.on("clear-chat", async ({ user1, user2 }, callback) => {
+  socket.on("clear-chat", async ({ user1, user2, keepInRecent = false }, callback) => {
     try {
       const authUser = getAuthenticatedEmail(socket, users);
       const normalizedUser1 = normalizeEmail(user1);
@@ -305,7 +287,7 @@ module.exports = (io, socket, users) => {
       const clearedAt = new Date();
       await ClearedChat.findOneAndUpdate(
         { user: normalizedUser1, partner: normalizedUser2 },
-        { clearedAt },
+        { clearedAt, keepInRecent },
         { upsert: true, new: true }
       );
 
@@ -314,6 +296,7 @@ module.exports = (io, socket, users) => {
         user2: normalizedUser2,
         clearedAt,
         scope: "self",
+        keepInRecent
       });
 
       if (callback) callback({ ok: true, clearedAt });
