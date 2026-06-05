@@ -33,6 +33,83 @@ import "./Chat.css";
 
 const normalizeEmail = (email) => (email || "").toLowerCase().trim();
 
+const MessageItem = React.memo(({ msg, userEmail, handleContextMenu, handleZoomImage, renderAvatar, formatDay, formatMessageTime, showDay }) => {
+  return (
+    <React.Fragment>
+      {showDay && (
+        <div className="day-separator">
+          <span>{formatDay(msg.timestamp || msg.createdAt)}</span>
+        </div>
+      )}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        className={`message-wrapper ${msg.sender === userEmail ? "sent" : "received"}`}
+      >
+        {msg.sender !== userEmail && (
+          <div className="message-avatar">
+            {renderAvatar(msg.sender, "sm")}
+          </div>
+        )}
+        <div
+          className={`message ${msg.sender === userEmail ? "sent" : "received"}`}
+          onContextMenu={(e) => handleContextMenu(e, msg)}
+        >
+          <div className="message-content">
+            {msg.replyTo && (
+              <div className="reply-quote">
+                <small>{msg.replyTo.sender === userEmail ? "You" : msg.replyTo.sender.split('@')[0]}</small>
+                <p>{msg.replyTo.text}</p>
+              </div>
+            )}
+            {msg.type === "media" ? (
+              <div className="media-message">
+                {msg.mediaType === "image" && msg.text?.data?.startsWith("data:image/") && (
+                  <img src={msg.text.data} alt="Shared" className="media-image" onClick={() => handleZoomImage(msg.text.data)} />
+                )}
+                {msg.mediaType === "video" && msg.text?.data?.startsWith("data:video/") && (
+                  <video controls className="media-video">
+                    <source src={msg.text.data} type={msg.text.type} />
+                    Your browser does not support video playback
+                  </video>
+                )}
+                {msg.mediaType === "application" && msg.text?.data?.startsWith("data:application/") && (
+                  <div className="media-file">
+                    <span>📎 {msg.text.name}</span>
+                    <a href={msg.text.data} download={msg.text.name} className="download-btn">Download</a>
+                  </div>
+                )}
+                {msg.text?.data && msg.mediaType !== "image" && msg.mediaType !== "video" && msg.mediaType !== "application" && (
+                  <div className="media-file">
+                    <span>📎 {msg.text?.name || "Attachment"}</span>
+                    {msg.text?.data && (
+                      <a href={msg.text.data} download={msg.text?.name} className="download-btn">Download</a>
+                    )}
+                  </div>
+                )}
+                {!msg.text?.data && msg.type === "media" && (
+                  <span className="media-unavailable">Media unavailable (reload chat)</span>
+                )}
+              </div>
+            ) : (
+              msg.text
+            )}
+          </div>
+          <div className="message-meta">
+            <span>{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
+            {msg.pending && <span className="message-status pending">Sending…</span>}
+            {msg.failed && <span className="message-status failed">Failed</span>}
+            {msg.sender === userEmail && !msg.pending && !msg.failed && (
+              <span className="read-receipt">✓✓</span>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </React.Fragment>
+  );
+});
+
 const getOtherParty = (msg, currentUserEmail) => {
   const senderEmail = normalizeEmail(msg.sender);
   const receiverEmail = normalizeEmail(msg.receiver);
@@ -50,15 +127,27 @@ const isSameMessage = (a, b) => {
 const upsertMessageInList = (list, msg) => {
   const idx = list.findIndex((m) => isSameMessage(m, msg));
   if (idx === -1) {
+    // If it's a new message, we can just append if it's newer than the last message
+    if (list.length === 0 || new Date(msg.timestamp || msg.createdAt) >= new Date(list[list.length - 1].timestamp || list[list.length - 1].createdAt)) {
+      return [...list, msg];
+    }
+    // Otherwise, insert and sort (rare case for late-arriving messages)
     return [...list, msg].sort(
       (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
     );
   }
   const updated = [...list];
   updated[idx] = { ...updated[idx], ...msg };
-  return updated.sort(
-    (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
-  );
+  // Only sort if the timestamp actually changed and might have affected order
+  const timestampChanged = (msg.timestamp || msg.createdAt) && 
+                           (new Date(msg.timestamp || msg.createdAt).getTime() !== new Date(list[idx].timestamp || list[idx].createdAt).getTime());
+  
+  if (timestampChanged) {
+    return updated.sort(
+      (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
+    );
+  }
+  return updated;
 };
 
 function Chat({ user: currentUser }) {
@@ -424,6 +513,10 @@ function Chat({ user: currentUser }) {
       setUnreadMessages(unreadData);
     });
 
+    socket.on("unread-update-single", ({ key, count }) => {
+      setUnreadMessages(prev => ({ ...prev, [key]: count }));
+    });
+
     // Listen for profile picture and display name updates
     socket.on("user-profile-update", (data) => {
       console.log("👤 Profile update received for:", data.email);
@@ -644,9 +737,19 @@ function Chat({ user: currentUser }) {
       // 2. Mark messages as read on server
       socket.emit("mark-as-read", { user1: user.email, user2: selectedUser });
       
+      // OPTIMIZATION: Show cached messages immediately if available
+      const partner = normalizeEmail(selectedUser);
+      const cached = chatHistory[partner];
+      if (cached && cached.length > 0) {
+        setMessages(cached);
+      } else {
+        setMessages([]); // Clear while loading if no cache
+      }
+
       // 3. Fetch full history from Database (Fixes the "no msg show" issue)
       try {
-        const history = await fetchMessages(user.email, selectedUser) || [];
+        const response = await fetchMessages(user.email, selectedUser);
+        const history = response?.messages || [];
         
         setChatHistory(prev => ({ ...prev, [selectedUser]: history }));
         setMessages(prev => {
@@ -838,17 +941,53 @@ function Chat({ user: currentUser }) {
     const tempId = `${Date.now()}-${Math.random()}`;
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = (event) => {
+      if (isImage) {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Compress to JPEG with 0.7 quality
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
+          sendMediaMessage(file.name, file.type, file.size, compressedDataUrl);
+        };
+        img.src = event.target.result;
+      } else {
+        sendMediaMessage(file.name, file.type, file.size, event.target.result);
+      }
+    };
+
+    const sendMediaMessage = (name, type, size, data) => {
       try {
-        // Don't send huge base64 strings - compress image if possible
         let fileData = {
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          data: reader.result
+          name,
+          type,
+          size,
+          data
         };
 
-        console.log(`📎 Sending file: ${file.name} (${(file.size / 1024).toFixed(2)}KB)`);
+        console.log(`📎 Sending file: ${name} (${(size / 1024).toFixed(2)}KB)`);
 
         // Create message object
         const newMsg = {
@@ -856,7 +995,7 @@ function Chat({ user: currentUser }) {
           receiver: selectedUser,
           text: fileData,
           type: "media",
-          mediaType: file.type.split('/')[0],
+          mediaType: type.split('/')[0],
           tempId: tempId,
           timestamp: new Date().toISOString()
         };
@@ -883,7 +1022,6 @@ function Chat({ user: currentUser }) {
         alert("❌ Error sending file. Please try again.");
       } finally {
         setIsMediaSending(false);
-        e.target.value = null;
       }
     };
 
@@ -1175,7 +1313,7 @@ function Chat({ user: currentUser }) {
     });
   };
 
-  const handleUserSelect = (u) => {
+  const handleUserSelect = useCallback((u) => {
     const partner = normalizeEmail(u);
     console.log(`👤 Selected user: ${partner}`);
     setSelectedUser(partner);
@@ -1196,16 +1334,10 @@ function Chat({ user: currentUser }) {
         return next;
       });
     }
-  };
+  }, [chatHistory, user]);
 
-  // Filter out current user from the user list
-  const otherOnlineUsers = onlineUsers.filter(u => {
-    if (!u || typeof u !== 'string') return false;
-    return u.toLowerCase().trim() !== user?.email?.toLowerCase().trim();
-  });
-  
   // Get recent chats sorted by latest message
-  const recentChats = Object.keys(chatHistory)
+  const recentChats = useMemo(() => Object.keys(chatHistory)
     .filter(u => u !== user?.email)
     .sort((a, b) => {
       const historyA = chatHistory[a] || [];
@@ -1215,35 +1347,39 @@ function Chat({ user: currentUser }) {
       const timeA = new Date(lastA?.timestamp || lastA?.createdAt || 0);
       const timeB = new Date(lastB?.timestamp || lastB?.createdAt || 0);
       return new Date(timeB) - new Date(timeA);
-    });
+    }), [chatHistory, user?.email]);
 
-  const isUserOnline = (userEmail) =>
-    onlineUsers.some((u) => normalizeEmail(u) === normalizeEmail(userEmail));
+  const isUserOnline = useCallback((userEmail) =>
+    onlineUsers.some((u) => normalizeEmail(u) === normalizeEmail(userEmail)), [onlineUsers]);
 
   // Get unread count for a user
-  const getUnreadCount = (otherUser) => {
+  const getUnreadCount = useCallback((otherUser) => {
     if (!user || !otherUser) return 0;
     const key = `${normalizeEmail(otherUser)}_${normalizeEmail(user.email)}`;
     return unreadMessages[key] || 0;
-  };
+  }, [unreadMessages, user]);
 
   const searchValue = searchTerm.trim().toLowerCase();
-  const filteredRecentChats = recentChats.filter((u) => {
+  const filteredRecentChats = useMemo(() => recentChats.filter((u) => {
     const normalizedEmail = normalizeEmail(u);
     return (
       normalizedEmail.includes(searchValue) ||
-      getDisplayName(u).includes(searchValue) ||
-      (userProfiles[u] || "").toLowerCase().includes(searchValue)
+      getDisplayName(u).toLowerCase().includes(searchValue)
     );
-  });
-  const filteredOnlineUsers = otherOnlineUsers.filter((u) => {
+  }), [recentChats, searchValue, userMetadata]);
+
+  const otherOnlineUsers = useMemo(() => onlineUsers.filter(u => {
+    if (!u || typeof u !== 'string') return false;
+    return u.toLowerCase().trim() !== user?.email?.toLowerCase().trim();
+  }), [onlineUsers, user?.email]);
+
+  const filteredOnlineUsers = useMemo(() => otherOnlineUsers.filter((u) => {
     const normalizedEmail = normalizeEmail(u);
     return (
       normalizedEmail.includes(searchValue) ||
-      getDisplayName(u).includes(searchValue) ||
-      (userProfiles[u] || "").toLowerCase().includes(searchValue)
+      getDisplayName(u).toLowerCase().includes(searchValue)
     );
-  });
+  }), [otherOnlineUsers, searchValue, userMetadata]);
 
   if (!user) return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><h2>Loading Connect Messenger...</h2></div>;
 
@@ -1571,78 +1707,17 @@ function Chat({ user: currentUser }) {
                   const previousMsg = messages[i - 1];
                   const showDay = !previousMsg || new Date(msg.timestamp || msg.createdAt).toDateString() !== new Date(previousMsg.timestamp || previousMsg.createdAt).toDateString();
                   return (
-                    <React.Fragment key={msg._id || msg.tempId || `msg-${i}`}>
-                      {showDay && (
-                        <div className="day-separator">
-                          <span>{formatDay(msg.timestamp || msg.createdAt)}</span>
-                        </div>
-                      )}
-                      <motion.div
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25 }}
-                        className={`message-wrapper ${msg.sender === user.email ? "sent" : "received"}`}
-                      >
-                        {msg.sender !== user.email && (
-                          <div className="message-avatar">
-                            {renderAvatar(msg.sender, "sm")}
-                          </div>
-                        )}
-                        <div
-                          className={`message ${msg.sender === user.email ? "sent" : "received"}`}
-                          onContextMenu={(e) => handleContextMenu(e, msg)}
-                        >
-                          <div className="message-content">
-                          {msg.replyTo && (
-                            <div className="reply-quote">
-                              <small>{msg.replyTo.sender === user.email ? "You" : msg.replyTo.sender.split('@')[0]}</small>
-                              <p>{msg.replyTo.text}</p>
-                            </div>
-                          )}
-                          {msg.type === "media" ? (
-                            <div className="media-message">
-                              {msg.mediaType === "image" && msg.text?.data?.startsWith("data:image/") && (
-                                <img src={msg.text.data} alt="Shared" className="media-image" onClick={() => handleZoomImage(msg.text.data)} />
-                              )}
-                              {msg.mediaType === "video" && msg.text?.data?.startsWith("data:video/") && (
-                                <video controls className="media-video">
-                                  <source src={msg.text.data} type={msg.text.type} />
-                                  Your browser does not support video playback
-                                </video>
-                              )}
-                              {msg.mediaType === "application" && msg.text?.data?.startsWith("data:application/") && (
-                                <div className="media-file">
-                                  <span>📎 {msg.text.name}</span>
-                                  <a href={msg.text.data} download={msg.text.name} className="download-btn">Download</a>
-                                </div>
-                              )}
-                              {msg.text?.data && msg.mediaType !== "image" && msg.mediaType !== "video" && msg.mediaType !== "application" && (
-                                <div className="media-file">
-                                  <span>📎 {msg.text?.name || "Attachment"}</span>
-                                  {msg.text?.data && (
-                                    <a href={msg.text.data} download={msg.text?.name} className="download-btn">Download</a>
-                                  )}
-                                </div>
-                              )}
-                              {!msg.text?.data && msg.type === "media" && (
-                                <span className="media-unavailable">Media unavailable (reload chat)</span>
-                              )}
-                            </div>
-                          ) : (
-                            msg.text
-                          )}
-                        </div>
-                        <div className="message-meta">
-                          <span>{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
-                          {msg.pending && <span className="message-status pending">Sending…</span>}
-                          {msg.failed && <span className="message-status failed">Failed</span>}
-                          {msg.sender === user.email && !msg.pending && !msg.failed && (
-                            <span className="read-receipt">✓✓</span>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                    </React.Fragment>
+                    <MessageItem
+                      key={msg._id || msg.tempId || `msg-${i}`}
+                      msg={msg}
+                      userEmail={user.email}
+                      handleContextMenu={handleContextMenu}
+                      handleZoomImage={handleZoomImage}
+                      renderAvatar={renderAvatar}
+                      formatDay={formatDay}
+                      formatMessageTime={formatMessageTime}
+                      showDay={showDay}
+                    />
                   );
                 })
               )}

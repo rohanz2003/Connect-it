@@ -154,13 +154,11 @@ module.exports = (io, socket, users) => {
       unreadMessages[unreadKey] = (unreadMessages[unreadKey] || 0) + 1;
 
       if (isUserOnline(users, normalizedReceiver)) {
-        const receiverUnreads = {};
-        Object.keys(unreadMessages).forEach(key => {
-          if (key.endsWith(`_${normalizedReceiver}`)) {
-            receiverUnreads[key] = unreadMessages[key];
-          }
+        // Optimized unread update: only send the update for the specific conversation
+        io.to(normalizedReceiver).emit("unread-update-single", {
+          key: unreadKey,
+          count: unreadMessages[unreadKey]
         });
-        io.to(normalizedReceiver).emit("unread-update", receiverUnreads);
       }
 
       if (callback) callback({ ok: true, pending: true, tempId });

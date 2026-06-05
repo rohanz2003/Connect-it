@@ -73,12 +73,14 @@ module.exports = (io, socket, users, userProfiles) => {
 
     // Send all existing profile metadata to the newly joined user
     try {
-      const allProfiles = await UserProfile.find({}, 'email displayName profilePic bio lastSeen isOnline');
+      // OPTIMIZATION: Do NOT send large profile pics in the initial bulk dump
+      // The client will fetch them or use a placeholder/cache
+      const allProfiles = await UserProfile.find({}, 'email displayName bio lastSeen isOnline');
       const profileMap = {};
       allProfiles.forEach(p => {
         profileMap[p.email.toLowerCase()] = {
           displayName: p.displayName,
-          profilePic: p.profilePic,
+          // Skip profilePic here to save bandwidth
           bio: p.bio,
           lastSeen: p.lastSeen,
           isOnline: p.isOnline
