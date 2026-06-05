@@ -662,7 +662,7 @@ function Chat({ user: currentUser }) {
       // 3. Fetch full history from Database
       try {
         const response = await fetchMessages(user.email, currentSelectedUser);
-        const history = response?.messages || [];
+        const history = Array.isArray(response) ? response : (response?.messages || []);
         
         if (isCancelled) return;
 
