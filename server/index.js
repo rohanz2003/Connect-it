@@ -65,12 +65,8 @@ app.get("/api/health", (req, res) => {
     config: {
       MONGO_URI_SET: Boolean(process.env.MONGO_URI),
       JWT_SECRET_SET: Boolean(process.env.JWT_SECRET),
-      EMAIL_USER_SET: Boolean(process.env.EMAIL_USER),
-      EMAIL_PASSWORD_SET: Boolean(
-        process.env.EMAIL_PASS ||
-          process.env.EMAIL_PASSWORD ||
-          process.env.GMAIL_APP_PASSWORD
-      ),
+      RESEND_API_KEY_SET: Boolean(process.env.RESEND_API_KEY),
+      EMAIL_FROM_SET: Boolean(process.env.EMAIL_FROM),
       ADMIN_EMAIL_SET: Boolean(process.env.ADMIN_EMAIL),
       FRONTEND_URL_SET: Boolean(
         process.env.FRONTEND_URL || process.env.CLIENT_URL

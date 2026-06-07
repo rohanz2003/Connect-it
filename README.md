@@ -51,7 +51,7 @@ Connect Messenger is a professional, high-performance real-time chat application
 - **Socket.IO**: WebSocket management for real-time events.
 - **Mongoose**: MongoDB object modeling.
 - **JWT**: Secure token-based authentication for admin routes.
-- **Nodemailer**: For sending OTPs and feedback notifications.
+- **Resend**: For sending OTPs and feedback notifications via email.
 
 ### **Database**
 - **MongoDB Atlas**: Cloud-hosted NoSQL database for messages, profiles, and metadata.
@@ -66,7 +66,7 @@ graph TD
     A <-->|REST API| B
     B <--> C[MongoDB Atlas]
     A <--> D[Firebase Auth]
-    B <--> E[Email Service/OTP]
+    B <--> E[Resend Email Service]
 ```
 
 ---
@@ -92,6 +92,7 @@ c:/rohan/chat/
 │   ├── middleware/         # Auth and validation middleware
 │   ├── models/             # Mongoose schemas (Message, UserProfile, etc.)
 │   ├── routes/             # API endpoints
+│   ├── services/           # Email service (Resend)
 │   ├── socket/             # Socket.IO event handlers
 │   ├── utils/              # Security and helper utilities
 │   └── index.js            # Server entry point
@@ -172,8 +173,8 @@ PORT=5000
 MONGO_URI=your_mongodb_atlas_uri
 JWT_SECRET=your_jwt_secret
 ADMIN_EMAIL=admin@example.com
-EMAIL_USER=your_email_for_otp
-GMAIL_APP_PASSWORD=your_app_password
+RESEND_API_KEY=re_xxxxxxxxxxxx
+EMAIL_FROM=your-verified-domain@yourdomain.com
 FRONTEND_URL=http://localhost:3000
 MESSAGE_ENCRYPTION_KEY=your_32_char_key
 ```
@@ -228,7 +229,7 @@ REACT_APP_FIREBASE_PROJECT_ID=...
 
 - **Socket Connection Fails**: Ensure `FRONTEND_URL` in server `.env` matches the client's actual URL.
 - **MongoDB Errors**: Verify the IP Whitelist in your MongoDB Atlas dashboard.
-- **OTP Not Sending**: Check if "Less Secure Apps" or "App Passwords" are configured for your Gmail/SMTP account.
+- **OTP Not Sending**: Check if `RESEND_API_KEY` is set correctly and the `EMAIL_FROM` domain is verified in Resend.
 
 ---
 

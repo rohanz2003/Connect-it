@@ -14,13 +14,13 @@ services:
         value: "20"
       - key: MONGO_URI
         sync: false
-      - key: EMAIL_USER
+      - key: RESEND_API_KEY
         sync: false
-      - key: GMAIL_APP_PASSWORD
-        sync: false
-      - key: EMAIL_PASS
+      - key: EMAIL_FROM
         sync: false
       - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_FEEDBACK_EMAIL
         sync: false
       - key: JWT_SECRET
         sync: false
