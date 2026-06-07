@@ -3,7 +3,8 @@ const { Resend } = require("resend");
 // Initialize Resend with API key from environment
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Default from email address
+// Default from email address - use Resend's testing domain if no verified domain configured
+// For production, verify your domain at https://resend.com/domains and set EMAIL_FROM
 const DEFAULT_FROM_EMAIL = process.env.EMAIL_FROM || "zenderohan2012@gmail.com";
 
 /**
