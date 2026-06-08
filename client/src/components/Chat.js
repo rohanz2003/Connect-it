@@ -133,11 +133,6 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
     setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
   };
 
-  const handleMouseDown = (e) => {
-    setDragging(true);
-    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
-  };
-
   const handleMouseMove = (e) => {
     if (!dragging) return;
     setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
