@@ -1,39 +1,69 @@
-export const formatLastSeen = (time) => {
-  if (!time) return "";
-  const date = new Date(time);
-  if (isNaN(date.getTime())) return "";
-  const now = new Date();
-  const diffMs = now - date;
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
+export const formatLastSeen = (date) => {
+  if (!date) return "last seen a long time ago";
+  const lastSeen = new Date(date);
+  if (isNaN(lastSeen.getTime())) return "last seen a long time ago";
 
-  if (diffMins < 1) return "last seen just now";
-  if (diffMins < 60) return `last seen ${diffMins}m ago`;
-  if (diffHours < 24) return `last seen ${diffHours}h ago`;
-  if (diffDays === 1) return "last seen yesterday";
-  if (diffDays < 7) return `last seen ${diffDays}d ago`;
-  return "last seen " + date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const now = new Date();
+  const diffMs = now - lastSeen;
+  const diffMin = Math.floor(diffMs / 60000);
+
+  if (diffMin < 1) return "online";
+
+  if (diffMin < 60) return `last seen ${diffMin} minute${diffMin > 1 ? "s" : ""} ago`;
+
+  const time = lastSeen.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const isToday = lastSeen.toDateString() === now.toDateString();
+  if (isToday) return `last seen today at ${time}`;
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (lastSeen.toDateString() === yesterday.toDateString()) {
+    return `last seen yesterday at ${time}`;
+  }
+
+  if (diffMin < 60 * 24 * 7) {
+    const day = lastSeen.toLocaleDateString("en-US", { weekday: "long" });
+    return `last seen ${day} at ${time}`;
+  }
+
+  const dateStr = `${lastSeen.getMonth() + 1}/${lastSeen.getDate()}/${lastSeen.getFullYear()}`;
+  return `last seen ${dateStr}`;
 };
 
 export const formatMessageTime = (time) => {
   if (!time) return "";
   const date = new Date(time);
-  if (isNaN(date.getTime())) return ""; // Handle invalid dates
-  
+  if (isNaN(date.getTime())) return "";
+
   const now = new Date();
   const diffInHours = (now - date) / (1000 * 60 * 60);
-  
 
   if (diffInHours < 24) {
-    // Today: show time like "2:30 PM"
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).toLowerCase();
   } else if (diffInHours < 48) {
-    // Yesterday: show "Yesterday 2:30 PM"
-    return `Yesterday ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase()}`;
+    return `Yesterday ${date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).toLowerCase()}`;
   } else {
-    // Older: show date and time like "Dec 25, 2:30 PM"
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + 
-           ', ' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+    return (
+      date.toLocaleDateString([], { month: "short", day: "numeric" }) +
+      ", " +
+      date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }).toLowerCase()
+    );
   }
 };

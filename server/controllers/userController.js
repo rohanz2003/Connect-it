@@ -113,3 +113,36 @@ exports.updateLastSeen = async (userId) => {
     console.error("Error updating lastSeen:", err.message);
   }
 };
+
+exports.getLastSeen = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: "User id is required" });
+
+    const user = await User.findOne({ email: id.toLowerCase() }).select("email lastSeen");
+    if (!user) return res.json({ success: true, lastSeen: null });
+
+    res.json({ success: true, lastSeen: user.lastSeen || null });
+  } catch (err) {
+    console.error("Error fetching lastSeen:", err.message);
+    res.status(500).json({ error: "Failed to fetch lastSeen" });
+  }
+};
+
+exports.heartbeat = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "email is required" });
+
+    await User.findOneAndUpdate(
+      { email: email.toLowerCase() },
+      { lastSeen: new Date() },
+      { upsert: true }
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error updating heartbeat:", err.message);
+    res.status(500).json({ error: "Failed to update heartbeat" });
+  }
+};

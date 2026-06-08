@@ -2635,6 +2635,33 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
 }
 
 /* ============================================================================
+   LAST SEEN & ONLINE STATUS
+   ============================================================================ */
+
+.last-seen {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-light);
+}
+
+.last-seen.online {
+  color: var(--success-color);
+  font-weight: 600;
+}
+
+.online-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success-color);
+  display: inline-block;
+  flex-shrink: 0;
+  animation: dot-pulse 2s infinite;
+}
+
+/* ============================================================================
    PRINT STYLES
    ============================================================================ */
 

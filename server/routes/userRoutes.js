@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { createOrUpdateUser, updateAvatar, updateProfile, getProfile, getProfiles } = require("../controllers/userController");
+const { createOrUpdateUser, updateAvatar, updateProfile, getProfile, getProfiles, getLastSeen, heartbeat } = require("../controllers/userController");
 
 // Health check
 router.get("/", (req, res) => {
@@ -9,6 +9,9 @@ router.get("/", (req, res) => {
 
 // Create or update user (upsert)
 router.post("/", createOrUpdateUser);
+
+// Heartbeat - update lastSeen
+router.post("/heartbeat", heartbeat);
 
 // Update user avatar/profile picture
 router.put("/avatar", updateAvatar);
@@ -21,5 +24,8 @@ router.get("/profile", getProfile);
 
 // Get multiple user profiles by emails
 router.get("/profiles", getProfiles);
+
+// Get last seen for a user by email
+router.get("/:id/lastseen", getLastSeen);
 
 module.exports = router;

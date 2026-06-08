@@ -35,6 +35,7 @@ import {
   Camera,
 } from "lucide-react";
 import Avatar from "./Avatar";
+import LastSeen from "./LastSeen";
 import { auth } from "../firebase";
 import useSocket from "../hooks/useSocket";
 import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
@@ -222,6 +223,13 @@ function Chat({ user: currentUser }) {
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const [, setLastSeenTick] = useState(0);
+
+  // Auto-refresh last seen display every 60 seconds
+  useEffect(() => {
+    const interval = setInterval(() => setLastSeenTick((t) => t + 1), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Use Ref to track selectedUser for the socket listener to avoid stale closures
   const selectedUserRef = useRef(selectedUser);
@@ -802,6 +810,21 @@ function Chat({ user: currentUser }) {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [socket, user]);
+
+  // Heartbeat: update lastSeen every 5 minutes while active
+  useEffect(() => {
+    if (!user) return;
+    const sendHeartbeat = () => {
+      fetch(`${API_URL}/api/users/heartbeat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user.email }),
+      }).catch(() => {});
+    };
+    sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   useEffect(() => {
     const syncChat = async () => {
@@ -1468,7 +1491,7 @@ function Chat({ user: currentUser }) {
                       className="user-avatar"
                       onClick={(e) => handleAvatarClick(e, u, false)}
                     />
-                    {isUserOnline(u) && <span className="status-dot" />}
+                    {isUserOnline(u) && <span className="status-dot online" />}
                   </div>
                   <div className="user-item-copy">
                     <span className="user-name">{getDisplayName(u)}</span>
@@ -1599,7 +1622,7 @@ function Chat({ user: currentUser }) {
             </div>
             <div>
               <h3>{selectedUser ? getDisplayName(selectedUser) : "Welcome to Connect"}</h3>
-              <p>{selectedUser ? (isUserOnline(selectedUser) ? "Online" : formatLastSeen(lastSeen[selectedUser])) : "Choose a conversation or create a new one."}</p>
+              <p>{selectedUser ? <LastSeen userId={selectedUser} /> : "Choose a conversation or create a new one."}</p>
             </div>
           </div>
           <div className="chat-header-actions">
@@ -1985,7 +2008,11 @@ function Chat({ user: currentUser }) {
             <h3 className="profile-preview-name">{getDisplayName(profilePreviewUser.email)}</h3>
             <p className="profile-preview-email">{profilePreviewUser.email}</p>
             <p className="profile-preview-status">
-              {isUserOnline(profilePreviewUser.email) ? "Online" : "Offline"}
+              {isUserOnline(profilePreviewUser.email) ? (
+                <span className="last-seen online"><span className="online-dot" /> Online</span>
+              ) : (
+                <LastSeen userId={profilePreviewUser.email} />
+              )}
             </p>
             <div className="profile-preview-actions">
               {userProfiles[normalizeEmail(profilePreviewUser.email)] && (

@@ -1,5 +1,6 @@
 const { normalizeEmail, registerSocket } = require("../utils/socketAuth");
 const User = require("../modules/User");
+const { updateLastSeen } = require("../controllers/userController");
 
 module.exports = (io, socket, users, userProfiles) => {
   socket.on("join", async (data) => {
@@ -21,6 +22,9 @@ module.exports = (io, socket, users, userProfiles) => {
     users[userId].add(socket.id);
     
     socket.join(userId);
+
+    // Update lastSeen on join (login)
+    updateLastSeen(userId);
 
     // Always store profilePic in memory (even if null, to track removal)
     if (typeof data === 'object' && data?.hasOwnProperty('profilePic')) {
@@ -72,6 +76,9 @@ module.exports = (io, socket, users, userProfiles) => {
 
     if (users[userId].size === 0) {
       delete users[userId];
+      // Update lastSeen on logout
+      updateLastSeen(userId);
+      io.emit("last-seen", { userId, time: new Date().toISOString() });
     }
 
     io.emit("online-users", Object.keys(users));
