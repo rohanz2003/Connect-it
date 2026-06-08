@@ -82,7 +82,7 @@ exports.getProfiles = async (req, res) => {
 
     const emailList = emails.split(",").map(e => e.toLowerCase().trim());
     const users = await User.find({ email: { $in: emailList } })
-      .select("email displayName bio avatarUrl")
+      .select("email displayName bio avatarUrl lastSeen")
       .lean();
 
     const profileMap = {};
@@ -91,6 +91,7 @@ exports.getProfiles = async (req, res) => {
         displayName: u.displayName || null,
         bio: u.bio || null,
         avatarUrl: u.avatarUrl || null,
+        lastSeen: u.lastSeen || null,
       };
     });
 

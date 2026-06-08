@@ -7,7 +7,9 @@ const registerSocket = (socketId, email) => {
 };
 
 const unregisterSocket = (socketId) => {
+  const email = socketToUser.get(socketId);
   socketToUser.delete(socketId);
+  return email || null;
 };
 
 const getAuthenticatedEmail = (socket, users) => {

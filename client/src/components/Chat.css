@@ -2063,9 +2063,10 @@ body {
 }
 
 .attach-menu {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 16px;
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
   background: var(--background-white);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -2273,9 +2274,8 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   }
 
   .attach-menu {
-    left: 50%;
-    transform: translateX(-50%);
     min-width: 220px;
+    bottom: 80px;
   }
 
   .settings-modal {

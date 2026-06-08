@@ -188,6 +188,7 @@ function Chat({ user: currentUser }) {
   const [chatHistory, setChatHistory] = useState({}); // Store all chats by user
   const [typingUser, setTypingUser] = useState(null);
   const [lastSeen, setLastSeen] = useState({});
+  const [profileLastSeen, setProfileLastSeen] = useState({});
   const [messages, setMessages] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState({}); // Track unread counts
@@ -225,6 +226,7 @@ function Chat({ user: currentUser }) {
   // Use Ref to track selectedUser for the socket listener to avoid stale closures
   const selectedUserRef = useRef(selectedUser);
   const previousSelectedUserRef = useRef(null);
+  const onlineUsersRef = useRef([]);
   useEffect(() => { selectedUserRef.current = selectedUser; }, [selectedUser]);
 
   useEffect(() => {
@@ -396,6 +398,7 @@ function Chat({ user: currentUser }) {
         const res = await fetch(`${API_URL}/api/users/profiles?emails=${encodeURIComponent(user.email)}`);
         const data = await res.json();
         if (data.success && data.profiles) {
+          const newLastSeen = {};
           Object.entries(data.profiles).forEach(([email, profile]) => {
             if (profile.avatarUrl) {
               setUserProfiles(prev => ({ ...prev, [email]: profile.avatarUrl }));
@@ -404,7 +407,13 @@ function Chat({ user: currentUser }) {
             if (profile.displayName) {
               setUserNames(prev => ({ ...prev, [email]: profile.displayName }));
             }
+            if (profile.lastSeen) {
+              newLastSeen[email] = profile.lastSeen;
+            }
           });
+          if (Object.keys(newLastSeen).length > 0) {
+            setProfileLastSeen(prev => ({ ...prev, ...newLastSeen }));
+          }
         }
       } catch (e) {
         console.warn("Failed to load profiles from server");
@@ -458,6 +467,34 @@ function Chat({ user: currentUser }) {
             return merged;
           });
           console.log("✅ Loaded", recentChats.length, "recent chats from server");
+
+          // Fetch profiles (including lastSeen) for recent chat partners
+          const partnerEmails = recentChats.map(c => c.userEmail).filter(Boolean);
+          if (partnerEmails.length > 0) {
+            try {
+              const profilesRes = await fetch(`${API_URL}/api/users/profiles?emails=${encodeURIComponent(partnerEmails.join(","))}`);
+              const profilesData = await profilesRes.json();
+              if (profilesData.success && profilesData.profiles) {
+                const newLastSeen = {};
+                Object.entries(profilesData.profiles).forEach(([email, profile]) => {
+                  if (profile.avatarUrl) {
+                    setUserProfiles(prev => ({ ...prev, [email]: profile.avatarUrl }));
+                  }
+                  if (profile.displayName) {
+                    setUserNames(prev => ({ ...prev, [email]: profile.displayName }));
+                  }
+                  if (profile.lastSeen) {
+                    newLastSeen[email] = profile.lastSeen;
+                  }
+                });
+                if (Object.keys(newLastSeen).length > 0) {
+                  setProfileLastSeen(prev => ({ ...prev, ...newLastSeen }));
+                }
+              }
+            } catch (e) {
+              console.warn("Failed to load recent chat profiles");
+            }
+          }
         }
       } catch (error) {
         console.error("Error loading chat history:", error);
@@ -487,7 +524,20 @@ function Chat({ user: currentUser }) {
       try { setUnreadMessages(JSON.parse(storedUnread)); } catch (e) { console.error('Failed to parse stored unread counts', e); }
     }
 
-    socket.on("online-users", setOnlineUsers);
+    socket.on("online-users", (users) => {
+      const prevOnline = onlineUsersRef.current;
+      const newOnline = new Set(users.map(u => u.toLowerCase().trim()));
+      
+      // When users go offline, update their last seen to now
+      prevOnline.forEach(email => {
+        if (!newOnline.has(email.toLowerCase().trim())) {
+          setProfileLastSeen(prev => ({ ...prev, [email]: new Date().toISOString() }));
+        }
+      });
+      
+      setOnlineUsers(users);
+      onlineUsersRef.current = users;
+    });
 
     socket.on("typing", ({ from }) => {
       const activeChat = selectedUserRef.current;
@@ -544,8 +594,18 @@ function Chat({ user: currentUser }) {
           ...prev,
           [data.email.toLowerCase()]: data.profilePic
         };
-        if (user) {
-          localStorage.setItem(`userProfiles_${user.email.toLowerCase()}`, JSON.stringify(updated));
+        try {
+          if (user) {
+            const toStore = {};
+            Object.entries(updated).forEach(([k, v]) => {
+              if (v && typeof v === "string" && v.length < 50000) {
+                toStore[k] = v;
+              }
+            });
+            localStorage.setItem(`userProfiles_${user.email.toLowerCase()}`, JSON.stringify(toStore));
+          }
+        } catch (e) {
+          console.warn("Failed to persist user profiles to localStorage");
         }
         return updated;
       });
@@ -1412,7 +1472,9 @@ function Chat({ user: currentUser }) {
                   </div>
                   <div className="user-item-copy">
                     <span className="user-name">{getDisplayName(u)}</span>
-                    <span className="user-last">{isUserOnline(u) ? "Online" : "Last active"}</span>
+                    <span className="user-last">
+                      {isUserOnline(u) ? "Online" : formatLastSeen(profileLastSeen[u] || lastSeen[u])}
+                    </span>
                   </div>
                   <div className="user-item-actions">
                     {unreadCount > 0 && (
@@ -2142,7 +2204,7 @@ function Chat({ user: currentUser }) {
                       body: JSON.stringify({ email: user.email, displayName, bio }),
                     }).catch(() => {});
                     if (socket) {
-                      socket.emit("update-profile", { email: user.email, displayName, bio, profilePic: user.profilePic || null });
+                      socket.emit("update-profile", { email: user.email, displayName, bio });
                     }
                     setShowSettings(false);
                   }}

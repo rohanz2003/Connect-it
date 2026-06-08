@@ -5,6 +5,7 @@ const handleMessages = require("./message");
 
 const { getCorsOrigins } = require("../config/env");
 const { registerSocket, unregisterSocket } = require("../utils/socketAuth");
+const { updateLastSeen } = require("../controllers/userController");
 
 const initSocket = (server) => {
   const io = new Server(server, {
@@ -27,7 +28,7 @@ const initSocket = (server) => {
     handleMessages(io, socket, users);
 
     socket.on("disconnect", () => {
-      unregisterSocket(socket.id);
+      const disconnectedUser = unregisterSocket(socket.id);
       for (let userId in users) {
         const entry = users[userId];
         if (entry && typeof entry.delete === "function") {
@@ -42,6 +43,10 @@ const initSocket = (server) => {
         }
       }
       io.emit("online-users", Object.keys(users));
+      if (disconnectedUser) {
+        updateLastSeen(disconnectedUser);
+        io.emit("last-seen", { userId: disconnectedUser, time: new Date().toISOString() });
+      }
     });
   });
 
