@@ -189,7 +189,6 @@ function Chat({ user: currentUser }) {
   const [chatHistory, setChatHistory] = useState({}); // Store all chats by user
   const [typingUser, setTypingUser] = useState(null);
   const [lastSeen, setLastSeen] = useState({});
-  const [profileLastSeen, setProfileLastSeen] = useState({});
   const [messages, setMessages] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState({}); // Track unread counts
@@ -234,7 +233,6 @@ function Chat({ user: currentUser }) {
   // Use Ref to track selectedUser for the socket listener to avoid stale closures
   const selectedUserRef = useRef(selectedUser);
   const previousSelectedUserRef = useRef(null);
-  const onlineUsersRef = useRef([]);
   useEffect(() => { selectedUserRef.current = selectedUser; }, [selectedUser]);
 
   useEffect(() => {
@@ -420,7 +418,7 @@ function Chat({ user: currentUser }) {
             }
           });
           if (Object.keys(newLastSeen).length > 0) {
-            setProfileLastSeen(prev => ({ ...prev, ...newLastSeen }));
+            setLastSeen(prev => ({ ...prev, ...newLastSeen }));
           }
         }
       } catch (e) {
@@ -496,7 +494,7 @@ function Chat({ user: currentUser }) {
                   }
                 });
                 if (Object.keys(newLastSeen).length > 0) {
-                  setProfileLastSeen(prev => ({ ...prev, ...newLastSeen }));
+                  setLastSeen(prev => ({ ...prev, ...newLastSeen }));
                 }
               }
             } catch (e) {
@@ -532,20 +530,10 @@ function Chat({ user: currentUser }) {
       try { setUnreadMessages(JSON.parse(storedUnread)); } catch (e) { console.error('Failed to parse stored unread counts', e); }
     }
 
-    socket.on("online-users", (users) => {
-      const prevOnline = onlineUsersRef.current;
-      const newOnline = new Set(users.map(u => u.toLowerCase().trim()));
-      
-      // When users go offline, update their last seen to now
-      prevOnline.forEach(email => {
-        if (!newOnline.has(email.toLowerCase().trim())) {
-          setProfileLastSeen(prev => ({ ...prev, [email]: new Date().toISOString() }));
-        }
-      });
-      
+    const handleOnlineUsers = (users) => {
       setOnlineUsers(users);
-      onlineUsersRef.current = users;
-    });
+    };
+    socket.on("online-users", handleOnlineUsers);
 
     socket.on("typing", ({ from }) => {
       const activeChat = selectedUserRef.current;
@@ -761,7 +749,7 @@ function Chat({ user: currentUser }) {
 
     return () => {
       socket.off("connect", handleJoin);
-      socket.off("online-users", setOnlineUsers);
+      socket.off("online-users", handleOnlineUsers);
       socket.off("typing");
       socket.off("stop-typing");
       socket.off("last-seen");
@@ -1496,7 +1484,7 @@ function Chat({ user: currentUser }) {
                   <div className="user-item-copy">
                     <span className="user-name">{getDisplayName(u)}</span>
                     <span className="user-last">
-                      {isUserOnline(u) ? "Online" : formatLastSeen(profileLastSeen[u] || lastSeen[u])}
+                      {isUserOnline(u) ? "Online" : formatLastSeen(lastSeen[u])}
                     </span>
                   </div>
                   <div className="user-item-actions">
