@@ -192,7 +192,16 @@ function Chat({ user: currentUser }) {
   const [messages, setMessages] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState({}); // Track unread counts
-  const [userProfiles, setUserProfiles] = useState({}); // Store user profile pictures
+  const [userProfiles, setUserProfiles] = useState(() => {
+    try {
+      const email = JSON.parse(localStorage.getItem("user") || "{}").email;
+      if (email) {
+        const stored = localStorage.getItem(`userProfiles_${email.toLowerCase()}`);
+        return stored ? JSON.parse(stored) : {};
+      }
+    } catch {}
+    return {};
+  });
   const [isMediaSending, setIsMediaSending] = useState(false); // Track media upload state
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem("theme") === "dark");
   const [isChatMinimized, setIsChatMinimized] = useState(false); // Track if chat is minimized
@@ -203,7 +212,16 @@ function Chat({ user: currentUser }) {
   const [showSettings, setShowSettings] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const attachMenuRef = useRef(null);
-  const [userNames, setUserNames] = useState({});
+  const [userNames, setUserNames] = useState(() => {
+    try {
+      const email = JSON.parse(localStorage.getItem("user") || "{}").email;
+      if (email) {
+        const stored = localStorage.getItem(`userNames_${email.toLowerCase()}`);
+        return stored ? JSON.parse(stored) : {};
+      }
+    } catch {}
+    return {};
+  });
   const [profilePreviewUser, setProfilePreviewUser] = useState(null);
   const [imageViewerState, setImageViewerState] = useState({ open: false, src: null, type: "media", name: "", isOwn: false });
   const [cropState, setCropState] = useState({ open: false, src: null, file: null });
@@ -514,10 +532,11 @@ function Chat({ user: currentUser }) {
     if (!user || !socket) return;
 
     const handleJoin = () => {
-      socket.emit("join", {
-        email: user.email,
-        profilePic: user.profilePic || null
-      });
+      const joinData = { email: user.email };
+      if (user.profilePic) {
+        joinData.profilePic = user.profilePic;
+      }
+      socket.emit("join", joinData);
     };
 
     // Join immediately and on every reconnection
@@ -585,31 +604,43 @@ function Chat({ user: currentUser }) {
     // Listen for profile picture updates
     socket.on("user-profile-update", (data) => {
       console.log("👤 Profile update:", data);
-      setUserProfiles((prev) => {
-        const updated = {
-          ...prev,
-          [data.email.toLowerCase()]: data.profilePic
-        };
-        try {
-          if (user) {
-            const toStore = {};
-            Object.entries(updated).forEach(([k, v]) => {
-              if (v && typeof v === "string" && v.length < 50000) {
-                toStore[k] = v;
-              }
-            });
-            localStorage.setItem(`userProfiles_${user.email.toLowerCase()}`, JSON.stringify(toStore));
+      if (data.profilePic) {
+        setUserProfiles((prev) => {
+          const updated = {
+            ...prev,
+            [data.email.toLowerCase()]: data.profilePic
+          };
+          try {
+            if (user) {
+              const toStore = {};
+              Object.entries(updated).forEach(([k, v]) => {
+                if (v && typeof v === "string" && v.length < 50000) {
+                  toStore[k] = v;
+                }
+              });
+              localStorage.setItem(`userProfiles_${user.email.toLowerCase()}`, JSON.stringify(toStore));
+            }
+          } catch (e) {
+            console.warn("Failed to persist user profiles to localStorage");
           }
-        } catch (e) {
-          console.warn("Failed to persist user profiles to localStorage");
-        }
-        return updated;
-      });
+          return updated;
+        });
+      }
       if (data.displayName || data.bio) {
-        setUserNames((prev) => ({
-          ...prev,
-          [data.email.toLowerCase()]: data.displayName || null,
-        }));
+        setUserNames((prev) => {
+          const updated = {
+            ...prev,
+            [data.email.toLowerCase()]: data.displayName || null,
+          };
+          try {
+            if (user) {
+              localStorage.setItem(`userNames_${user.email.toLowerCase()}`, JSON.stringify(updated));
+            }
+          } catch (e) {
+            console.warn("Failed to persist user names to localStorage");
+          }
+          return updated;
+        });
       }
     });
 
@@ -771,7 +802,11 @@ function Chat({ user: currentUser }) {
       if (document.hidden) {
         socket.emit("leave", { email: user.email.toLowerCase() });
       } else {
-        socket.emit("join", { email: user.email.toLowerCase(), profilePic: user.profilePic || null });
+        const joinData = { email: user.email.toLowerCase() };
+        if (user.profilePic) {
+          joinData.profilePic = user.profilePic;
+        }
+        socket.emit("join", joinData);
       }
     };
 
@@ -780,7 +815,11 @@ function Chat({ user: currentUser }) {
     };
 
     const handleFocus = () => {
-      socket.emit("join", { email: user.email.toLowerCase(), profilePic: user.profilePic || null });
+      const joinData = { email: user.email.toLowerCase() };
+      if (user.profilePic) {
+        joinData.profilePic = user.profilePic;
+      }
+      socket.emit("join", joinData);
     };
 
     const handleBeforeUnload = () => {
@@ -799,6 +838,30 @@ function Chat({ user: currentUser }) {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [socket, user]);
+
+  // Fetch profiles for online users when list changes
+  useEffect(() => {
+    if (!user) return;
+    const unknown = onlineUsers.filter(u => !userNames[u.toLowerCase().trim()] && u.toLowerCase().trim() !== user.email.toLowerCase());
+    if (unknown.length === 0) return;
+    const fetchProfiles = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/users/profiles?emails=${encodeURIComponent(unknown.join(","))}`);
+        const data = await res.json();
+        if (data.success && data.profiles) {
+          Object.entries(data.profiles).forEach(([email, profile]) => {
+            if (profile.avatarUrl) {
+              setUserProfiles(p => ({ ...p, [email]: profile.avatarUrl }));
+            }
+            if (profile.displayName) {
+              setUserNames(p => ({ ...p, [email]: profile.displayName }));
+            }
+          });
+        }
+      } catch {}
+    };
+    fetchProfiles();
+  }, [onlineUsers, user]);
 
   // Socket heartbeat every 25 seconds
   useEffect(() => {
@@ -1304,10 +1367,11 @@ function Chat({ user: currentUser }) {
 
   const ensureSocketJoined = () => {
     if (!socket || !user) return;
-    socket.emit("join", {
-      email: normalizeEmail(user.email),
-      profilePic: user.profilePic || null,
-    });
+    const joinData = { email: normalizeEmail(user.email) };
+    if (user.profilePic) {
+      joinData.profilePic = user.profilePic;
+    }
+    socket.emit("join", joinData);
   };
 
   const performLogout = () => {

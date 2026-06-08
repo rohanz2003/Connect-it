@@ -26,29 +26,31 @@ module.exports = (io, socket, users, userProfiles) => {
     // Update lastSeen on join (login)
     updateLastSeen(userId);
 
-    // Always store profilePic in memory (even if null, to track removal)
-    if (typeof data === 'object' && data?.hasOwnProperty('profilePic')) {
+    // Only store in memory if a truthy value was provided (never overwrite with null)
+    if (typeof data === 'object' && data?.profilePic) {
       userProfiles[userId] = profilePic;
     }
 
-    // Build profile update payload
+    // Only broadcast fields that were actually provided
     const profilePayload = {
       email: userId,
-      profilePic: profilePic || null,
-      displayName: displayName || null,
-      bio: bio || null,
     };
+    if (typeof data === 'object' && data?.hasOwnProperty('profilePic')) {
+      profilePayload.profilePic = profilePic || null;
+    }
+    if (displayName) profilePayload.displayName = displayName;
+    if (bio) profilePayload.bio = bio;
 
     // Only broadcast if we have profile data
     if (typeof data === 'object' && data !== null) {
       io.emit("user-profile-update", profilePayload);
 
-      // Persist to database
+      // Persist to database (only truthy values to avoid overwriting)
       try {
         const update = {};
-        if (data.hasOwnProperty('profilePic')) update.avatarUrl = profilePic;
-        if (displayName !== undefined) update.displayName = displayName;
-        if (bio !== undefined) update.bio = bio;
+        if (profilePic) update.avatarUrl = profilePic;
+        if (displayName) update.displayName = displayName;
+        if (bio) update.bio = bio;
         if (Object.keys(update).length > 0) {
           await User.findOneAndUpdate(
             { email: userId },
@@ -140,8 +142,6 @@ module.exports = (io, socket, users, userProfiles) => {
     io.emit("user-profile-update", {
       email,
       profilePic: null,
-      displayName: null,
-      bio: null,
     });
   });
 };
