@@ -24,6 +24,11 @@ import {
   ArchiveRestore,
   User,
   Info,
+  Image,
+  Film,
+  Music,
+  FileText,
+  FolderOpen,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import { auth } from "../firebase";
@@ -88,6 +93,8 @@ function Chat({ user: currentUser }) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const attachMenuRef = useRef(null);
   const [archivedChats, setArchivedChats] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`archivedChats_${localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")).email : ""}`) || "[]"); } catch { return []; }
   });
@@ -144,7 +151,10 @@ function Chat({ user: currentUser }) {
       }
     };
     const handleEscape = (event) => {
-      if (event.key === "Escape") setShowEmojiPicker(false);
+      if (event.key === "Escape") {
+        setShowEmojiPicker(false);
+        setShowAttachMenu(false);
+      }
     };
     if (showEmojiPicker) {
       document.addEventListener("mousedown", handleClickOutside);
@@ -155,6 +165,19 @@ function Chat({ user: currentUser }) {
       document.removeEventListener("keydown", handleEscape);
     };
   }, [showEmojiPicker]);
+
+  // Close attach menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(event.target)) {
+        setShowAttachMenu(false);
+      }
+    };
+    if (showAttachMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showAttachMenu]);
 
   const formatDay = (timestamp) => {
     if (!timestamp) return "";
@@ -386,7 +409,8 @@ function Chat({ user: currentUser }) {
 
       setChatHistory((prev) => {
         const updated = { ...prev };
-        delete updated[partner];
+        // Keep the entry with an empty array so conversation stays visible
+        updated[partner] = [];
         persistHistory(updated, user.email);
         return updated;
       });
@@ -861,7 +885,8 @@ function Chat({ user: currentUser }) {
     const partner = normalizeEmail(partnerEmail);
     setChatHistory((prev) => {
       const updated = { ...prev };
-      delete updated[partner];
+      // Keep the entry with an empty array so the conversation stays in Recent Chats
+      updated[partner] = [];
       persistHistory(updated, user.email);
       return updated;
     });
@@ -873,9 +898,7 @@ function Chat({ user: currentUser }) {
       delete next[key];
       try {
         localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
-      } catch (e) {
-        console.error("Failed to persist unread counts", e);
-      }
+      } catch (e) {}
       return next;
     });
 
@@ -941,20 +964,14 @@ function Chat({ user: currentUser }) {
     try {
       localStorage.setItem(`archivedChats_${user.email}`, JSON.stringify(newArchived));
     } catch (e) {}
-    // Remove from recent chats
-    setChatHistory((prev) => {
-      const updated = { ...prev };
-      delete updated[partner];
-      persistHistory(updated, user.email);
-      return updated;
-    });
     if (selectedUser && normalizeEmail(selectedUser) === partner) {
       setMessages([]);
       setSelectedUser(null);
     }
   };
 
-  const handleUnarchiveChat = (partnerEmail) => {
+  const handleUnarchiveChat = (e, partnerEmail) => {
+    e.stopPropagation();
     if (!user || !partnerEmail) return;
     const partner = normalizeEmail(partnerEmail);
     const newArchived = archivedChats.filter(a => normalizeEmail(a) !== partner);
@@ -962,6 +979,20 @@ function Chat({ user: currentUser }) {
     try {
       localStorage.setItem(`archivedChats_${user.email}`, JSON.stringify(newArchived));
     } catch (e) {}
+    // Ensure the conversation appears in chatHistory if we have data for it
+    if (!chatHistory[partner]) {
+      // Fetch from server if not in local history
+      fetchMessages(user.email, partnerEmail).then(msgs => {
+        if (msgs && msgs.length > 0) {
+          setChatHistory(prev => ({ ...prev, [partner]: msgs }));
+        } else {
+          // Keep an empty entry so it shows in the list
+          setChatHistory(prev => ({ ...prev, [partner]: prev[partner] || [] }));
+        }
+      }).catch(() => {
+        setChatHistory(prev => ({ ...prev, [partner]: prev[partner] || [] }));
+      });
+    }
   };
 
   const handleContextMenu = (e, msg) => {
@@ -1319,7 +1350,7 @@ function Chat({ user: currentUser }) {
                   <div className="user-item-actions">
                     <button
                       className="remove-recent-btn"
-                      onClick={(e) => { e.stopPropagation(); handleUnarchiveChat(u); }}
+                      onClick={(e) => { e.stopPropagation(); handleUnarchiveChat(e, u); }}
                       title="Unarchive chat"
                     >
                       <ArchiveRestore size={14} />
@@ -1468,29 +1499,43 @@ function Chat({ user: currentUser }) {
                               )}
                               {msg.mediaType === "audio" && (
                                 <div className="media-file">
-                                  <audio controls className="media-audio">
-                                    <source src={msg.text?.data} type={msg.text?.type || "audio/mpeg"} />
-                                    Your browser does not support audio playback
-                                  </audio>
-                                  <span>🎵 {msg.text?.name || "Audio file"}</span>
+                                  <div className="media-audio-wrap">
+                                    <div className="media-audio-player">
+                                      <audio controls>
+                                        <source src={msg.text?.data} type={msg.text?.type || "audio/mpeg"} />
+                                        Your browser does not support audio playback
+                                      </audio>
+                                    </div>
+                                    <span className="media-audio-label">🎵 {msg.text?.name || "Audio file"}</span>
+                                  </div>
                                 </div>
                               )}
-                              {msg.mediaType === "application" && msg.text?.data?.startsWith("data:application/pdf") && (
+                              {msg.mediaType === "application" && (
                                 <div className="media-file">
-                                  <span>📄 {msg.text.name}</span>
-                                  <iframe src={msg.text.data} className="pdf-preview" title={msg.text.name} style={{ width: '100%', maxHeight: '300px', border: 'none', borderRadius: '8px' }} />
-                                  <a href={msg.text.data} download={msg.text.name} className="download-btn">Download</a>
-                                </div>
-                              )}
-                              {msg.mediaType === "application" && msg.text?.data?.startsWith("data:application/") && !msg.text?.data?.startsWith("data:application/pdf") && (
-                                <div className="media-file">
-                                  <span>📎 {msg.text.name}</span>
+                                  <div className="media-file-header">
+                                    <div className={`media-file-icon ${msg.text?.name?.endsWith('.pdf') ? 'pdf' : msg.text?.name?.endsWith('.doc') || msg.text?.name?.endsWith('.docx') ? 'doc' : 'other'}`}>
+                                      {msg.text?.name?.endsWith('.pdf') ? '📄' : msg.text?.name?.endsWith('.doc') || msg.text?.name?.endsWith('.docx') ? '📝' : '📎'}
+                                    </div>
+                                    <div className="media-file-info">
+                                      <span className="media-file-name">{msg.text?.name || "Document"}</span>
+                                      <span className="media-file-size">{msg.text?.size ? `${(msg.text.size / 1024).toFixed(1)} KB` : "File"}</span>
+                                    </div>
+                                  </div>
+                                  {msg.text?.data?.startsWith("data:application/pdf") && (
+                                    <iframe src={msg.text.data} className="pdf-preview" title={msg.text.name} />
+                                  )}
                                   <a href={msg.text.data} download={msg.text.name} className="download-btn">Download</a>
                                 </div>
                               )}
                               {msg.text?.data && msg.mediaType !== "image" && msg.mediaType !== "video" && msg.mediaType !== "audio" && msg.mediaType !== "application" && (
                                 <div className="media-file">
-                                  <span>📎 {msg.text?.name || "Attachment"}</span>
+                                  <div className="media-file-header">
+                                    <div className="media-file-icon other">📎</div>
+                                    <div className="media-file-info">
+                                      <span className="media-file-name">{msg.text?.name || "Attachment"}</span>
+                                      <span className="media-file-size">{msg.text?.size ? `${(msg.text.size / 1024).toFixed(1)} KB` : "File"}</span>
+                                    </div>
+                                  </div>
                                   {msg.text?.data && (
                                     <a href={msg.text.data} download={msg.text?.name} className="download-btn">Download</a>
                                   )}
@@ -1549,11 +1594,40 @@ function Chat({ user: currentUser }) {
         {!isChatMinimized && (
         <div className="chat-panel-footer">
           {showEmojiPicker && (
-            <div ref={emojiPickerRef} style={{ position: 'absolute', bottom: '100%', left: '0', zIndex: 1000, marginBottom: '10px' }}>
+            <div ref={emojiPickerRef} className="emoji-picker-wrapper">
               <EmojiPicker 
                 onEmojiClick={(emojiData) => setMessage(prev => prev + emojiData.emoji)}
                 theme={isDarkMode ? "dark" : "light"}
+                width={320}
+                height={400}
+                searchPlaceholder="Search emoji..."
               />
+            </div>
+          )}
+          {showAttachMenu && (
+            <div className="attach-menu-overlay" onClick={() => setShowAttachMenu(false)}>
+              <div className="attach-menu" ref={attachMenuRef} onClick={(e) => e.stopPropagation()}>
+                <button className="attach-menu-item" onClick={() => { setShowAttachMenu(false); document.getElementById('attach-image').click(); }}>
+                  <div className="attach-icon"><Image size={20} /></div>
+                  <span>Image</span>
+                </button>
+                <button className="attach-menu-item" onClick={() => { setShowAttachMenu(false); document.getElementById('attach-video').click(); }}>
+                  <div className="attach-icon"><Film size={20} /></div>
+                  <span>Video</span>
+                </button>
+                <button className="attach-menu-item" onClick={() => { setShowAttachMenu(false); document.getElementById('attach-audio').click(); }}>
+                  <div className="attach-icon"><Music size={20} /></div>
+                  <span>Audio</span>
+                </button>
+                <button className="attach-menu-item" onClick={() => { setShowAttachMenu(false); document.getElementById('attach-document').click(); }}>
+                  <div className="attach-icon"><FileText size={20} /></div>
+                  <span>Document</span>
+                </button>
+                <button className="attach-menu-item" onClick={() => { setShowAttachMenu(false); document.getElementById('attach-file').click(); }}>
+                  <div className="attach-icon"><FolderOpen size={20} /></div>
+                  <span>File</span>
+                </button>
+              </div>
             </div>
           )}
           {replyTo && (
@@ -1572,37 +1646,37 @@ function Chat({ user: currentUser }) {
           >
             <Smile size={18} />
           </button>
-          <label htmlFor="media-input" className="secondary-icon-btn" title="Attach file" style={{ cursor: selectedUser ? 'pointer' : 'default' }}>
-            <Paperclip size={18} />
-          </label>
+          <div style={{ position: 'relative' }}>
+            <button 
+              className="secondary-icon-btn" 
+              title="Attach file"
+              onClick={() => setShowAttachMenu(!showAttachMenu)}
+              disabled={!selectedUser}
+            >
+              <Paperclip size={18} />
+            </button>
+          </div>
           <input
             type="text"
             placeholder={selectedUser ? "Write a message..." : "Select a conversation to send a message"}
             value={message}
             onChange={handleTyping}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            onBlur={() => {
-              // ensure typing state is cleared when input loses focus
-              stopTyping();
-            }}
+            onBlur={() => stopTyping()}
             disabled={!selectedUser}
-          />
-          <label htmlFor="media-input" className="secondary-icon-btn" title="Upload media">
-            <PlusCircle size={18} />
-          </label>
-          <input
-            id="media-input"
-            type="file"
-            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
-            onChange={handleMediaShare}
-            disabled={!selectedUser}
-            style={{ display: "none" }}
           />
           <button className="send-btn" onClick={sendMessage} disabled={!selectedUser}>
             <Send size={18} />
           </button>
         </div>
         )}
+
+        {/* Hidden file inputs for attachment menu */}
+        <input id="attach-image" type="file" accept="image/*" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
+        <input id="attach-video" type="file" accept="video/*" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
+        <input id="attach-audio" type="file" accept="audio/*" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
+        <input id="attach-document" type="file" accept=".pdf,.doc,.docx,.txt,.rtf" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
+        <input id="attach-file" type="file" accept="*/*" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
       </main>
 
       <aside className="dashboard-panel">
@@ -1748,7 +1822,7 @@ function Chat({ user: currentUser }) {
           <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
             <div className="settings-header">
               <h3>Settings</h3>
-              <button className="close-reply" onClick={() => setShowSettings(false)}><X size={18} /></button>
+              <button onClick={() => setShowSettings(false)}><X size={18} /></button>
             </div>
             <div className="settings-body">
               <div className="settings-section">
@@ -1759,9 +1833,16 @@ function Chat({ user: currentUser }) {
                     email={user.email}
                     size={80}
                   />
-                  <label htmlFor="update-profile-pic-settings" className="primary-btn" style={{ cursor: 'pointer', fontSize: '13px' }}>
-                    Change Photo
-                  </label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <label htmlFor="update-profile-pic-settings" className="primary-btn" style={{ cursor: 'pointer', fontSize: '13px', padding: '8px 16px', margin: 0 }}>
+                      Change Photo
+                    </label>
+                    {(userProfiles[user.email.toLowerCase()] || user.profilePic) && (
+                      <button className="settings-avatar-remove" onClick={handleRemoveProfilePic}>
+                        Remove
+                      </button>
+                    )}
+                  </div>
                   <input
                     id="update-profile-pic-settings"
                     type="file"
@@ -1788,20 +1869,6 @@ function Chat({ user: currentUser }) {
                     rows={3}
                   />
                 </div>
-                <button
-                  className="primary-btn"
-                  onClick={() => {
-                    const updatedUser = { ...user, displayName, bio };
-                    setUser(updatedUser);
-                    try {
-                      const stored = JSON.parse(localStorage.getItem("user") || "{}");
-                      localStorage.setItem("user", JSON.stringify({ ...stored, displayName, bio }));
-                    } catch (e) {}
-                    alert("Profile updated!");
-                  }}
-                >
-                  Save Changes
-                </button>
               </div>
 
               <div className="settings-section">
@@ -1824,16 +1891,38 @@ function Chat({ user: currentUser }) {
 
               <div className="settings-section">
                 <h4>Appearance</h4>
-                <div className="settings-info-row">
+                <div className="settings-info-row" style={{ background: 'transparent', padding: '12px 0' }}>
                   <span className="settings-label">Dark Mode</span>
                   <button
                     className="secondary-btn"
                     onClick={() => setIsDarkMode(!isDarkMode)}
+                    style={{ margin: 0, fontSize: '13px' }}
                   >
                     {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
                     {isDarkMode ? " Light Mode" : " Dark Mode"}
                   </button>
                 </div>
+              </div>
+
+              <div className="settings-actions">
+                <button className="secondary-btn" onClick={() => setShowSettings(false)} style={{ margin: 0 }}>
+                  Cancel
+                </button>
+                <button
+                  className="primary-btn"
+                  onClick={() => {
+                    const updatedUser = { ...user, displayName, bio };
+                    setUser(updatedUser);
+                    try {
+                      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+                      localStorage.setItem("user", JSON.stringify({ ...stored, displayName, bio }));
+                    } catch (e) {}
+                    setShowSettings(false);
+                  }}
+                  style={{ margin: 0 }}
+                >
+                  Save Changes
+                </button>
               </div>
             </div>
           </div>
