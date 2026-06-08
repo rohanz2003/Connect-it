@@ -7,6 +7,7 @@ import Chat from "./components/Chat";
 import Landing from "./components/Landing";
 import Feedback from "./components/Feedback";
 import Admin from "./components/Admin";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // ✅ Protected Route
 const PrivateRoute = ({ children, loading, user }) => {
@@ -76,7 +77,9 @@ function App() {
         path="/chat"
         element={
           <PrivateRoute loading={loading} user={user}>
-            <Chat user={user} />
+            <ErrorBoundary>
+              <Chat user={user} />
+            </ErrorBoundary>
           </PrivateRoute>
         }
       />

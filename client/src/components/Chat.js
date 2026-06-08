@@ -39,6 +39,7 @@ import LastSeen from "./LastSeen";
 import { auth } from "../firebase";
 import useSocket from "../hooks/useSocket";
 import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
+import { validateImageFile, compressImage } from "../utils/imageUtils";
 import { fetchMessages, fetchRecentChats } from "../services/messageService";
 import { useNavigate } from "react-router-dom";
 import "./Chat.css";
@@ -81,42 +82,56 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
   const [offset, setOffset] = React.useState({ x: 0, y: 0 });
   const [dragging, setDragging] = React.useState(false);
   const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
-  const [imgSize, setImgSize] = React.useState({ w: 0, h: 0 });
+  const [imgError, setImgError] = React.useState(false);
 
   React.useEffect(() => {
     if (!src) return;
+    setImgError(false);
     const img = new Image();
-    img.onload = () => {
-      setImgSize({ w: img.width, h: img.height });
-    };
+    img.onload = () => {};
+    img.onerror = () => setImgError(true);
     img.src = src;
   }, [src]);
 
   React.useEffect(() => {
-    if (!src || !canvasRef.current) return;
+    if (!src || !canvasRef.current || imgError) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
+    if (!ctx) return;
     const size = 280;
     canvas.width = size;
     canvas.height = size;
 
     const img = new Image();
     img.onload = () => {
-      ctx.clearRect(0, 0, size, size);
-      ctx.beginPath();
-      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-      ctx.clip();
+      try {
+        ctx.clearRect(0, 0, size, size);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+        ctx.clip();
 
-      const baseW = Math.min(size, img.width);
-      const baseH = (baseW / img.width) * img.height;
-      const drawW = baseW * scale;
-      const drawH = baseH * scale;
-      const x = (size - drawW) / 2 + offset.x;
-      const y = (size - drawH) / 2 + offset.y;
-      ctx.drawImage(img, x, y, drawW, drawH);
+        const baseW = Math.min(size, img.width);
+        const baseH = (baseW / img.width) * img.height;
+        const drawW = baseW * scale;
+        const drawH = baseH * scale;
+        const x = (size - drawW) / 2 + offset.x;
+        const y = (size - drawH) / 2 + offset.y;
+        ctx.drawImage(img, x, y, drawW, drawH);
+        ctx.restore();
+      } catch (err) {
+        console.error("Canvas rendering error:", err);
+        setImgError(true);
+      }
     };
+    img.onerror = () => setImgError(true);
     img.src = src;
-  }, [src, scale, offset]);
+  }, [src, scale, offset, imgError]);
+
+  const handleMouseDown = (e) => {
+    setDragging(true);
+    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+  };
 
   const handleMouseDown = (e) => {
     setDragging(true);
@@ -131,9 +146,14 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
   const handleMouseUp = () => setDragging(false);
 
   const handleCrop = () => {
-    if (!canvasRef.current) return;
-    const croppedData = canvasRef.current.toDataURL("image/jpeg", 0.85);
-    onCrop(croppedData);
+    if (!canvasRef.current || imgError) return;
+    try {
+      const croppedData = canvasRef.current.toDataURL("image/jpeg", 0.8);
+      onCrop(croppedData);
+    } catch (err) {
+      console.error("Failed to crop image:", err);
+      alert("Failed to crop image. Please try again.");
+    }
   };
 
   return (
@@ -426,7 +446,7 @@ function Chat({ user: currentUser }) {
           Object.entries(data.profiles).forEach(([email, profile]) => {
             if (profile.avatarUrl) {
               setUserProfiles(prev => ({ ...prev, [email]: profile.avatarUrl }));
-              localStorage.setItem(`profilePic_${email}`, profile.avatarUrl);
+              try { localStorage.setItem(`profilePic_${email}`, profile.avatarUrl); } catch {}
             }
             if (profile.displayName) {
               setUserNames(prev => ({ ...prev, [email]: profile.displayName }));
@@ -614,7 +634,7 @@ function Chat({ user: currentUser }) {
             if (user) {
               const toStore = {};
               Object.entries(updated).forEach(([k, v]) => {
-                if (v && typeof v === "string" && v.length < 50000) {
+                if (v && typeof v === "string" && v.length < 500000) {
                   toStore[k] = v;
                 }
               });
@@ -1302,21 +1322,24 @@ function Chat({ user: currentUser }) {
     }
   };
 
-  const handleUpdateProfilePic = (e) => {
+  const handleUpdateProfilePic = async (e) => {
     const file = e.target.files[0];
     if (!file || !user) return;
     e.target.value = null;
 
-    if (!file.type.startsWith('image/')) {
-      alert("Please select an image file.");
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      alert(validation.error);
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setCropState({ open: true, src: event.target.result, file });
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file, 500, 0.8);
+      setCropState({ open: true, src: compressed, file });
+    } catch (err) {
+      console.error("Failed to process image:", err);
+      alert("Failed to process image. Please try a different file.");
+    }
   };
 
   const handleCropSave = (croppedDataUrl) => {
