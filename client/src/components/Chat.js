@@ -29,6 +29,10 @@ import {
   Music,
   FileText,
   FolderOpen,
+  Download,
+  ZoomIn,
+  ZoomOut,
+  Camera,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import { auth } from "../firebase";
