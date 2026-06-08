@@ -20,7 +20,12 @@ import {
   X,
   Minus,
   LogOut,
+  Archive,
+  ArchiveRestore,
+  User,
+  Info,
 } from "lucide-react";
+import Avatar from "./Avatar";
 import { auth } from "../firebase";
 import useSocket from "../hooks/useSocket";
 import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
@@ -82,6 +87,17 @@ function Chat({ user: currentUser }) {
   const [replyTo, setReplyTo] = useState(null); // Message being replied to
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [archivedChats, setArchivedChats] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(`archivedChats_${localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")).email : ""}`) || "[]"); } catch { return []; }
+  });
+  const [showArchivedChats, setShowArchivedChats] = useState(false);
+  const [displayName, setDisplayName] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("user") || "{}").displayName || ""; } catch { return ""; }
+  });
+  const [bio, setBio] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("user") || "{}").bio || ""; } catch { return ""; }
+  });
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -97,6 +113,7 @@ function Chat({ user: currentUser }) {
   }, [isDarkMode]);
 
   const handleZoomImage = (src) => {
+    if (!src) return;
     setZoomedImage(src);
     setIsZoomMinimized(false);
   };
@@ -126,10 +143,17 @@ function Chat({ user: currentUser }) {
         setShowEmojiPicker(false);
       }
     };
+    const handleEscape = (event) => {
+      if (event.key === "Escape") setShowEmojiPicker(false);
+    };
     if (showEmojiPicker) {
       document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleEscape);
     }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, [showEmojiPicker]);
 
   const formatDay = (timestamp) => {
@@ -490,7 +514,7 @@ function Chat({ user: currentUser }) {
 
     return () => {
       socket.off("connect", handleJoin);
-      socket.off("online-users");
+      socket.off("online-users", setOnlineUsers);
       socket.off("typing");
       socket.off("stop-typing");
       socket.off("last-seen");
@@ -888,7 +912,7 @@ function Chat({ user: currentUser }) {
   };
 
   const handleRemoveChatFromRecent = (e, partnerEmail) => {
-    e.stopPropagation(); // Prevent selecting the user
+    e.stopPropagation();
     if (!user || !partnerEmail) return;
 
     if (window.confirm(`Remove ${partnerEmail} from your recent chats?`)) {
@@ -908,11 +932,43 @@ function Chat({ user: currentUser }) {
     }
   };
 
+  const handleArchiveChat = (e, partnerEmail) => {
+    e.stopPropagation();
+    if (!user || !partnerEmail) return;
+    const partner = normalizeEmail(partnerEmail);
+    const newArchived = [...archivedChats.filter(a => normalizeEmail(a) !== partner), partner];
+    setArchivedChats(newArchived);
+    try {
+      localStorage.setItem(`archivedChats_${user.email}`, JSON.stringify(newArchived));
+    } catch (e) {}
+    // Remove from recent chats
+    setChatHistory((prev) => {
+      const updated = { ...prev };
+      delete updated[partner];
+      persistHistory(updated, user.email);
+      return updated;
+    });
+    if (selectedUser && normalizeEmail(selectedUser) === partner) {
+      setMessages([]);
+      setSelectedUser(null);
+    }
+  };
+
+  const handleUnarchiveChat = (partnerEmail) => {
+    if (!user || !partnerEmail) return;
+    const partner = normalizeEmail(partnerEmail);
+    const newArchived = archivedChats.filter(a => normalizeEmail(a) !== partner);
+    setArchivedChats(newArchived);
+    try {
+      localStorage.setItem(`archivedChats_${user.email}`, JSON.stringify(newArchived));
+    } catch (e) {}
+  };
+
   const handleContextMenu = (e, msg) => {
     e.preventDefault();
     setContextMenu({
-      x: e.pageX,
-      y: e.pageY,
+      x: e.clientX,
+      y: e.clientY,
       message: msg
     });
   };
@@ -931,11 +987,16 @@ function Chat({ user: currentUser }) {
     const file = e.target.files[0];
     if (!file || !user) return;
 
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert("Please select an image file.");
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        // Compress image to 150px max dimension
         const canvas = document.createElement("canvas");
         const MAX_SIZE = 150;
         let width = img.width, height = img.height;
@@ -958,13 +1019,11 @@ function Chat({ user: currentUser }) {
         }));
         safeLocalStorageSet(`profilePic_${user.email.toLowerCase()}`, newPic);
 
-        // 3. Update the profiles map immediately
         setUserProfiles(prev => ({
           ...prev,
           [user.email.toLowerCase()]: newPic
         }));
 
-        // 4. Inform the server
         if (socket) {
           socket.emit("join", { email: user.email, profilePic: newPic });
         }
@@ -972,6 +1031,25 @@ function Chat({ user: currentUser }) {
       img.src = event.target.result;
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleRemoveProfilePic = () => {
+    if (!user) return;
+    const updatedUser = { ...user, profilePic: null };
+    setUser(updatedUser);
+    localStorage.removeItem(`profilePic_${user.email.toLowerCase()}`);
+    safeLocalStorageSet("user", JSON.stringify({
+      email: updatedUser.email,
+      uid: updatedUser.uid
+    }));
+    setUserProfiles(prev => {
+      const updated = { ...prev };
+      delete updated[user.email.toLowerCase()];
+      return updated;
+    });
+    if (socket) {
+      socket.emit("join", { email: user.email, profilePic: null });
+    }
   };
 
   const ensureSocketJoined = () => {
@@ -994,24 +1072,28 @@ function Chat({ user: currentUser }) {
   };
 
   const handleUserSelect = (u) => {
-    console.log(`👤 Selected user: ${u}`);
     setSelectedUser(u);
     
     // Update messages when user is selected, ensuring chronological order
     if (chatHistory[u]) {
-      setMessages(chatHistory[u].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
+      setMessages([...chatHistory[u]].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
     }
 
-    // Clear unread badge for this chat
+    // Clear unread badge for this chat immediately
     if (user) {
       setUnreadMessages(prev => {
         const key = `${u.toLowerCase()}_${user.email.toLowerCase()}`;
         if (!prev[key]) return prev;
         const next = { ...prev };
         delete next[key];
-        try { localStorage.setItem(`unread_${user.email}`, JSON.stringify(next)); } catch (e) { console.error('Failed to persist unread counts', e); }
+        try { localStorage.setItem(`unread_${user.email}`, JSON.stringify(next)); } catch (e) {}
         return next;
       });
+      // Mark messages as read on server
+      if (socket && socket.connected) {
+        socket.emit("mark-as-read", { user1: user.email, user2: u });
+        socket.emit("seen-message", { sender: u, receiver: user.email });
+      }
     }
   };
 
@@ -1020,9 +1102,10 @@ function Chat({ user: currentUser }) {
     u.toLowerCase().trim() !== user?.email?.toLowerCase().trim()
   );
   
-  // Get recent chats sorted by latest message
+  // Get recent chats sorted by latest message (exclude archived)
+  const archivedSet = new Set(archivedChats.map(a => normalizeEmail(a)));
   const recentChats = Object.keys(chatHistory)
-    .filter(u => u !== user?.email)
+    .filter(u => u !== user?.email && !archivedSet.has(normalizeEmail(u)))
     .sort((a, b) => {
       const historyA = chatHistory[a] || [];
       const historyB = chatHistory[b] || [];
@@ -1032,6 +1115,11 @@ function Chat({ user: currentUser }) {
       const timeB = new Date(lastB?.timestamp || lastB?.createdAt || 0);
       return new Date(timeB) - new Date(timeA);
     });
+
+  // Archived chats list
+  const archivedChatsList = archivedChats.filter(a => {
+    return chatHistory[normalizeEmail(a)] || true;
+  });
 
   const isUserOnline = (userEmail) =>
     onlineUsers.some((u) => normalizeEmail(u) === normalizeEmail(userEmail));
@@ -1048,16 +1136,14 @@ function Chat({ user: currentUser }) {
     const normalizedEmail = normalizeEmail(u);
     return (
       normalizedEmail.includes(searchValue) ||
-      getDisplayName(u).includes(searchValue) ||
-      (userProfiles[u] || "").toLowerCase().includes(searchValue)
+      getDisplayName(u).includes(searchValue)
     );
   });
   const filteredOnlineUsers = otherOnlineUsers.filter((u) => {
     const normalizedEmail = normalizeEmail(u);
     return (
       normalizedEmail.includes(searchValue) ||
-      getDisplayName(u).includes(searchValue) ||
-      (userProfiles[u] || "").toLowerCase().includes(searchValue)
+      getDisplayName(u).includes(searchValue)
     );
   });
 
@@ -1101,11 +1187,12 @@ function Chat({ user: currentUser }) {
 
         <div className="profile-card">
           <div className="profile-card-main">
-            <img
-              src={userProfiles[user.email.toLowerCase()] || user.profilePic || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80"}
-              alt={user.email}
+            <Avatar
+              src={userProfiles[user.email.toLowerCase()] || user.profilePic}
+              email={user.email}
+              size={40}
               className="profile-card-avatar"
-              onClick={() => handleZoomImage(userProfiles[user.email.toLowerCase()] || user.profilePic || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80")}
+              onClick={() => handleZoomImage(userProfiles[user.email.toLowerCase()] || user.profilePic || null)}
             />
             <div>
               <span className="profile-name">{user.email.split("@")[0]}</span>
@@ -1134,11 +1221,12 @@ function Chat({ user: currentUser }) {
                   onClick={() => handleUserSelect(u)}
                 >
                   <div className="avatar-wrap">
-                    <img
-                      src={userProfiles[u] || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80"}
-                      alt={u}
+                    <Avatar
+                      src={userProfiles[u]}
+                      email={u}
+                      size={40}
                       className="user-avatar"
-                      onClick={(e) => { e.stopPropagation(); handleZoomImage(userProfiles[u] || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80"); }}
+                      onClick={(e) => { e.stopPropagation(); handleZoomImage(userProfiles[u] || null); }}
                     />
                     {isUserOnline(u) && <span className="status-dot" />}
                   </div>
@@ -1148,8 +1236,15 @@ function Chat({ user: currentUser }) {
                   </div>
                   <div className="user-item-actions">
                     {unreadCount > 0 && (
-                      <span className="unread-badge">{unreadCount}</span>
+                      <span className="unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
                     )}
+                    <button
+                      className="remove-recent-btn"
+                      onClick={(e) => handleArchiveChat(e, u)}
+                      title="Archive chat"
+                    >
+                      <Archive size={14} />
+                    </button>
                     <button 
                       className="remove-recent-btn" 
                       onClick={(e) => handleRemoveChatFromRecent(e, u)}
@@ -1176,12 +1271,13 @@ function Chat({ user: currentUser }) {
                 onClick={() => handleUserSelect(u)}
               >
                 <div className="avatar-wrap">
-                  <img
-                    src={userProfiles[u] || "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80"}
-                    alt={u}
-                    className="user-avatar"
-                    onClick={(e) => { e.stopPropagation(); handleZoomImage(userProfiles[u] || "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80"); }}
-                  />
+                    <Avatar
+                      src={userProfiles[u]}
+                      email={u}
+                      size={40}
+                      className="user-avatar"
+                      onClick={(e) => { e.stopPropagation(); handleZoomImage(userProfiles[u] || null); }}
+                    />
                   <span className="status-dot online" />
                 </div>
                 <div className="user-item-copy">
@@ -1189,7 +1285,7 @@ function Chat({ user: currentUser }) {
                   <span className="user-last">Available now</span>
                 </div>
                 {getUnreadCount(u) > 0 && (
-                  <span className="unread-badge">{getUnreadCount(u)}</span>
+                  <span className="unread-badge">{getUnreadCount(u) > 99 ? "99+" : getUnreadCount(u)}</span>
                 )}
               </div>
             )) : (
@@ -1198,12 +1294,51 @@ function Chat({ user: currentUser }) {
           </div>
         </div>
 
+        {showArchivedChats && (
+          <div className="sidebar-section">
+            <div className="sidebar-section-title">Archived Chats</div>
+            <div className="sidebar-list">
+              {archivedChatsList.length > 0 ? archivedChatsList.map((u, i) => (
+                <div
+                  key={`archived-${i}`}
+                  className={`user-item ${selectedUser === u ? "active" : ""}`}
+                  onClick={() => { handleUserSelect(u); setShowArchivedChats(false); }}
+                >
+                  <div className="avatar-wrap">
+                    <Avatar
+                      src={userProfiles[u]}
+                      email={u}
+                      size={40}
+                      className="user-avatar"
+                    />
+                  </div>
+                  <div className="user-item-copy">
+                    <span className="user-name">{u}</span>
+                    <span className="user-last">Archived</span>
+                  </div>
+                  <div className="user-item-actions">
+                    <button
+                      className="remove-recent-btn"
+                      onClick={(e) => { e.stopPropagation(); handleUnarchiveChat(u); }}
+                      title="Unarchive chat"
+                    >
+                      <ArchiveRestore size={14} />
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className="empty-list">No archived chats.</div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="sidebar-actions">
-          <button className="secondary-btn" onClick={handleClearAllHistory}>
-            <Trash2 size={16} /> Archive
+          <button className="secondary-btn" onClick={() => setShowArchivedChats(!showArchivedChats)}>
+            <Archive size={16} /> {showArchivedChats ? "Back to Chats" : "Archived Chats"}
           </button>
-          <button className="secondary-btn">
-            <BellRing size={16} /> Help
+          <button className="secondary-btn" onClick={() => setShowSettings(true)}>
+            <Settings size={16} /> Settings
           </button>
         </div>
       </aside>
@@ -1212,11 +1347,12 @@ function Chat({ user: currentUser }) {
         <div className="chat-panel-header">
           <div className="chat-panel-title">
             <div className="header-avatar-wrap">
-              <img
-                src={selectedUser ? userProfiles[selectedUser] || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80" : "https://images.unsplash.com/photo-1503416997304-3cc562acfdc5?auto=format&fit=crop&w=200&q=80"}
-                alt={selectedUser || "Start"}
+              <Avatar
+                src={selectedUser ? userProfiles[selectedUser] : null}
+                email={selectedUser || "default"}
+                size={40}
                 className="header-avatar"
-                onClick={() => selectedUser && handleZoomImage(userProfiles[selectedUser] || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80")}
+                onClick={() => selectedUser && handleZoomImage(userProfiles[selectedUser] || null)}
               />
             </div>
             <div>
@@ -1253,16 +1389,9 @@ function Chat({ user: currentUser }) {
                 </button>
               </>
             )}
-            <label htmlFor="update-profile-pic" className="icon-btn" title="Update Profile Picture" style={{ cursor: 'pointer' }}>
+            <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
               <Settings size={18} />
-            </label>
-            <input
-              id="update-profile-pic"
-              type="file"
-              accept="image/*"
-              onChange={handleUpdateProfilePic}
-              style={{ display: "none" }}
-            />
+            </button>
             <button
               className="logout-btn"
               type="button"
@@ -1337,13 +1466,29 @@ function Chat({ user: currentUser }) {
                                   Your browser does not support video playback
                                 </video>
                               )}
-                              {msg.mediaType === "application" && msg.text?.data?.startsWith("data:application/") && (
+                              {msg.mediaType === "audio" && (
+                                <div className="media-file">
+                                  <audio controls className="media-audio">
+                                    <source src={msg.text?.data} type={msg.text?.type || "audio/mpeg"} />
+                                    Your browser does not support audio playback
+                                  </audio>
+                                  <span>🎵 {msg.text?.name || "Audio file"}</span>
+                                </div>
+                              )}
+                              {msg.mediaType === "application" && msg.text?.data?.startsWith("data:application/pdf") && (
+                                <div className="media-file">
+                                  <span>📄 {msg.text.name}</span>
+                                  <iframe src={msg.text.data} className="pdf-preview" title={msg.text.name} style={{ width: '100%', maxHeight: '300px', border: 'none', borderRadius: '8px' }} />
+                                  <a href={msg.text.data} download={msg.text.name} className="download-btn">Download</a>
+                                </div>
+                              )}
+                              {msg.mediaType === "application" && msg.text?.data?.startsWith("data:application/") && !msg.text?.data?.startsWith("data:application/pdf") && (
                                 <div className="media-file">
                                   <span>📎 {msg.text.name}</span>
                                   <a href={msg.text.data} download={msg.text.name} className="download-btn">Download</a>
                                 </div>
                               )}
-                              {msg.text?.data && msg.mediaType !== "image" && msg.mediaType !== "video" && msg.mediaType !== "application" && (
+                              {msg.text?.data && msg.mediaType !== "image" && msg.mediaType !== "video" && msg.mediaType !== "audio" && msg.mediaType !== "application" && (
                                 <div className="media-file">
                                   <span>📎 {msg.text?.name || "Attachment"}</span>
                                   {msg.text?.data && (
@@ -1427,15 +1572,15 @@ function Chat({ user: currentUser }) {
           >
             <Smile size={18} />
           </button>
-          <button className="secondary-icon-btn" title="Attach file">
+          <label htmlFor="media-input" className="secondary-icon-btn" title="Attach file" style={{ cursor: selectedUser ? 'pointer' : 'default' }}>
             <Paperclip size={18} />
-          </button>
+          </label>
           <input
             type="text"
             placeholder={selectedUser ? "Write a message..." : "Select a conversation to send a message"}
             value={message}
             onChange={handleTyping}
-            onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
             onBlur={() => {
               // ensure typing state is cleared when input loses focus
               stopTyping();
@@ -1448,7 +1593,7 @@ function Chat({ user: currentUser }) {
           <input
             id="media-input"
             type="file"
-            accept="image/*,video/*,.pdf,.doc,.docx,.txt"
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
             onChange={handleMediaShare}
             disabled={!selectedUser}
             style={{ display: "none" }}
@@ -1521,7 +1666,7 @@ function Chat({ user: currentUser }) {
       </AnimatePresence>
 
       {contextMenu && (
-        <div className="context-menu" style={{ top: contextMenu.y, left: contextMenu.x }}>
+        <div className="context-menu" style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x }}>
           <button onClick={() => { setReplyTo(contextMenu.message); setContextMenu(null); }}>
             <MessageCircle size={14} /> Reply
           </button>
@@ -1593,10 +1738,107 @@ function Chat({ user: currentUser }) {
 
       <nav className="bottom-nav">
         <button className="bottom-nav-btn active"><MessageCircle size={18} /><span>Chat</span></button>
-        <button className="bottom-nav-btn"><Users size={18} /><span>Contacts</span></button>
-        <button className="bottom-nav-btn"><BellRing size={18} /><span>Alerts</span></button>
-        <button className="bottom-nav-btn"><Settings size={18} /><span>More</span></button>
+        <button className="bottom-nav-btn" onClick={() => setSelectedUser(null)}><Users size={18} /><span>Contacts</span></button>
+        <button className="bottom-nav-btn" onClick={() => setShowArchivedChats(!showArchivedChats)}><Archive size={18} /><span>Archive</span></button>
+        <button className="bottom-nav-btn" onClick={() => setShowSettings(true)}><Settings size={18} /><span>More</span></button>
       </nav>
+
+      {showSettings && (
+        <div className="settings-modal-overlay" onClick={() => setShowSettings(false)}>
+          <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="settings-header">
+              <h3>Settings</h3>
+              <button className="close-reply" onClick={() => setShowSettings(false)}><X size={18} /></button>
+            </div>
+            <div className="settings-body">
+              <div className="settings-section">
+                <h4>Profile</h4>
+                <div className="settings-avatar-section">
+                  <Avatar
+                    src={userProfiles[user.email.toLowerCase()] || user.profilePic}
+                    email={user.email}
+                    size={80}
+                  />
+                  <label htmlFor="update-profile-pic-settings" className="primary-btn" style={{ cursor: 'pointer', fontSize: '13px' }}>
+                    Change Photo
+                  </label>
+                  <input
+                    id="update-profile-pic-settings"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleUpdateProfilePic}
+                    style={{ display: "none" }}
+                  />
+                </div>
+                <div className="settings-field">
+                  <label>Display Name</label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Enter your display name"
+                  />
+                </div>
+                <div className="settings-field">
+                  <label>Bio</label>
+                  <textarea
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    placeholder="Write something about yourself..."
+                    rows={3}
+                  />
+                </div>
+                <button
+                  className="primary-btn"
+                  onClick={() => {
+                    const updatedUser = { ...user, displayName, bio };
+                    setUser(updatedUser);
+                    try {
+                      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+                      localStorage.setItem("user", JSON.stringify({ ...stored, displayName, bio }));
+                    } catch (e) {}
+                    alert("Profile updated!");
+                  }}
+                >
+                  Save Changes
+                </button>
+              </div>
+
+              <div className="settings-section">
+                <h4>Account Information</h4>
+                <div className="settings-info">
+                  <div className="settings-info-row">
+                    <span className="settings-label">Display Name</span>
+                    <span className="settings-value">{displayName || getDisplayName(user.email)}</span>
+                  </div>
+                  <div className="settings-info-row">
+                    <span className="settings-label">Email</span>
+                    <span className="settings-value">{user.email}</span>
+                  </div>
+                  <div className="settings-info-row">
+                    <span className="settings-label">Bio</span>
+                    <span className="settings-value">{bio || "No bio set"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="settings-section">
+                <h4>Appearance</h4>
+                <div className="settings-info-row">
+                  <span className="settings-label">Dark Mode</span>
+                  <button
+                    className="secondary-btn"
+                    onClick={() => setIsDarkMode(!isDarkMode)}
+                  >
+                    {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+                    {isDarkMode ? " Light Mode" : " Dark Mode"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

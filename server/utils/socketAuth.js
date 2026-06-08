@@ -1,11 +1,29 @@
 const normalizeEmail = (email) => (email || "").toLowerCase().trim();
 
+const socketToUser = new Map();
+
+const registerSocket = (socketId, email) => {
+  socketToUser.set(socketId, normalizeEmail(email));
+};
+
+const unregisterSocket = (socketId) => {
+  socketToUser.delete(socketId);
+};
+
 const getAuthenticatedEmail = (socket, users) => {
+  const cached = socketToUser.get(socket.id);
+  if (cached) return cached;
+
   const match = Object.keys(users).find((key) => {
     const entry = users[key];
     return entry instanceof Set ? entry.has(socket.id) : entry === socket.id;
   });
-  return match ? normalizeEmail(match) : null;
+  if (match) {
+    const normalized = normalizeEmail(match);
+    socketToUser.set(socket.id, normalized);
+    return normalized;
+  }
+  return null;
 };
 
 const getRoomId = (user1, user2) => {
@@ -16,4 +34,6 @@ module.exports = {
   normalizeEmail,
   getAuthenticatedEmail,
   getRoomId,
+  registerSocket,
+  unregisterSocket,
 };

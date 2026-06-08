@@ -4,6 +4,7 @@ const handleTyping = require("./typing");
 const handleMessages = require("./message");
 
 const { getCorsOrigins } = require("../config/env");
+const { registerSocket, unregisterSocket } = require("../utils/socketAuth");
 
 const initSocket = (server) => {
   const io = new Server(server, {
@@ -17,41 +18,29 @@ const initSocket = (server) => {
     pingInterval: 25000,
   });
 
-  // Global users tracking
   const users = {};
   const userProfiles = {};
 
   io.on("connection", (socket) => {
-    console.log("✅ User connected:", socket.id);
-
     handlePresence(io, socket, users, userProfiles);
     handleTyping(io, socket, users);
     handleMessages(io, socket, users);
 
-    // Handle disconnect
     socket.on("disconnect", () => {
+      unregisterSocket(socket.id);
       for (let userId in users) {
         const entry = users[userId];
-        // If we stored a Set of socket ids (new behavior)
         if (entry && typeof entry.delete === "function") {
           if (entry.has(socket.id)) {
             entry.delete(socket.id);
             if (entry.size === 0) {
               delete users[userId];
-              console.log(`❌ ${userId} is offline`);
-            } else {
-              console.log(`🔁 ${userId} disconnected a socket, remaining connections: ${Array.from(entry).join(", ")}`);
             }
           }
-        } else {
-          // Legacy single-socket entry
-          if (entry === socket.id) {
-            delete users[userId];
-            console.log(`❌ ${userId} is offline`);
-          }
+        } else if (entry === socket.id) {
+          delete users[userId];
         }
       }
-      console.log("📊 Current online users:", Object.keys(users));
       io.emit("online-users", Object.keys(users));
     });
   });

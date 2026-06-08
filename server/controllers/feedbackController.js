@@ -8,18 +8,23 @@ verifyTransporter(transporter, "Feedback Email").then((ready) => {
   transporterReady = ready;
 });
 
+const escapeHtml = (str) => {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
 
-// Admin receiving address can be configured on hosts; fallback to ADMIN_EMAIL or a default
 const adminMailTo =
   process.env.ADMIN_FEEDBACK_EMAIL || process.env.ADMIN_EMAIL || "zenderohan2012@gmail.com";
 
-// Send feedback email
 const sendFeedback = async (req, res) => {
-  console.log("📩 Feedback email request received");
   try {
     const { name, email, message, rating } = req.body;
 
-    // Validate input
     if (!name || !email || !message || !rating) {
       return res.status(400).json({
         success: false,
@@ -27,7 +32,6 @@ const sendFeedback = async (req, res) => {
       });
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({
@@ -36,7 +40,12 @@ const sendFeedback = async (req, res) => {
       });
     }
 
-    // Email to admin (you)
+    const safeName = escapeHtml(name);
+    const safeEmail = escapeHtml(email);
+    const safeMessage = escapeHtml(message);
+    const safeRating = Math.min(5, Math.max(1, parseInt(rating) || 5));
+    const firstName = escapeHtml(name.split(" ")[0]);
+
     const adminMailOptions = {
       from: process.env.EMAIL_USER || "zenderohan2012@gmail.com",
       to: adminMailTo,
@@ -45,27 +54,27 @@ const sendFeedback = async (req, res) => {
         <div style="font-family: Arial, sans-serif; background-color: #f9fafb; padding: 20px;">
           <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);">
             <h2 style="color: #1f2937; margin-bottom: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">
-              🎉 New Feedback Received
+              New Feedback Received
             </h2>
             
             <div style="margin-bottom: 20px;">
               <p style="color: #6b7280; margin: 10px 0;">
-                <strong style="color: #374151;">Name:</strong> ${name}
+                <strong style="color: #374151;">Name:</strong> ${safeName}
               </p>
               <p style="color: #6b7280; margin: 10px 0;">
-                <strong style="color: #374151;">Email:</strong> ${email}
+                <strong style="color: #374151;">Email:</strong> ${safeEmail}
               </p>
               <p style="color: #6b7280; margin: 10px 0;">
                 <strong style="color: #374151;">Rating:</strong> 
                 <span style="color: #fbbf24;">
-                  ${'⭐'.repeat(rating)} (${rating}/5)
+                  ${"★".repeat(safeRating)}${"☆".repeat(5 - safeRating)} (${safeRating}/5)
                 </span>
               </p>
             </div>
 
             <div style="background-color: #eff6ff; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
               <h3 style="color: #1d4ed8; margin-top: 0; margin-bottom: 10px;">Feedback Message:</h3>
-              <p style="color: #374151; line-height: 1.6; margin: 0; white-space: pre-wrap;">${message}</p>
+              <p style="color: #374151; line-height: 1.6; margin: 0; white-space: pre-wrap;">${safeMessage}</p>
             </div>
 
             <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px;">
@@ -76,17 +85,15 @@ const sendFeedback = async (req, res) => {
       `,
     };
 
-    // Avoid race during startup: if transporter isn't ready yet, try once.
     if (!transporterReady) {
       try {
         await transporter.verify();
         transporterReady = true;
-        console.log("Email transporter is ready ✅ (lazy verify)");
+        console.log("Email transporter is ready (lazy verify)");
       } catch (err) {
-        console.error("❌ [Feedback Email] transporter verification failed:", {
+        console.error("[Feedback Email] transporter verification failed:", {
           message: err?.message || err,
           code: err?.code,
-          stack: err?.stack
         });
         return res.status(500).json({
           success: false,
@@ -95,7 +102,6 @@ const sendFeedback = async (req, res) => {
       }
     }
 
-    // Email to user (confirmation)
     const userMailOptions = {
       from: process.env.EMAIL_USER || "zenderohan2012@gmail.com",
       to: email,
@@ -104,7 +110,7 @@ const sendFeedback = async (req, res) => {
         <div style="font-family: Arial, sans-serif; background-color: #f9fafb; padding: 20px;">
           <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);">
             <h2 style="color: #1f2937; margin-bottom: 20px;">
-              Thank You, ${name.split(" ")[0]}! 💙
+              Thank You, ${firstName}!
             </h2>
             
             <p style="color: #6b7280; line-height: 1.6;">
@@ -113,12 +119,12 @@ const sendFeedback = async (req, res) => {
 
             <div style="background-color: #dcfce7; padding: 15px; border-radius: 8px; border-left: 4px solid #16a34a; margin: 20px 0;">
               <p style="color: #16a34a; margin: 0;">
-                <strong>✓ Your feedback has been received</strong>
+                <strong>Your feedback has been received</strong>
               </p>
             </div>
 
             <div style="margin: 20px 0;">
-              <p style="color: #6b7280; font-weight: 600;">Your Rating: <span style="color: #fbbf24;">${'⭐'.repeat(rating)}</span></p>
+              <p style="color: #6b7280; font-weight: 600;">Your Rating: <span style="color: #fbbf24;">${"★".repeat(safeRating)}</span></p>
             </div>
 
             <p style="color: #6b7280; line-height: 1.6;">
@@ -129,53 +135,43 @@ const sendFeedback = async (req, res) => {
               Best regards,<br/>
               <strong>The Connect It Team</strong>
             </p>
-
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 12px;">
-              <p>Connect It - Real-time Messaging Platform</p>
-            </div>
           </div>
         </div>
       `,
     };
 
-    // Save feedback to DB (best-effort) and send emails
     try {
-      await Feedback.create({ name, email, message, rating });
+      await Feedback.create({ name, email, message, rating: safeRating });
     } catch (dbErr) {
-      console.warn("⚠️ Could not save feedback to DB:", dbErr.message);
+      console.warn("Could not save feedback to DB:", dbErr.message);
     }
 
-    // Send emails individually so we can surface which (if any) failed
     let adminSent = false;
     let userSent = false;
 
     try {
-      console.log("📩 Feedback email sending started (admin)");
       await transporter.sendMail(adminMailOptions);
       adminSent = true;
-      console.log("📩 Feedback admin email sent successfully");
+      console.log("Feedback admin email sent successfully");
     } catch (mailErr) {
-      console.error("Failed to send admin feedback email:", mailErr && mailErr.message ? mailErr.message : mailErr);
+      console.error("Failed to send admin feedback email:", mailErr?.message || mailErr);
     }
 
     try {
-      console.log("📩 Feedback email sending started (user confirmation)");
       await transporter.sendMail(userMailOptions);
       userSent = true;
-      console.log("📩 Feedback user confirmation email sent successfully");
+      console.log("Feedback user confirmation email sent successfully");
     } catch (mailErr) {
-      console.error("Failed to send user confirmation email:", mailErr && mailErr.message ? mailErr.message : mailErr);
+      console.error("Failed to send user confirmation email:", mailErr?.message || mailErr);
     }
 
     if (!adminSent && !userSent) {
-      // both failed
       return res.status(500).json({
         success: false,
         message: "Failed to send feedback emails. Please check server email configuration.",
       });
     }
 
-    // At least one email was sent
     return res.status(200).json({
       success: true,
       message: "Feedback received." + (adminSent && userSent ? " Emails sent successfully." : adminSent ? " Admin notified; user email failed." : " User notified; admin email failed."),
@@ -185,7 +181,6 @@ const sendFeedback = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to send feedback. Please try again later.",
-      error: error.message,
     });
   }
 };

@@ -3,12 +3,16 @@ const crypto = require("crypto");
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
 
+let cachedKey = null;
+
 const getKey = () => {
+  if (cachedKey) return cachedKey;
   const secret = process.env.MESSAGE_ENCRYPTION_KEY || process.env.JWT_SECRET;
   if (!secret) {
     throw new Error("MESSAGE_ENCRYPTION_KEY or JWT_SECRET is required for message encryption");
   }
-  return crypto.createHash("sha256").update(String(secret)).digest();
+  cachedKey = crypto.createHash("sha256").update(String(secret)).digest();
+  return cachedKey;
 };
 
 const encryptPayload = (value) => {
