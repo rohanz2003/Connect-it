@@ -21,11 +21,18 @@ const initSocket = (server) => {
 
   const users = {};
   const userProfiles = {};
+  const lastHeartbeats = {};
 
   io.on("connection", (socket) => {
     handlePresence(io, socket, users, userProfiles);
     handleTyping(io, socket, users);
     handleMessages(io, socket, users);
+
+    socket.on("heartbeat", (email) => {
+      if (!email) return;
+      const normalized = email.toLowerCase().trim();
+      lastHeartbeats[normalized] = Date.now();
+    });
 
     socket.on("disconnect", () => {
       const disconnectedUser = unregisterSocket(socket.id);
@@ -36,19 +43,45 @@ const initSocket = (server) => {
             entry.delete(socket.id);
             if (entry.size === 0) {
               delete users[userId];
+              delete lastHeartbeats[userId];
+              updateLastSeen(userId);
+              io.emit("last-seen", { userId, time: new Date().toISOString() });
             }
           }
         } else if (entry === socket.id) {
           delete users[userId];
+          delete lastHeartbeats[userId];
+          updateLastSeen(userId);
+          io.emit("last-seen", { userId, time: new Date().toISOString() });
         }
       }
       io.emit("online-users", Object.keys(users));
-      if (disconnectedUser) {
-        updateLastSeen(disconnectedUser);
-        io.emit("last-seen", { userId: disconnectedUser, time: new Date().toISOString() });
-      }
     });
   });
+
+  // Periodic check for stale users (no heartbeat in 30s)
+  setInterval(() => {
+    const now = Date.now();
+    const staleTimeout = 30000;
+    Object.keys(lastHeartbeats).forEach((userId) => {
+      if (now - lastHeartbeats[userId] > staleTimeout) {
+        const sockets = users[userId];
+        if (sockets instanceof Set) {
+          sockets.forEach((sid) => {
+            const sock = io.sockets.sockets.get(sid);
+            if (sock) {
+              sock.leave(userId);
+            }
+          });
+        }
+        delete users[userId];
+        delete lastHeartbeats[userId];
+        updateLastSeen(userId);
+        io.emit("online-users", Object.keys(users));
+        io.emit("last-seen", { userId, time: new Date().toISOString() });
+      }
+    });
+  }, 15000);
 
   return io;
 };

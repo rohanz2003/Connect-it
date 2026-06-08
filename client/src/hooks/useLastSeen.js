@@ -8,7 +8,6 @@ export const useLastSeen = (userId, { pollInterval = 60000 } = {}) => {
   const [isOnline, setIsOnline] = useState(false);
   const socket = useSocket();
   const intervalRef = useRef(null);
-  const onlineUsersRef = useRef([]);
 
   const fetchLastSeen = useCallback(async () => {
     if (!userId) return;
@@ -37,13 +36,12 @@ export const useLastSeen = (userId, { pollInterval = 60000 } = {}) => {
     if (!socket) return;
 
     const handleOnlineUsers = (users) => {
-      onlineUsersRef.current = users;
       const normalizedId = (userId || "").toLowerCase().trim();
       setIsOnline(users.some((u) => u.toLowerCase().trim() === normalizedId));
     };
 
     const handleLastSeen = (data) => {
-      if (data.userId === userId) {
+      if (data.userId && userId && data.userId.toLowerCase().trim() === userId.toLowerCase().trim()) {
         setLastSeen(data.time);
       }
     };

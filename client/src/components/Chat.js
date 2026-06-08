@@ -763,6 +763,7 @@ function Chat({ user: currentUser }) {
     };
   }, [socket, user]);
 
+  // Visibility and offline handlers
   useEffect(() => {
     if (!socket || !user) return;
 
@@ -783,7 +784,7 @@ function Chat({ user: currentUser }) {
     };
 
     const handleBeforeUnload = () => {
-      socket.emit("leave", { email: user.email.toLowerCase() });
+      socket.disconnect();
     };
 
     document.addEventListener("visibilitychange", emitVisiblePresence);
@@ -799,20 +800,18 @@ function Chat({ user: currentUser }) {
     };
   }, [socket, user]);
 
-  // Heartbeat: update lastSeen every 5 minutes while active
+  // Socket heartbeat every 25 seconds
   useEffect(() => {
-    if (!user) return;
+    if (!socket || !user) return;
     const sendHeartbeat = () => {
-      fetch(`${API_URL}/api/users/heartbeat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email }),
-      }).catch(() => {});
+      if (socket.connected) {
+        socket.emit("heartbeat", user.email);
+      }
     };
     sendHeartbeat();
-    const interval = setInterval(sendHeartbeat, 5 * 60 * 1000);
+    const interval = setInterval(sendHeartbeat, 25000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [socket, user]);
 
   useEffect(() => {
     const syncChat = async () => {
