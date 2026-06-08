@@ -763,6 +763,113 @@
   color: var(--text-light);
 }
 
+.admin-response {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f0fdf4;
+  border-left: 3px solid #22c55e;
+  border-radius: 6px;
+}
+
+.admin-response strong {
+  display: block;
+  font-size: 12px;
+  color: #16a34a;
+  margin-bottom: 4px;
+}
+
+.admin-response p {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--text-dark);
+}
+
+.admin-response small {
+  font-size: 11px;
+  color: var(--text-light);
+}
+
+.feedback-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.respond-btn, .delete-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.respond-btn {
+  background: var(--primary-color);
+  color: white;
+}
+
+.respond-btn:hover {
+  background: #4338ca;
+}
+
+.delete-btn {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.delete-btn:hover {
+  background: #fecaca;
+}
+
+.response-form {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--light-bg);
+  border-radius: 8px;
+}
+
+.response-form textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 60px;
+}
+
+.response-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.save-response-btn, .cancel-response-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.save-response-btn {
+  background: #22c55e;
+  color: white;
+}
+
+.cancel-response-btn {
+  background: var(--border-color);
+  color: var(--text-dark);
+}
+
 /* ========================
    USERS GRID
    ======================== */

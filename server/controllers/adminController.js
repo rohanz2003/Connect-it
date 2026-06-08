@@ -24,6 +24,38 @@ exports.getAllFeedback = async (req, res) => {
   }
 };
 
+// Respond to feedback
+exports.respondToFeedback = async (req, res) => {
+  try {
+    const { id, response } = req.body;
+    if (!id || !response) {
+      return res.status(400).json({ error: "ID and response are required" });
+    }
+    const feedback = await Feedback.findByIdAndUpdate(
+      id,
+      { adminResponse: response, respondedAt: new Date() },
+      { new: true }
+    );
+    if (!feedback) {
+      return res.status(404).json({ error: "Feedback not found" });
+    }
+    res.json({ success: true, feedback });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to respond to feedback", details: error.message });
+  }
+};
+
+// Delete feedback
+exports.deleteFeedback = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Feedback.findByIdAndDelete(id);
+    res.json({ success: true, message: "Feedback deleted" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to delete feedback", details: error.message });
+  }
+};
+
 // Get all users
 exports.getAllUsers = async (req, res) => {
   try {

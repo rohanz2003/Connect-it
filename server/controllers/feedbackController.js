@@ -190,6 +190,42 @@ const sendFeedback = async (req, res) => {
   }
 };
 
+const respondToFeedback = async (req, res) => {
+  try {
+    const { id, response } = req.body;
+    if (!id || !response) {
+      return res.status(400).json({ success: false, message: "ID and response are required" });
+    }
+
+    const feedback = await Feedback.findByIdAndUpdate(
+      id,
+      { adminResponse: response, respondedAt: new Date() },
+      { new: true }
+    );
+
+    if (!feedback) {
+      return res.status(404).json({ success: false, message: "Feedback not found" });
+    }
+
+    res.json({ success: true, feedback });
+  } catch (error) {
+    console.error("Error responding to feedback:", error);
+    res.status(500).json({ success: false, message: "Failed to respond to feedback" });
+  }
+};
+
+const deleteFeedback = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Feedback.findByIdAndDelete(id);
+    res.json({ success: true, message: "Feedback deleted" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to delete feedback" });
+  }
+};
+
 module.exports = {
   sendFeedback,
+  respondToFeedback,
+  deleteFeedback,
 };

@@ -1,14 +1,51 @@
 const UserProfile = require("../models/UserProfile");
 
+const HEARTBEAT_INTERVAL = 30000;
+const OFFLINE_THRESHOLD = 70000;
+
 module.exports = (io, socket, users, userProfiles) => {
+  let heartbeatTimer = null;
+
+  const startHeartbeat = () => {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(async () => {
+      const userId = getUserIdFromSocket(socket, users);
+      if (userId) {
+        try {
+          await UserProfile.findOneAndUpdate(
+            { email: userId },
+            { $set: { lastActivity: new Date(), isOnline: true } }
+          );
+        } catch (err) {
+          console.error("Heartbeat update error:", err.message);
+        }
+      }
+    }, HEARTBEAT_INTERVAL);
+  };
+
+  const stopHeartbeat = () => {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+  };
+
+  const getUserIdFromSocket = (socket, users) => {
+    for (const userId in users) {
+      if (users[userId].has(socket.id)) {
+        return userId;
+      }
+    }
+    return null;
+  };
+
   socket.on("join", async (data) => {
-    // Handle both old string format and new object format
     let userId = typeof data === 'string' ? data : data?.email;
     const profilePic = typeof data === 'object' ? data?.profilePic : null;
     const displayName = typeof data === 'object' ? data?.displayName : null;
     
     if (!userId || userId.trim() === "") {
-      console.log("❌ Invalid userId received");
+      console.log("Invalid userId received");
       return;
     }
     userId = userId.trim().toLowerCase();
@@ -18,10 +55,8 @@ module.exports = (io, socket, users, userProfiles) => {
     }
     users[userId].add(socket.id);
     
-    // Join a personal room named after the email
     socket.join(userId);
 
-    // Fetch profile from DB on join to sync
     try {
       const dbProfile = await UserProfile.findOne({ email: userId });
       if (dbProfile) {
@@ -30,7 +65,6 @@ module.exports = (io, socket, users, userProfiles) => {
           profilePic: dbProfile.profilePic,
           bio: dbProfile.bio
         };
-        // Send existing profile info back to the user
         socket.emit("user-profile-update", {
           email: userId,
           displayName: dbProfile.displayName,
@@ -38,7 +72,6 @@ module.exports = (io, socket, users, userProfiles) => {
           bio: dbProfile.bio
         });
       } else if (displayName || profilePic) {
-        // Create initial profile if it doesn't exist
         await UserProfile.create({
           email: userId,
           displayName: displayName || userId.split('@')[0],
@@ -49,7 +82,6 @@ module.exports = (io, socket, users, userProfiles) => {
       console.error("Error syncing profile from DB:", err.message);
     }
 
-    // Update status in DB
     try {
       await UserProfile.findOneAndUpdate(
         { email: userId },
@@ -65,13 +97,11 @@ module.exports = (io, socket, users, userProfiles) => {
       console.error("Error updating online status:", err.message);
     }
 
-    console.log(`✅ ${userId} is online`);
+    console.log(`${userId} is online`);
     
-    // Broadcast to all clients the updated online users list
     io.emit("online-users", Object.keys(users));
     io.emit("user-status-change", { userId, isOnline: true });
 
-    // Send all existing profile metadata to the newly joined user
     try {
       const allProfiles = await UserProfile.find({}, 'email displayName profilePic bio lastSeen isOnline');
       const profileMap = {};
@@ -88,6 +118,8 @@ module.exports = (io, socket, users, userProfiles) => {
     } catch (err) {
       console.error("Error fetching all profiles:", err.message);
     }
+
+    startHeartbeat();
   });
 
   socket.on("update-profile", async (data) => {
@@ -97,7 +129,6 @@ module.exports = (io, socket, users, userProfiles) => {
     const userId = email.toLowerCase().trim();
     
     try {
-      // Persist to MongoDB Atlas
       const updatedProfile = await UserProfile.findOneAndUpdate(
         { email: userId },
         { 
@@ -110,14 +141,13 @@ module.exports = (io, socket, users, userProfiles) => {
         { upsert: true, new: true }
       );
 
-      // Update in-memory cache
       userProfiles[userId] = {
         displayName: updatedProfile.displayName,
         profilePic: updatedProfile.profilePic,
         bio: updatedProfile.bio
       };
 
-      console.log(`👤 Profile updated and saved to DB for ${userId}`);
+      console.log(`Profile updated and saved to DB for ${userId}`);
 
       io.emit("user-profile-update", {
         email: userId,
@@ -145,6 +175,7 @@ module.exports = (io, socket, users, userProfiles) => {
       );
       io.emit("user-status-change", { userId, isOnline: false, lastSeen: now });
       io.emit("online-users", Object.keys(users));
+      stopHeartbeat();
     } catch (err) {
       console.error("Error updating offline status:", err.message);
     }
@@ -162,20 +193,19 @@ module.exports = (io, socket, users, userProfiles) => {
 
     if (users[userId].size === 0) {
       delete users[userId];
-      console.log(`❌ ${userId} is offline (leave event)`);
+      console.log(`${userId} is offline (leave event)`);
       await handleOffline(userId);
-    } else {
-      console.log(`🔁 ${userId} left one session, remaining connections: ${Array.from(users[userId]).join(", ")}`);
     }
   });
 
   socket.on("disconnect", async () => {
+    stopHeartbeat();
     for (const userId in users) {
       if (users[userId].has(socket.id)) {
         users[userId].delete(socket.id);
         if (users[userId].size === 0) {
           delete users[userId];
-          console.log(`❌ ${userId} is offline (disconnect)`);
+          console.log(`${userId} is offline (disconnect)`);
           await handleOffline(userId);
         }
         break;

@@ -25,6 +25,8 @@ function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [messageStats, setMessageStats] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
+  const [respondingTo, setRespondingTo] = useState(null);
+  const [responseText, setResponseText] = useState("");
 
   const navigate = useNavigate();
   const otpRefs = useRef([]);
@@ -570,6 +572,48 @@ function AdminDashboard() {
                     <p className="feedback-email">{item.email}</p>
                     <p className="feedback-message">{item.message}</p>
                     <p className="feedback-date">{new Date(item.createdAt).toLocaleString()}</p>
+                    {item.adminResponse && (
+                      <div className="admin-response">
+                        <strong>Admin Response:</strong>
+                        <p>{item.adminResponse}</p>
+                        <small>{item.respondedAt ? new Date(item.respondedAt).toLocaleString() : ""}</small>
+                      </div>
+                    )}
+                    <div className="feedback-actions">
+                      <button className="respond-btn" onClick={() => { setRespondingTo(item._id); setResponseText(item.adminResponse || ""); }}>
+                        {item.adminResponse ? "✏️ Edit Response" : "💬 Respond"}
+                      </button>
+                      <button className="delete-btn" onClick={async () => {
+                        if (window.confirm("Delete this feedback?")) {
+                          try {
+                            await fetch(`${API_URL}/api/admin/feedback/${item._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${adminToken}` } });
+                            setFeedback(prev => prev.filter(f => f._id !== item._id));
+                          } catch (e) { console.error(e); }
+                        }
+                      }}>🗑️ Delete</button>
+                    </div>
+                    {respondingTo === item._id && (
+                      <div className="response-form">
+                        <textarea value={responseText} onChange={(e) => setResponseText(e.target.value)} placeholder="Write your response..." rows={3} />
+                        <div className="response-form-actions">
+                          <button className="save-response-btn" onClick={async () => {
+                            try {
+                              const res = await fetch(`${API_URL}/api/admin/feedback/respond`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                                body: JSON.stringify({ id: item._id, response: responseText }),
+                              });
+                              if (res.ok) {
+                                const data = await res.json();
+                                setFeedback(prev => prev.map(f => f._id === item._id ? data.feedback : f));
+                                setRespondingTo(null);
+                              }
+                            } catch (e) { console.error(e); }
+                          }}>Save</button>
+                          <button className="cancel-response-btn" onClick={() => setRespondingTo(null)}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

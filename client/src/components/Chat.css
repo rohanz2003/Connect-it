@@ -705,7 +705,9 @@ body {
 .close-btn:hover {
   background: var(--danger-light);
   color: var(--danger-color);
-}/* Logout Button */
+}
+
+/* Logout Button */
 .logout-btn {
   display: inline-flex;
   align-items: center;
@@ -1911,32 +1913,7 @@ body {
   }
 }
 
-/* Print Styles */
 /* Settings & Professional UI Enhancements */
-.icon-btn {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.icon-btn:hover {
-  background: var(--border-light);
-  color: var(--primary-color);
-  transform: translateY(-1px);
-}
-
-.icon-btn:active {
-  transform: translateY(0);
-}
-
 .settings-modal {
   background: var(--background-white);
   border-radius: var(--radius-xl);
@@ -2159,5 +2136,195 @@ body {
   .settings-body {
     max-height: none;
     flex: 1;
+  }
+}
+
+.emoji-picker-container {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  z-index: 1000;
+  margin-bottom: 10px;
+}
+
+.attach-menu-wrapper {
+  position: relative;
+}
+
+.attach-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 10px;
+  background: var(--background-white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  z-index: 1000;
+  animation: slideUp 0.2s ease;
+}
+
+.attach-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  transition: var(--transition);
+  font-family: inherit;
+}
+
+.attach-option:hover {
+  background: var(--border-light);
+  color: var(--text-primary);
+}
+
+.attach-option span {
+  white-space: nowrap;
+}
+
+.attach-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
+}
+
+.attach-image { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.attach-video { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+.attach-audio { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+.attach-doc { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+.attach-other { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+
+.media-audio {
+  width: 100%;
+  max-width: 280px;
+  height: 40px;
+  border-radius: var(--radius-md);
+}
+
+.file-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--primary-light);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.media-file {
+  padding: 12px;
+  background: var(--border-light);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 200px;
+}
+
+.file-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-size {
+  font-size: 11px;
+  color: var(--text-light);
+}
+
+.spinner-sm {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.loading-messages {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text-light);
+}
+
+.load-more-bar {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+}
+
+.load-more-btn {
+  padding: 6px 16px;
+  background: var(--border-light);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: inherit;
+}
+
+.load-more-btn:hover {
+  background: var(--primary-light);
+}
+
+.dark .logout-btn {
+  background-color: #ef4444 !important;
+  color: #ffffff !important;
+}
+
+.dark .logout-btn,
+.dark .logout-btn * {
+  color: #ffffff !important;
+}
+
+@media (max-width: 768px) {
+  .attach-menu {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .emoji-picker-container {
+    left: 0;
+    right: auto;
   }
 }

@@ -21,13 +21,12 @@ module.exports = (io, socket, users) => {
     const normalizedUser2 = normalizeEmail(user2);
 
     if (!authUser || authUser !== normalizedUser1) {
-      console.warn(`⚠️ Unauthenticated join-room attempt: ${socket.id} (auth: ${authUser}, requested: ${normalizedUser1})`);
+      console.warn(`Unauthenticated join-room attempt: ${socket.id}`);
       return;
     }
 
     const roomId = getRoomId(normalizedUser1, normalizedUser2);
 
-    // Only leave other chat rooms, keep personal and socket-id rooms
     for (const room of socket.rooms) {
       if (room !== socket.id && room !== normalizedUser1 && room.includes('_')) {
         socket.leave(room);
@@ -35,9 +34,7 @@ module.exports = (io, socket, users) => {
     }
 
     socket.join(roomId);
-    console.log(`✅ ${normalizedUser1} joined room: ${roomId}`);
 
-    // Update last activity for sender when they open a chat
     try {
       await UserProfile.findOneAndUpdate(
         { email: normalizedUser1 },
@@ -72,23 +69,19 @@ module.exports = (io, socket, users) => {
       let authSender = getAuthenticatedEmail(socket, users);
       if (!authSender && data?.sender) {
         authSender = normalizeEmail(data.sender);
-        // Auto-join this socket to the user's online sockets if it wasn't already
         if (!users[authSender]) {
           users[authSender] = new Set();
         }
         users[authSender].add(socket.id);
         socket.join(authSender);
-        console.log(`📡 Auto-authenticated socket ${socket.id} for ${authSender}`);
       }
 
       if (!authSender) {
-        console.warn(`❌ Message send blocked: Unauthenticated socket ${socket.id}. Data sender: ${data?.sender}`);
         if (callback) callback({ ok: false, error: "Not authenticated. Reconnecting..." });
         return;
       }
 
       if (!isDatabaseConnected()) {
-        console.error("❌ Message send blocked: Database not connected");
         if (callback) callback({ ok: false, error: "Database not connected" });
         socket.emit("message-error", { tempId: data?.tempId, error: "Database not connected" });
         return;
@@ -109,7 +102,6 @@ module.exports = (io, socket, users) => {
       const normalizedReceiver = normalizeEmail(receiver);
 
       if (authSender !== normalizedSender) {
-        console.warn(`❌ Message send blocked: Sender mismatch. Auth: ${authSender}, Data: ${normalizedSender}`);
         if (callback) callback({ ok: false, error: "Sender mismatch" });
         return;
       }
@@ -122,12 +114,10 @@ module.exports = (io, socket, users) => {
       const roomId = getRoomId(normalizedSender, normalizedReceiver);
       const msgTimestamp = timestamp ? new Date(timestamp) : new Date();
 
-      // 1. Encryption (Fast, synchronous-like)
       let encryptedText;
       try {
         encryptedText = encryptPayload(text);
       } catch (encErr) {
-        console.error("❌ Encryption failed:", encErr.message);
         if (callback) callback({ ok: false, error: "Message encryption failed" });
         return;
       }
@@ -146,10 +136,8 @@ module.exports = (io, socket, users) => {
         pending: true,
       };
 
-      // 2. 🚀 INSTANT DELIVERY (Before any DB ops)
       io.to(normalizedReceiver).to(roomId).to(normalizedSender).emit("receive-message", optimisticMessage);
 
-      // 3. Update Unread (Fast, in-memory)
       const unreadKey = `${normalizedSender}_${normalizedReceiver}`;
       unreadMessages[unreadKey] = (unreadMessages[unreadKey] || 0) + 1;
 
@@ -165,10 +153,8 @@ module.exports = (io, socket, users) => {
 
       if (callback) callback({ ok: true, pending: true, tempId });
 
-      // 4. Background DB Operations (Non-blocking for the socket response)
       (async () => {
         try {
-          // Parallelize independent DB tasks
           const [saved] = await Promise.all([
             Message.create({
               sender: normalizedSender,
@@ -193,19 +179,18 @@ module.exports = (io, socket, users) => {
             })
           ]);
 
-          // Notify about successful save
           io.to(normalizedReceiver).to(roomId).to(normalizedSender).emit("message-saved", {
             tempId: tempId || null,
             _id: saved._id,
             timestamp: saved.timestamp,
           });
         } catch (dbErr) {
-          console.error(`❌ DB Error for message from ${normalizedSender}:`, dbErr.message);
+          console.error(`DB Error for message from ${normalizedSender}:`, dbErr.message);
           socket.emit("message-error", { tempId, error: "Failed to save message" });
         }
       })();
     } catch (err) {
-      console.error("❌ Error sending message:", err.message);
+      console.error("Error sending message:", err.message);
       if (callback) callback({ ok: false, error: err.message });
     }
   });
@@ -228,11 +213,11 @@ module.exports = (io, socket, users) => {
         receiver: normalizeEmail(receiver),
       });
     } catch (err) {
-      console.error("❌ Error deleting message:", err.message);
+      console.error("Error deleting message:", err.message);
     }
   });
 
-  socket.on("mark-as-read", ({ user1, user2 }) => {
+  socket.on("mark-as-read", async ({ user1, user2 }) => {
     const authUser = getAuthenticatedEmail(socket, users);
     const normalizedUser1 = normalizeEmail(user1);
     const normalizedUser2 = normalizeEmail(user2);
@@ -245,10 +230,6 @@ module.exports = (io, socket, users) => {
       { sender: normalizedUser2, receiver: normalizedUser1, seen: false },
       { seen: true }
     ).catch((err) => console.warn("mark-as-read DB update failed:", err.message));
-
-    if (isUserOnline(users, normalizedUser1)) {
-      io.to(normalizedUser1).emit("unread-update", unreadMessages);
-    }
   });
 
   socket.on("seen-message", async ({ sender, receiver }) => {
@@ -272,7 +253,6 @@ module.exports = (io, socket, users) => {
     }
   });
 
-  // Per-user soft clear (WhatsApp-style): only hides for the requesting user
   socket.on("clear-chat", async ({ user1, user2, keepInRecent = false }, callback) => {
     try {
       const authUser = getAuthenticatedEmail(socket, users);
@@ -301,7 +281,7 @@ module.exports = (io, socket, users) => {
 
       if (callback) callback({ ok: true, clearedAt });
     } catch (err) {
-      console.error("❌ Error clearing chat:", err.message);
+      console.error("Error clearing chat:", err.message);
       if (callback) callback({ ok: false, error: err.message });
     }
   });

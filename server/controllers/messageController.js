@@ -4,6 +4,8 @@ const ArchivedChat = require("../models/ArchivedChat");
 const { decryptMessageDoc } = require("../utils/messageCrypto");
 const { normalizeEmail } = require("../utils/socketAuth");
 
+const MESSAGES_PER_PAGE = 50;
+
 const getClearedAt = async (user, partner) => {
   const record = await ClearedChat.findOne({
     user: normalizeEmail(user),
@@ -19,13 +21,16 @@ const getArchivedPartners = async (user) => {
 
 exports.getMessages = async (req, res) => {
   try {
-    const { user1, user2 } = req.query;
+    const { user1, user2, page = 1, limit = MESSAGES_PER_PAGE } = req.query;
     if (!user1 || !user2) {
       return res.status(400).json({ error: "user1 and user2 are required" });
     }
 
     const u1 = normalizeEmail(user1);
     const u2 = normalizeEmail(user2);
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(parseInt(limit) || MESSAGES_PER_PAGE, 100);
+    const skip = (pageNum - 1) * limitNum;
 
     const clearedAt = await getClearedAt(u1, u2);
     const query = {
@@ -39,12 +44,22 @@ exports.getMessages = async (req, res) => {
       query.timestamp = { $gt: clearedAt };
     }
 
+    const total = await Message.countDocuments(query);
+
     const messages = await Message.find(query)
-      .sort({ timestamp: 1 })
-      .limit(500)
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(limitNum)
       .lean();
 
-    res.json(messages.map(decryptMessageDoc));
+    const hasMore = skip + messages.length < total;
+
+    res.json({
+      messages: messages.map(decryptMessageDoc).reverse(),
+      hasMore,
+      total,
+      page: pageNum,
+    });
   } catch (error) {
     console.error("getMessages error:", error);
     res.status(500).json({ error: "Failed to fetch messages", details: error.message });
@@ -60,7 +75,6 @@ exports.getRecentChats = async (req, res) => {
 
     const normalizedEmail = normalizeEmail(userEmail);
 
-    // Get all users this person has chatted with, and the last message from each
     const conversations = await Message.aggregate([
       {
         $match: {
@@ -86,7 +100,6 @@ exports.getRecentChats = async (req, res) => {
       { $sort: { timestamp: -1 } },
     ]);
 
-    // Get cleared chat records to filter out hidden conversations
     const clearedRecords = await ClearedChat.find({ user: normalizedEmail }).lean();
     const clearedMap = Object.fromEntries(
       clearedRecords.map((r) => [r.partner, { clearedAt: r.clearedAt, keepInRecent: r.keepInRecent }])
@@ -97,13 +110,10 @@ exports.getRecentChats = async (req, res) => {
     const recentChats = conversations
       .filter((conv) => {
         const partner = conv._id;
-        // Filter out archived
         if (archivedPartners.includes(partner)) return false;
 
         const record = clearedMap[partner];
         if (!record) return true;
-        
-        // If keepInRecent is true, always show even if clearedAt is after last message
         if (record.keepInRecent) return true;
 
         return new Date(conv.timestamp) > new Date(record.clearedAt);
@@ -114,7 +124,7 @@ exports.getRecentChats = async (req, res) => {
           decrypted.type === "media"
             ? "[Media]"
             : typeof decrypted.lastMessage === "string"
-            ? decrypted.lastMessage
+            ? decrypted.lastMessage.substring(0, 100)
             : "[Message]";
 
         return {
@@ -164,8 +174,6 @@ exports.clearAllChats = async (req, res) => {
   try {
     const { userEmail } = req.body;
     const normalized = normalizeEmail(userEmail);
-    // For "Clear All", we essentially want to set clearedAt for all conversations
-    // Get all unique partners
     const partners = await Message.distinct("sender", { receiver: normalized });
     const partners2 = await Message.distinct("receiver", { sender: normalized });
     const allPartners = [...new Set([...partners, ...partners2])];

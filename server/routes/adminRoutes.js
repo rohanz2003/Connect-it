@@ -50,4 +50,14 @@ router.post('/logout', adminAuthMiddleware, (req, res) => {
   res.status(200).json({ message: "Admin logout successful. Please clear token from client-side." });
 });
 
+// @route PUT /api/admin/feedback/respond
+// @desc Admin responds to feedback
+// @access Private (Admin only)
+router.put('/feedback/respond', adminAuthMiddleware, adminController.respondToFeedback);
+
+// @route DELETE /api/admin/feedback/:id
+// @desc Delete feedback
+// @access Private (Admin only)
+router.delete('/feedback/:id', adminAuthMiddleware, adminController.deleteFeedback);
+
 module.exports = router;

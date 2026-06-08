@@ -1,8 +1,10 @@
 const express = require("express");
 const router = express.Router();
-const { sendFeedback } = require("../controllers/feedbackController");
+const { sendFeedback, respondToFeedback, deleteFeedback } = require("../controllers/feedbackController");
+const adminAuthMiddleware = require("../middleware/adminAuthMiddleware");
 
-// Route to send feedback
 router.post("/send", sendFeedback);
+router.put("/respond", adminAuthMiddleware, respondToFeedback);
+router.delete("/:id", adminAuthMiddleware, deleteFeedback);
 
 module.exports = router;

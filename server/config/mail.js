@@ -17,9 +17,8 @@ const createTransporter = () => {
     socketTimeout: 60000,     // 60s
     dnsTimeout: 20000,
     tls: {
-      // Helps with SNI issues and certificate handshake
       servername: "smtp.gmail.com",
-      rejectUnauthorized: false 
+      rejectUnauthorized: true
     }
   });
 };

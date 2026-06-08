@@ -98,17 +98,14 @@ function Login() {
     reader.readAsDataURL(file);
   };
 
-  const validateGmail = (email) => {
-    return email.toLowerCase().endsWith("@gmail.com");
-  };
-
   const handleAuth = async (e) => {
     e.preventDefault();
     setError("");
     setMessage("");
 
-    if (!validateGmail(email)) {
-      setError("Only valid Gmail addresses are allowed.");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError("Please enter a valid email address.");
       return;
     }
 
