@@ -69,7 +69,10 @@ function Chat({ user: currentUser }) {
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem("theme") === "dark");
   const [isChatMinimized, setIsChatMinimized] = useState(false);
   const [zoomedImage, setZoomedImage] = useState(null);
+  const [zoomedImageIndex, setZoomedImageIndex] = useState(-1);
   const [isZoomMinimized, setIsZoomMinimized] = useState(false);
+  const [showProfilePreview, setShowProfilePreview] = useState(false);
+  const [previewUserEmail, setPreviewUserEmail] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -105,16 +108,47 @@ function Chat({ user: currentUser }) {
     localStorage.setItem("theme", isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
 
-  const handleZoomImage = useCallback((src) => {
+  const mediaMessages = React.useMemo(
+    () => messages.filter((m) => m.type === "media" && m.text?.data?.startsWith("data:image/")),
+    [messages]
+  );
+
+  const handleZoomImage = useCallback((src, index = -1) => {
     setZoomedImage(src);
+    setZoomedImageIndex(index);
     setIsZoomMinimized(false);
+  }, []);
+
+  const handleOpenProfilePreview = useCallback((email) => {
+    setPreviewUserEmail(email);
+    setShowProfilePreview(true);
   }, []);
 
   useEffect(() => {
     if (!zoomedImage) {
       setIsZoomMinimized(false);
+      setZoomedImageIndex(-1);
     }
   }, [zoomedImage]);
+
+  useEffect(() => {
+    if (!zoomedImage || isZoomMinimized) return;
+    const handleKey = (e) => {
+      if (e.key === "ArrowLeft") {
+        const prevIdx = zoomedImageIndex > 0 ? zoomedImageIndex - 1 : mediaMessages.length - 1;
+        const prev = mediaMessages[prevIdx];
+        if (prev) handleZoomImage(prev.text.data, prevIdx);
+      } else if (e.key === "ArrowRight") {
+        const nextIdx = zoomedImageIndex < mediaMessages.length - 1 ? zoomedImageIndex + 1 : 0;
+        const next = mediaMessages[nextIdx];
+        if (next) handleZoomImage(next.text.data, nextIdx);
+      } else if (e.key === "Escape") {
+        setZoomedImage(null); setZoomedImageIndex(-1); setIsZoomMinimized(false);
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [zoomedImage, isZoomMinimized, zoomedImageIndex, mediaMessages, handleZoomImage]);
 
   const handleScrollEvent = useCallback(() => {
     if (!messagesContainerRef.current) return;
@@ -235,12 +269,16 @@ function Chat({ user: currentUser }) {
     loadChatHistory();
   }, [user]);
 
+  const loadingChatRef = useRef(null);
+
   const loadMessagesForChat = useCallback(async (user1, user2, page = 1) => {
-    if (loadingMessagesRef.current) return;
+    const targetChat = normalizeEmail(user2);
+    loadingChatRef.current = targetChat;
     try {
       setLoadingMessages(true);
       loadingMessagesRef.current = true;
       const data = await fetchMessages(user1, user2, page, MESSAGES_PER_PAGE);
+      if (normalizeEmail(selectedUserRef.current) !== targetChat) return;
       const newMessages = data.messages || [];
       setHasMoreMessages(data.hasMore);
       setCurrentPage(page);
@@ -270,8 +308,10 @@ function Chat({ user: currentUser }) {
         }
       }
     } finally {
-      setLoadingMessages(false);
-      loadingMessagesRef.current = false;
+      if (loadingChatRef.current === targetChat) {
+        setLoadingMessages(false);
+        loadingMessagesRef.current = false;
+      }
     }
   }, []);
 
@@ -435,6 +475,7 @@ function Chat({ user: currentUser }) {
 
   useEffect(() => {
     if (!user || !selectedUser || !socket) return;
+    loadingMessagesRef.current = false;
     socket.emit("join-room", { user1: user.email, user2: selectedUser });
     socket.emit("mark-as-read", { user1: user.email, user2: selectedUser });
     loadMessagesForChat(user.email, selectedUser, 1);
@@ -857,7 +898,7 @@ function Chat({ user: currentUser }) {
 
         <main className="chat-panel">
           <div className="chat-panel-header">
-            <div className="chat-panel-title">
+            <div className="chat-panel-title" onClick={() => selectedUser && handleOpenProfilePreview(selectedUser)} style={{ cursor: selectedUser ? "pointer" : "default" }}>
               <div className="header-avatar-wrap">{renderAvatar(selectedUser, "md")}</div>
               <div>
                 <h3>{selectedUser ? getDisplayName(selectedUser) : "Welcome to Connect"}</h3>
@@ -925,6 +966,46 @@ function Chat({ user: currentUser }) {
             </div>
           )}
 
+          {showProfilePreview && previewUserEmail && (
+            <div className="logout-modal-overlay" onClick={() => { setShowProfilePreview(false); setPreviewUserEmail(null); }}>
+              <div className="profile-preview-modal" onClick={(e) => e.stopPropagation()}>
+                <button className="profile-preview-close" onClick={() => { setShowProfilePreview(false); setPreviewUserEmail(null); }}><X size={20} /></button>
+                <div className="profile-preview-avatar">
+                  {renderAvatar(previewUserEmail, "lg")}
+                </div>
+                <div className="profile-preview-info">
+                  <h2 className="profile-preview-name">{getDisplayName(previewUserEmail)}</h2>
+                  <p className="profile-preview-email">{previewUserEmail}</p>
+                  {userMetadata[normalizeEmail(previewUserEmail)]?.bio && (
+                    <p className="profile-preview-bio">{userMetadata[normalizeEmail(previewUserEmail)].bio}</p>
+                  )}
+                  <div className="profile-preview-status">
+                    <span className={`status-indicator ${isUserOnline(previewUserEmail) ? "online" : "offline"}`} />
+                    <span>{isUserOnline(previewUserEmail) ? "Online" : formatLastSeen(lastSeen[normalizeEmail(previewUserEmail)])}</span>
+                  </div>
+                  <div className="profile-preview-meta">
+                    <div className="profile-preview-meta-item">
+                      <span className="meta-label">Email</span>
+                      <span className="meta-value">{previewUserEmail}</span>
+                    </div>
+                    <div className="profile-preview-meta-item">
+                      <span className="meta-label">Username</span>
+                      <span className="meta-value">{previewUserEmail?.split("@")[0]}</span>
+                    </div>
+                    <div className="profile-preview-meta-item">
+                      <span className="meta-label">Display Name</span>
+                      <span className="meta-value">{getDisplayName(previewUserEmail)}</span>
+                    </div>
+                    <div className="profile-preview-meta-item">
+                      <span className="meta-label">Media Shared</span>
+                      <span className="meta-value">{mediaMessages.length}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {showLogoutConfirm && (
             <div className="logout-modal-overlay" onClick={() => setShowLogoutConfirm(false)}>
               <div className="logout-modal" onClick={(e) => e.stopPropagation()}>
@@ -979,7 +1060,10 @@ function Chat({ user: currentUser }) {
                                 {msg.type === "media" ? (
                                   <div className="media-message">
                                     {msg.mediaType === "image" && msg.text?.data?.startsWith("data:image/") && (
-                                      <img src={msg.text.data} alt="Shared" className="media-image" onClick={() => handleZoomImage(msg.text.data)} />
+                                      <img src={msg.text.data} alt="Shared" className="media-image" onClick={() => {
+                                        const idx = mediaMessages.findIndex(m => (m._id || m.tempId) === (msg._id || msg.tempId));
+                                        handleZoomImage(msg.text.data, idx);
+                                      }} />
                                     )}
                                     {msg.mediaType === "video" && msg.text?.data?.startsWith("data:video/") && (
                                       <video controls className="media-video"><source src={msg.text.data} type={msg.text.type} /></video>
@@ -1154,21 +1238,66 @@ function Chat({ user: currentUser }) {
           </div>
         )}
 
-        {zoomedImage && !isZoomMinimized && (
-          <div className="image-zoom-overlay" onClick={() => { setZoomedImage(null); setIsZoomMinimized(false); }}>
-            <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="zoom-content" onClick={(e) => e.stopPropagation()}>
-              <div className="zoom-header">
-                <div className="zoom-title">Preview</div>
-                <button className="close-zoom" onClick={() => { setZoomedImage(null); setIsZoomMinimized(false); }}><X size={24} /></button>
-              </div>
-              <div className="zoom-image-circle"><img src={zoomedImage} alt="Zoomed" /></div>
-              <div className="zoom-controls">
-                <button className="zoom-control-btn min" onClick={() => setIsZoomMinimized(true)} title="Minimize"><Minus size={20} /></button>
-                <button className="zoom-control-btn close" onClick={() => { setZoomedImage(null); setIsZoomMinimized(false); }} title="Close"><X size={20} /></button>
-              </div>
+        <AnimatePresence>
+          {zoomedImage && !isZoomMinimized && (
+            <motion.div
+              className="image-zoom-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setZoomedImage(null); setZoomedImageIndex(-1); setIsZoomMinimized(false); }}
+                            
+            >
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                className="zoom-content"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="zoom-header">
+                  <div className="zoom-title">
+                    {zoomedImageIndex >= 0 ? `${zoomedImageIndex + 1} / ${mediaMessages.length}` : "Preview"}
+                  </div>
+                  <div className="zoom-header-actions">
+                    <a
+                      href={zoomedImage}
+                      download={`image-${Date.now()}.png`}
+                      className="zoom-download-btn"
+                      title="Download"
+                    >
+                      <Download size={18} />
+                    </a>
+                    <button className="close-zoom" onClick={() => { setZoomedImage(null); setZoomedImageIndex(-1); setIsZoomMinimized(false); }}><X size={24} /></button>
+                  </div>
+                </div>
+                <div className="zoom-image-circle"><img src={zoomedImage} alt="Zoomed" /></div>
+                <div className="zoom-controls">
+                  {mediaMessages.length > 1 && (
+                    <>
+                      <button className="zoom-control-btn" onClick={() => {
+                        const prevIdx = zoomedImageIndex > 0 ? zoomedImageIndex - 1 : mediaMessages.length - 1;
+                        const prev = mediaMessages[prevIdx];
+                        if (prev) handleZoomImage(prev.text.data, prevIdx);
+                      }} title="Previous">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+                      </button>
+                      <button className="zoom-control-btn" onClick={() => {
+                        const nextIdx = zoomedImageIndex < mediaMessages.length - 1 ? zoomedImageIndex + 1 : 0;
+                        const next = mediaMessages[nextIdx];
+                        if (next) handleZoomImage(next.text.data, nextIdx);
+                      }} title="Next">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                      </button>
+                    </>
+                  )}
+                  <button className="zoom-control-btn" onClick={() => setIsZoomMinimized(true)} title="Minimize"><Minus size={20} /></button>
+                  <button className="zoom-control-btn close" onClick={() => { setZoomedImage(null); setZoomedImageIndex(-1); setIsZoomMinimized(false); }} title="Close"><X size={20} /></button>
+                </div>
+              </motion.div>
             </motion.div>
-          </div>
-        )}
+          )}
+        </AnimatePresence>
 
         <button className="mobile-logout-fab" type="button" aria-label="Logout" onClick={() => setShowLogoutConfirm(true)}>
           <LogOut size={22} />
