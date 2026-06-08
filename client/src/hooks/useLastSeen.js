@@ -10,6 +10,7 @@ export const useLastSeen = (userId, { pollInterval = 60000 } = {}) => {
   const socket = useSocket();
   const intervalRef = useRef(null);
   const [display, setDisplay] = useState("last seen a long time ago");
+  const onlineUsersRef = useRef([]);
 
   // Reset state immediately when userId changes
   useEffect(() => {
@@ -44,13 +45,18 @@ export const useLastSeen = (userId, { pollInterval = 60000 } = {}) => {
   useEffect(() => {
     if (!socket) return;
 
+    const normalizedId = (userId || "").toLowerCase().trim();
+
+    // Immediately check current online list on userId change
+    setIsOnline(onlineUsersRef.current.some((u) => u.toLowerCase().trim() === normalizedId));
+
     const handleOnlineUsers = (users) => {
-      const normalizedId = (userId || "").toLowerCase().trim();
+      onlineUsersRef.current = users;
       setIsOnline(users.some((u) => u.toLowerCase().trim() === normalizedId));
     };
 
     const handleLastSeen = (data) => {
-      if (data.userId && userId && data.userId.toLowerCase().trim() === userId.toLowerCase().trim()) {
+      if (data.userId && userId && data.userId.toLowerCase().trim() === normalizedId) {
         setLastSeen(data.time);
       }
     };
