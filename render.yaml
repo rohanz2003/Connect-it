@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: chat-app
+    runtime: node
+    branch: main
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      # Set real values in Render Dashboard → Environment (never commit secrets)
+      - key: NODE_VERSION
+        value: "20"
+      - key: MONGO_URI
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: MESSAGE_ENCRYPTION_KEY
+        sync: false
+      - key: FRONTEND_URL
+        value: https://connect-it.vercel.app
