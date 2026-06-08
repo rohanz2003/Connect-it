@@ -2290,6 +2290,351 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
 }
 
 /* ============================================================================
+   PROFILE PREVIEW MODAL
+   ============================================================================ */
+
+.profile-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+.profile-preview-card {
+  background: var(--background-white);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+  animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid var(--border-color);
+}
+
+.profile-preview-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--border-light);
+  color: var(--text-secondary);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.profile-preview-close:hover {
+  background: var(--danger-light);
+  color: var(--danger-color);
+}
+
+.profile-preview-avatar {
+  margin-bottom: 16px;
+}
+
+.profile-preview-avatar .avatar {
+  margin: 0 auto;
+}
+
+.profile-preview-name {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.profile-preview-email {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: var(--text-light);
+}
+
+.profile-preview-status {
+  margin: 0 0 20px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #22c55e;
+}
+
+.profile-preview-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-preview-action-btn {
+  padding: 10px 16px;
+  border: 1px solid var(--border-color);
+  background: var(--background-white);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: inherit;
+  text-align: center;
+  display: block;
+  text-decoration: none;
+}
+
+.profile-preview-action-btn:hover {
+  background: var(--border-light);
+}
+
+.profile-preview-action-btn.primary {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.profile-preview-action-btn.primary:hover {
+  background: var(--primary-hover);
+}
+
+.profile-preview-action-btn.danger {
+  color: var(--danger-color);
+  border-color: var(--danger-color);
+}
+
+.profile-preview-action-btn.danger:hover {
+  background: var(--danger-light);
+}
+
+/* ============================================================================
+   FULLSCREEN IMAGE VIEWER
+   ============================================================================ */
+
+.fullscreen-viewer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 10001;
+  display: flex;
+  flex-direction: column;
+  animation: fadeIn 0.2s ease;
+}
+
+.fullscreen-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+}
+
+.fullscreen-viewer-title {
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.fullscreen-viewer-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fullscreen-viewer-controls button,
+.fullscreen-toolbar-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.fullscreen-viewer-controls button:hover,
+.fullscreen-toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.fullscreen-toolbar-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+.fullscreen-zoom-level {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 40px;
+  text-align: center;
+}
+
+.fullscreen-viewer-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  transition: transform 0.2s ease;
+}
+
+.fullscreen-viewer-content img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+/* ============================================================================
+   IMAGE CROP MODAL
+   ============================================================================ */
+
+.crop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10002;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+.crop-modal {
+  background: var(--background-white);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+  animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.crop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.crop-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.crop-header button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--border-light);
+  color: var(--text-secondary);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.crop-header button:hover {
+  background: var(--danger-light);
+  color: var(--danger-color);
+}
+
+.crop-canvas-wrap {
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a2e;
+  cursor: grab;
+  user-select: none;
+}
+
+.crop-canvas-wrap:active {
+  cursor: grabbing;
+}
+
+.crop-canvas {
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--primary-color);
+}
+
+.crop-zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  color: var(--text-secondary);
+}
+
+.crop-zoom-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--primary-color);
+  height: 4px;
+}
+
+.crop-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px 20px;
+}
+
+.crop-cancel-btn {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--background-white);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: var(--transition);
+}
+
+.crop-cancel-btn:hover {
+  background: var(--border-light);
+}
+
+.crop-save-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: var(--primary-color);
+  color: white;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: var(--transition);
+}
+
+.crop-save-btn:hover {
+  background: var(--primary-hover);
+}
+
+/* ============================================================================
    PRINT STYLES
    ============================================================================ */
 

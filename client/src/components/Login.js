@@ -1,15 +1,27 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { auth } from "../firebase";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
-import { Eye, EyeOff, ArrowLeft, Mail, Lock, User, Image, CheckCircle, XCircle } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  ArrowLeft,
+  Mail,
+  Lock,
+  User,
+  CheckCircle,
+  XCircle,
+  Shield,
+  Zap,
+  Cloud,
+  Camera,
+} from "lucide-react";
 import "./Login.css";
 
 const validatePassword = (pwd) => {
@@ -25,22 +37,22 @@ const validatePassword = (pwd) => {
 const PasswordStrength = ({ password }) => {
   if (!password) return null;
   const checks = [
-    { label: "8+ characters", met: password.length >= 8 },
+    { label: "8+ Characters", met: password.length >= 8 },
     { label: "Uppercase", met: /[A-Z]/.test(password) },
     { label: "Lowercase", met: /[a-z]/.test(password) },
     { label: "Number", met: /[0-9]/.test(password) },
-    { label: "Special char", met: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password) },
+    { label: "Special Character", met: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password) },
   ];
-  const score = checks.filter(c => c.met).length;
+  const score = checks.filter((c) => c.met).length;
 
   return (
-    <div className="password-strength">
-      <div className="strength-bar">
-        <div className={`strength-fill strength-${score}`} style={{ width: `${(score / 5) * 100}%` }} />
+    <div className="pwd-strength">
+      <div className="pwd-strength-bar">
+        <div className={`pwd-strength-fill pwd-strength-${score}`} style={{ width: `${(score / 5) * 100}%` }} />
       </div>
-      <div className="strength-checks">
+      <div className="pwd-strength-checks">
         {checks.map((c, i) => (
-          <span key={i} className={`strength-check ${c.met ? "met" : ""}`}>
+          <span key={i} className={`pwd-strength-check ${c.met ? "met" : ""}`}>
             {c.met ? <CheckCircle size={12} /> : <XCircle size={12} />}
             {c.label}
           </span>
@@ -64,16 +76,8 @@ function Login() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetSent, setResetSent] = useState(false);
+  const fileInputRef = useRef(null);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && user.emailVerified) {
-        navigate("/chat");
-      }
-    });
-    return () => unsubscribe();
-  }, [navigate]);
 
   const handleProfilePicChange = (e) => {
     const file = e.target.files[0];
@@ -93,13 +97,21 @@ function Login() {
       img.onload = () => {
         const canvas = document.createElement("canvas");
         const MAX_SIZE = 150;
-        let width = img.width, height = img.height;
+        let width = img.width;
+        let height = img.height;
         if (width > height) {
-          if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
         } else {
-          if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
         }
-        canvas.width = width; canvas.height = height;
+        canvas.width = width;
+        canvas.height = height;
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, width, height);
         const compressed = canvas.toDataURL("image/jpeg", 0.7);
@@ -156,12 +168,13 @@ function Login() {
           localStorage.setItem("user", JSON.stringify({ ...stored, displayName: displayName.trim() }));
         } catch (e) {}
 
-        await sendEmailVerification(userCredential.user);
-        setMessage("Verification email sent! Please check your Gmail to verify your account before logging in.");
+        await sendPasswordResetEmail(auth, email).catch(() => {});
+        setMessage("Account created! Please sign in to continue.");
         setIsRegistering(false);
         setProfilePic(null);
         setProfilePreview(null);
         setDisplayName("");
+        setEmail("");
         setPassword("");
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -178,31 +191,40 @@ function Login() {
         const signedInUser = {
           email: userCredential.user.email,
           uid: userCredential.user.uid,
-          profilePic: profilePicUrl
+          profilePic: profilePicUrl,
         };
 
         try {
-          localStorage.setItem("user", JSON.stringify({
-            email: signedInUser.email,
-            uid: signedInUser.uid
-          }));
+          localStorage.setItem(
+            "user",
+            JSON.stringify({
+              email: signedInUser.email,
+              uid: signedInUser.uid,
+            })
+          );
         } catch (storageError) {
-          Object.keys(localStorage).forEach(key => {
-            if (key.startsWith('chatHistory_') || key.startsWith('unread_') || key.startsWith('userProfiles_')) {
+          Object.keys(localStorage).forEach((key) => {
+            if (key.startsWith("chatHistory_") || key.startsWith("unread_") || key.startsWith("userProfiles_")) {
               localStorage.removeItem(key);
             }
           });
           try {
-            localStorage.setItem("user", JSON.stringify({
-              email: signedInUser.email,
-              uid: signedInUser.uid
-            }));
+            localStorage.setItem(
+              "user",
+              JSON.stringify({
+                email: signedInUser.email,
+                uid: signedInUser.uid,
+              })
+            );
           } catch (f) {
             try {
-              sessionStorage.setItem("user", JSON.stringify({
-                email: signedInUser.email,
-                uid: signedInUser.uid
-              }));
+              sessionStorage.setItem(
+                "user",
+                JSON.stringify({
+                  email: signedInUser.email,
+                  uid: signedInUser.uid,
+                })
+              );
             } catch (sessionError) {}
           }
         }
@@ -266,26 +288,50 @@ function Login() {
   };
 
   return (
-    <div className="login">
-      <Link to="/" className="back-to-home">
+    <div className="login-split">
+      <Link to="/" className="login-back-home">
         <ArrowLeft size={18} /> Back to Home
       </Link>
-      <div className="login-container">
+
+      {/* Left branding panel */}
+      <div className="login-left-panel">
+        <h1>Connect with the world</h1>
+        <p className="login-left-subtitle">
+          Secure, fast, and enterprise-ready messaging for modern teams.
+        </p>
+        <ul className="login-features">
+          <li>
+            <Shield size={18} />
+            <span>End-to-End Encrypted</span>
+          </li>
+          <li>
+            <Zap size={18} />
+            <span>Real-time Sync</span>
+          </li>
+          <li>
+            <Cloud size={18} />
+            <span>Cloud Storage</span>
+          </li>
+        </ul>
+      </div>
+
+      {/* Right form panel */}
+      <div className="login-right-panel">
         {showForgotPassword ? (
-          <>
-            <div className="login-logo">
-              <div className="logo-icon-circle">🔐</div>
+          <div className="login-form-wrap">
+            <div className="login-logo-icon">
+              <span>C</span>
             </div>
             <h2>Reset Password</h2>
-            <p className="subtitle">Enter your email to receive a reset link</p>
+            <p className="login-form-subtitle">Enter your email to receive a reset link</p>
 
-            {error && <div className="error-banner">{error}</div>}
-            {message && <div className="success-banner">{message}</div>}
+            {error && <div className="login-error">{error}</div>}
+            {message && <div className="login-success">{message}</div>}
 
             {!resetSent ? (
               <form onSubmit={handleForgotPassword}>
-                <div className="input-group">
-                  <Mail size={18} className="input-icon" />
+                <div className="login-input-group">
+                  <Mail size={18} className="login-input-icon" />
                   <input
                     type="email"
                     placeholder="Gmail Address"
@@ -294,57 +340,70 @@ function Login() {
                     required
                   />
                 </div>
-                <button type="submit" disabled={loading}>
+                <button type="submit" className="login-submit-btn" disabled={loading}>
                   {loading ? "Sending..." : "Send Reset Link"}
                 </button>
               </form>
             ) : (
-              <div className="reset-success">
-                <CheckCircle size={48} className="success-icon" />
+              <div className="login-reset-success">
+                <CheckCircle size={48} className="login-success-icon" />
                 <p>Check your email for the password reset link.</p>
-                <button className="primary-btn" onClick={() => { setShowForgotPassword(false); setResetSent(false); setResetEmail(""); setMessage(""); }}>
+                <button
+                  className="login-submit-btn"
+                  onClick={() => {
+                    setShowForgotPassword(false);
+                    setResetSent(false);
+                    setResetEmail("");
+                    setMessage("");
+                  }}
+                >
                   Back to Login
                 </button>
               </div>
             )}
 
-            <p className="toggle-text">
-              <span onClick={() => { setShowForgotPassword(false); setError(""); setMessage(""); }}>
+            <p className="login-toggle">
+              <span
+                onClick={() => {
+                  setShowForgotPassword(false);
+                  setError("");
+                  setMessage("");
+                }}
+              >
                 Back to Login
               </span>
             </p>
-          </>
+          </div>
         ) : (
-          <>
-            <div className="login-logo">
-              <div className="logo-icon-circle">💬</div>
+          <div className="login-form-wrap">
+            <div className="login-logo-icon">
+              <span>C</span>
             </div>
             <h2>{isRegistering ? "Create Account" : "Welcome Back"}</h2>
-            <p className="subtitle">
-              {isRegistering
-                ? "Join Connect It - Secure messaging for Gmail users"
-                : "Sign in to continue to Connect It"}
+            <p className="login-form-subtitle">
+              {isRegistering ? "Join our secure network today" : "Sign in to your secure workspace"}
             </p>
 
-            {error && <div className="error-banner">{error}</div>}
-            {message && <div className="success-banner">{message}</div>}
+            {error && <div className="login-error">{error}</div>}
+            {message && <div className="login-success">{message}</div>}
 
             <form onSubmit={handleAuth}>
               {isRegistering && (
                 <>
-                  <div className="profile-pic-section">
-                    <label htmlFor="profile-pic" className="profile-pic-label">
+                  <div className="login-profile-section">
+                    <div className="login-profile-circle" onClick={() => fileInputRef.current?.click()}>
                       {profilePreview ? (
-                        <img src={profilePreview} alt="Profile" className="profile-pic-preview" />
+                        <img src={profilePreview} alt="Profile" className="login-profile-img" />
                       ) : (
-                        <div className="profile-pic-placeholder">
-                          <Image size={24} />
-                          <span>Add Photo</span>
+                        <div className="login-profile-placeholder">
+                          <Camera size={24} />
                         </div>
                       )}
-                    </label>
+                      <div className="login-profile-badge">+</div>
+                    </div>
+                    <span className="login-profile-text">Choose Profile Picture</span>
                     <input
-                      id="profile-pic"
+                      ref={fileInputRef}
                       type="file"
                       accept="image/*"
                       onChange={handleProfilePicChange}
@@ -352,8 +411,8 @@ function Login() {
                     />
                   </div>
 
-                  <div className="input-group">
-                    <User size={18} className="input-icon" />
+                  <div className="login-input-group">
+                    <User size={18} className="login-input-icon" />
                     <input
                       type="text"
                       placeholder="Display Name"
@@ -365,8 +424,8 @@ function Login() {
                 </>
               )}
 
-              <div className="input-group">
-                <Mail size={18} className="input-icon" />
+              <div className="login-input-group">
+                <Mail size={18} className="login-input-icon" />
                 <input
                   type="email"
                   placeholder="Gmail Address"
@@ -376,8 +435,8 @@ function Login() {
                 />
               </div>
 
-              <div className="input-group">
-                <Lock size={18} className="input-icon" />
+              <div className="login-input-group">
+                <Lock size={18} className="login-input-icon" />
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="Password"
@@ -387,7 +446,7 @@ function Login() {
                 />
                 <button
                   type="button"
-                  className="password-toggle"
+                  className="login-pwd-toggle"
                   onClick={() => setShowPassword(!showPassword)}
                   tabIndex={-1}
                 >
@@ -398,33 +457,46 @@ function Login() {
               {isRegistering && <PasswordStrength password={password} />}
 
               {!isRegistering && (
-                <div className="forgot-password-link">
-                  <span onClick={() => { setShowForgotPassword(true); setError(""); setMessage(""); setResetEmail(email); }}>
-                    Forgot password?
+                <div className="login-forgot">
+                  <span
+                    onClick={() => {
+                      setShowForgotPassword(true);
+                      setError("");
+                      setMessage("");
+                      setResetEmail(email);
+                    }}
+                  >
+                    Forgot Password?
                   </span>
                 </div>
               )}
 
-              <button type="submit" className="submit-btn" disabled={loading}>
+              <button type="submit" className="login-submit-btn" disabled={loading}>
                 {loading ? (
-                  <span className="btn-loading">Loading...</span>
+                  <span className="login-btn-loading">Loading...</span>
                 ) : (
-                  isRegistering ? "Create Account" : "Sign In"
+                  <>
+                    {isRegistering ? "Register Now" : "Sign In"}
+                    <span className="login-btn-arrow">→</span>
+                  </>
                 )}
               </button>
             </form>
 
-            <p className="toggle-text">
-              {isRegistering ? "Already have an account?" : "Don't have an account?"}{" "}
-              <span onClick={toggleMode}>
-                {isRegistering ? "Sign in" : "Register now"}
-              </span>
+            <p className="login-toggle">
+              {isRegistering ? (
+                <>
+                  Already have an account?{" "}
+                  <span onClick={toggleMode}>Sign In</span>
+                </>
+              ) : (
+                <>
+                  New to Connect?{" "}
+                  <span onClick={toggleMode}>Create Account</span>
+                </>
+              )}
             </p>
-
-            <div className="login-footer">
-              <p>By continuing, you agree to our Terms of Service</p>
-            </div>
-          </>
+          </div>
         )}
       </div>
     </div>

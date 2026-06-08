@@ -44,6 +44,8 @@ import "./Chat.css";
 
 const normalizeEmail = (email) => (email || "").toLowerCase().trim();
 
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
 const getOtherParty = (msg, currentUserEmail) => {
   const senderEmail = normalizeEmail(msg.sender);
   const receiverEmail = normalizeEmail(msg.receiver);
@@ -72,6 +74,109 @@ const upsertMessageInList = (list, msg) => {
   );
 };
 
+const ImageCropModal = ({ src, onCrop, onCancel }) => {
+  const canvasRef = React.useRef(null);
+  const [scale, setScale] = React.useState(1);
+  const [offset, setOffset] = React.useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = React.useState(false);
+  const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
+  const [imgSize, setImgSize] = React.useState({ w: 0, h: 0 });
+
+  React.useEffect(() => {
+    if (!src) return;
+    const img = new Image();
+    img.onload = () => {
+      setImgSize({ w: img.width, h: img.height });
+    };
+    img.src = src;
+  }, [src]);
+
+  React.useEffect(() => {
+    if (!src || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const size = 280;
+    canvas.width = size;
+    canvas.height = size;
+
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, size, size);
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.clip();
+
+      const baseW = Math.min(size, img.width);
+      const baseH = (baseW / img.width) * img.height;
+      const drawW = baseW * scale;
+      const drawH = baseH * scale;
+      const x = (size - drawW) / 2 + offset.x;
+      const y = (size - drawH) / 2 + offset.y;
+      ctx.drawImage(img, x, y, drawW, drawH);
+    };
+    img.src = src;
+  }, [src, scale, offset]);
+
+  const handleMouseDown = (e) => {
+    setDragging(true);
+    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!dragging) return;
+    setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+  };
+
+  const handleMouseUp = () => setDragging(false);
+
+  const handleCrop = () => {
+    if (!canvasRef.current) return;
+    const croppedData = canvasRef.current.toDataURL("image/jpeg", 0.85);
+    onCrop(croppedData);
+  };
+
+  return (
+    <div className="crop-overlay" onClick={onCancel}>
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="crop-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="crop-header">
+          <h3>Crop Profile Picture</h3>
+          <button onClick={onCancel}><X size={18} /></button>
+        </div>
+        <div
+          className="crop-canvas-wrap"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
+          <canvas ref={canvasRef} className="crop-canvas" />
+        </div>
+        <div className="crop-zoom-row">
+          <ZoomOut size={16} />
+          <input
+            type="range"
+            min="0.5"
+            max="3"
+            step="0.05"
+            value={scale}
+            onChange={(e) => { setScale(parseFloat(e.target.value)); setOffset({ x: 0, y: 0 }); }}
+          />
+          <ZoomIn size={16} />
+        </div>
+        <div className="crop-actions">
+          <button className="crop-cancel-btn" onClick={onCancel}>Cancel</button>
+          <button className="crop-save-btn" onClick={handleCrop}>Crop & Save</button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 function Chat({ user: currentUser }) {
   const socket = useSocket();
   const navigate = useNavigate();
@@ -90,15 +195,19 @@ function Chat({ user: currentUser }) {
   const [isMediaSending, setIsMediaSending] = useState(false); // Track media upload state
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem("theme") === "dark");
   const [isChatMinimized, setIsChatMinimized] = useState(false); // Track if chat is minimized
-  const [zoomedImage, setZoomedImage] = useState(null); // State for image zoom feature
-  const [isZoomMinimized, setIsZoomMinimized] = useState(false); // Track zoom bubble state
-  const [contextMenu, setContextMenu] = useState(null); // { x, y, message }
-  const [replyTo, setReplyTo] = useState(null); // Message being replied to
+  const [contextMenu, setContextMenu] = useState(null);
+  const [replyTo, setReplyTo] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const attachMenuRef = useRef(null);
+  const [userNames, setUserNames] = useState({});
+  const [profilePreviewUser, setProfilePreviewUser] = useState(null);
+  const [imageViewerState, setImageViewerState] = useState({ open: false, src: null, type: "media", name: "", isOwn: false });
+  const [cropState, setCropState] = useState({ open: false, src: null, file: null });
+  const [imageZoom, setImageZoom] = useState(1);
+  const archivedChatsRef = useRef(null);
   const [archivedChats, setArchivedChats] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`archivedChats_${localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")).email : ""}`) || "[]"); } catch { return []; }
   });
@@ -123,17 +232,26 @@ function Chat({ user: currentUser }) {
     localStorage.setItem("theme", isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
 
-  const handleZoomImage = (src) => {
-    if (!src) return;
-    setZoomedImage(src);
-    setIsZoomMinimized(false);
+  const handleAvatarClick = (e, email, isOwn = false) => {
+    e.stopPropagation();
+    setProfilePreviewUser({ email, isOwn });
   };
 
-  useEffect(() => {
-    if (!zoomedImage) {
-      setIsZoomMinimized(false);
-    }
-  }, [zoomedImage]);
+  const handleViewFullImage = (src, type = "media", name = "", isOwn = false) => {
+    setProfilePreviewUser(null);
+    setImageZoom(1);
+    setImageViewerState({ open: true, src, type, name, isOwn });
+  };
+
+  const handleDownloadImage = (src, name) => {
+    if (!src) return;
+    const link = document.createElement("a");
+    link.href = src;
+    link.download = name || "image.jpg";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Auto-scroll to bottom whenever messages or typing state changes
   useEffect(() => {
@@ -198,7 +316,10 @@ function Chat({ user: currentUser }) {
     });
   };
 
-  const getDisplayName = (email) => (email || "").split("@")[0];
+  const getDisplayName = (email) => {
+    const normalized = normalizeEmail(email);
+    return userNames[normalized] || (email || "").split("@")[0];
+  };
 
   const chatHistoryRef = useRef({});
   useEffect(() => {
@@ -266,6 +387,31 @@ function Chat({ user: currentUser }) {
       setUser(prev => ({ ...prev, profilePic: savedPicFromReg }));
     }
   }, [currentUser, navigate]);
+
+  // Load profiles from server on mount
+  useEffect(() => {
+    if (!user) return;
+    const loadProfiles = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/users/profiles?emails=${encodeURIComponent(user.email)}`);
+        const data = await res.json();
+        if (data.success && data.profiles) {
+          Object.entries(data.profiles).forEach(([email, profile]) => {
+            if (profile.avatarUrl) {
+              setUserProfiles(prev => ({ ...prev, [email]: profile.avatarUrl }));
+              localStorage.setItem(`profilePic_${email}`, profile.avatarUrl);
+            }
+            if (profile.displayName) {
+              setUserNames(prev => ({ ...prev, [email]: profile.displayName }));
+            }
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to load profiles from server");
+      }
+    };
+    loadProfiles();
+  }, [user]);
 
   // Load chat history from localStorage and fetch recent chats on mount
   useEffect(() => {
@@ -398,12 +544,17 @@ function Chat({ user: currentUser }) {
           ...prev,
           [data.email.toLowerCase()]: data.profilePic
         };
-        // Save profiles to localStorage
         if (user) {
           localStorage.setItem(`userProfiles_${user.email.toLowerCase()}`, JSON.stringify(updated));
         }
         return updated;
       });
+      if (data.displayName || data.bio) {
+        setUserNames((prev) => ({
+          ...prev,
+          [data.email.toLowerCase()]: data.displayName || null,
+        }));
+      }
     });
 
     const handleChatCleared = ({ user1, user2, scope }) => {
@@ -1021,8 +1172,8 @@ function Chat({ user: currentUser }) {
   const handleUpdateProfilePic = (e) => {
     const file = e.target.files[0];
     if (!file || !user) return;
+    e.target.value = null;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       alert("Please select an image file.");
       return;
@@ -1030,42 +1181,29 @@ function Chat({ user: currentUser }) {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const MAX_SIZE = 150;
-        let width = img.width, height = img.height;
-        if (width > height) {
-          if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
-        } else {
-          if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
-        }
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, width, height);
-        const newPic = canvas.toDataURL("image/jpeg", 0.7);
-
-        const updatedUser = { ...user, profilePic: newPic };
-        setUser(updatedUser);
-
-        safeLocalStorageSet("user", JSON.stringify({
-          email: updatedUser.email,
-          uid: updatedUser.uid
-        }));
-        safeLocalStorageSet(`profilePic_${user.email.toLowerCase()}`, newPic);
-
-        setUserProfiles(prev => ({
-          ...prev,
-          [user.email.toLowerCase()]: newPic
-        }));
-
-        if (socket) {
-          socket.emit("join", { email: user.email, profilePic: newPic });
-        }
-      };
-      img.src = event.target.result;
+      setCropState({ open: true, src: event.target.result, file });
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleCropSave = (croppedDataUrl) => {
+    const updatedUser = { ...user, profilePic: croppedDataUrl };
+    setUser(updatedUser);
+    safeLocalStorageSet("user", JSON.stringify({ email: updatedUser.email, uid: updatedUser.uid }));
+    safeLocalStorageSet(`profilePic_${user.email.toLowerCase()}`, croppedDataUrl);
+    setUserProfiles(prev => ({ ...prev, [user.email.toLowerCase()]: croppedDataUrl }));
+
+    fetch(`${API_URL}/api/users/avatar`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: user.email, avatarUrl: croppedDataUrl }),
+    }).catch(() => {});
+
+    if (socket) {
+      socket.emit("update-profile", { email: user.email, profilePic: croppedDataUrl });
+    }
+
+    setCropState({ open: false, src: null, file: null });
   };
 
   const handleRemoveProfilePic = () => {
@@ -1082,8 +1220,15 @@ function Chat({ user: currentUser }) {
       delete updated[user.email.toLowerCase()];
       return updated;
     });
+
+    fetch(`${API_URL}/api/users/avatar`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: user.email, avatarUrl: null }),
+    }).catch(() => {});
+
     if (socket) {
-      socket.emit("join", { email: user.email, profilePic: null });
+      socket.emit("remove-profile-pic", { email: user.email });
     }
   };
 
@@ -1227,10 +1372,10 @@ function Chat({ user: currentUser }) {
               email={user.email}
               size={40}
               className="profile-card-avatar"
-              onClick={() => handleZoomImage(userProfiles[user.email.toLowerCase()] || user.profilePic || null)}
+              onClick={(e) => handleAvatarClick(e, user.email, true)}
             />
             <div>
-              <span className="profile-name">{user.email.split("@")[0]}</span>
+              <span className="profile-name">{getDisplayName(user.email)}</span>
               <span className="profile-meta">
                 {isUserOnline(user.email) ? "Online" : "Offline"}
               </span>
@@ -1261,12 +1406,12 @@ function Chat({ user: currentUser }) {
                       email={u}
                       size={40}
                       className="user-avatar"
-                      onClick={(e) => { e.stopPropagation(); handleZoomImage(userProfiles[u] || null); }}
+                      onClick={(e) => handleAvatarClick(e, u, false)}
                     />
                     {isUserOnline(u) && <span className="status-dot" />}
                   </div>
                   <div className="user-item-copy">
-                    <span className="user-name">{u}</span>
+                    <span className="user-name">{getDisplayName(u)}</span>
                     <span className="user-last">{isUserOnline(u) ? "Online" : "Last active"}</span>
                   </div>
                   <div className="user-item-actions">
@@ -1311,12 +1456,12 @@ function Chat({ user: currentUser }) {
                       email={u}
                       size={40}
                       className="user-avatar"
-                      onClick={(e) => { e.stopPropagation(); handleZoomImage(userProfiles[u] || null); }}
+                      onClick={(e) => handleAvatarClick(e, u, false)}
                     />
                   <span className="status-dot online" />
                 </div>
                 <div className="user-item-copy">
-                  <span className="user-name">{u}</span>
+                  <span className="user-name">{getDisplayName(u)}</span>
                   <span className="user-last">Available now</span>
                 </div>
                 {getUnreadCount(u) > 0 && (
@@ -1348,7 +1493,7 @@ function Chat({ user: currentUser }) {
                     />
                   </div>
                   <div className="user-item-copy">
-                    <span className="user-name">{u}</span>
+                    <span className="user-name">{getDisplayName(u)}</span>
                     <span className="user-last">Archived</span>
                   </div>
                   <div className="user-item-actions">
@@ -1387,11 +1532,11 @@ function Chat({ user: currentUser }) {
                 email={selectedUser || "default"}
                 size={40}
                 className="header-avatar"
-                onClick={() => selectedUser && handleZoomImage(userProfiles[selectedUser] || null)}
+                onClick={() => selectedUser && handleAvatarClick({ stopPropagation: () => {} }, selectedUser, false)}
               />
             </div>
             <div>
-              <h3>{selectedUser || "Welcome to Connect"}</h3>
+              <h3>{selectedUser ? getDisplayName(selectedUser) : "Welcome to Connect"}</h3>
               <p>{selectedUser ? (isUserOnline(selectedUser) ? "Online" : formatLastSeen(lastSeen[selectedUser])) : "Choose a conversation or create a new one."}</p>
             </div>
           </div>
@@ -1493,7 +1638,7 @@ function Chat({ user: currentUser }) {
                           {msg.type === "media" ? (
                             <div className="media-message">
                               {msg.mediaType === "image" && msg.text?.data?.startsWith("data:image/") && (
-                                <img src={msg.text.data} alt="Shared" className="media-image" onClick={() => handleZoomImage(msg.text.data)} />
+                                <img src={msg.text.data} alt="Shared" className="media-image" onClick={() => handleViewFullImage(msg.text.data, "media")} />
                               )}
                               {msg.mediaType === "video" && msg.text?.data?.startsWith("data:video/") && (
                                 <video controls className="media-video">
@@ -1587,7 +1732,7 @@ function Chat({ user: currentUser }) {
           ) : (
             <div className="dashboard-empty-state">
               <div className="welcome-panel">
-                <h2>Welcome back, {user.email.split("@")[0]} 👋</h2>
+                <h2>Welcome back, {getDisplayName(user.email)} 👋</h2>
                 <p>Pick a chat or start messaging a colleague from the sidebar.</p>
               </div>
             </div>
@@ -1756,53 +1901,122 @@ function Chat({ user: currentUser }) {
         </div>
       )}
 
-      {zoomedImage && isZoomMinimized && (
-        <div className="zoom-minimized-bubble">
-          <img src={zoomedImage} alt="Minimized preview" />
-          <div className="zoom-minimized-copy">
-            <strong>Profile preview minimized</strong>
-            <span>Tap to expand</span>
-          </div>
-          <button
-            className="zoom-minimized-close"
-            onClick={() => {
-              setZoomedImage(null);
-              setIsZoomMinimized(false);
-            }}
-            aria-label="Close preview"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
-
-      {zoomedImage && !isZoomMinimized && (
-        <div className="image-zoom-overlay" onClick={() => { setZoomedImage(null); setIsZoomMinimized(false); }}>
+      {/* Profile Preview Modal */}
+      {profilePreviewUser && (
+        <div className="profile-preview-overlay" onClick={() => setProfilePreviewUser(null)}>
           <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
+            initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="zoom-content"
+            className="profile-preview-card"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="zoom-header">
-              <div className="zoom-title">Profile picture preview</div>
-              <button className="close-zoom" onClick={() => { setZoomedImage(null); setIsZoomMinimized(false); }} aria-label="Close preview">
-                <X size={24} />
-              </button>
+            <button className="profile-preview-close" onClick={() => setProfilePreviewUser(null)}>
+              <X size={20} />
+            </button>
+            <div className="profile-preview-avatar">
+              <Avatar
+                src={userProfiles[normalizeEmail(profilePreviewUser.email)] || null}
+                email={profilePreviewUser.email}
+                size={120}
+              />
             </div>
-            <div className="zoom-image-circle">
-              <img src={zoomedImage} alt="Zoomed DP" />
-            </div>
-            <div className="zoom-controls">
-              <button className="zoom-control-btn min" onClick={() => setIsZoomMinimized(true)} title="Minimize preview">
-                <Minus size={20} />
-              </button>
-              <button className="zoom-control-btn close" onClick={() => { setZoomedImage(null); setIsZoomMinimized(false); }} title="Close preview">
-                <X size={20} />
-              </button>
+            <h3 className="profile-preview-name">{getDisplayName(profilePreviewUser.email)}</h3>
+            <p className="profile-preview-email">{profilePreviewUser.email}</p>
+            <p className="profile-preview-status">
+              {isUserOnline(profilePreviewUser.email) ? "Online" : "Offline"}
+            </p>
+            <div className="profile-preview-actions">
+              {userProfiles[normalizeEmail(profilePreviewUser.email)] && (
+                <button
+                  className="profile-preview-action-btn"
+                  onClick={() => handleViewFullImage(
+                    userProfiles[normalizeEmail(profilePreviewUser.email)],
+                    "profile",
+                    getDisplayName(profilePreviewUser.email),
+                    profilePreviewUser.isOwn
+                  )}
+                >
+                  View Full Image
+                </button>
+              )}
+              {profilePreviewUser.isOwn && (
+                <>
+                  <label htmlFor="preview-change-photo" className="profile-preview-action-btn primary">
+                    Change Photo
+                  </label>
+                  <input
+                    id="preview-change-photo"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleUpdateProfilePic}
+                    style={{ display: "none" }}
+                  />
+                  {userProfiles[normalizeEmail(profilePreviewUser.email)] && (
+                    <button
+                      className="profile-preview-action-btn danger"
+                      onClick={() => { handleRemoveProfilePic(); setProfilePreviewUser(null); }}
+                    >
+                      Remove Photo
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </motion.div>
         </div>
+      )}
+
+      {/* Full-Screen Image Viewer */}
+      {imageViewerState.open && (
+        <div className="fullscreen-viewer-overlay" onClick={() => { setImageViewerState({ open: false, src: null, type: "media", name: "", isOwn: false }); setImageZoom(1); }}>
+          <div className="fullscreen-viewer-toolbar" onClick={(e) => e.stopPropagation()}>
+            <span className="fullscreen-viewer-title">{imageViewerState.name || "Image"}</span>
+            <div className="fullscreen-viewer-controls">
+              <button onClick={() => setImageZoom(z => Math.max(0.5, z - 0.25))} title="Zoom out"><ZoomOut size={20} /></button>
+              <span className="fullscreen-zoom-level">{Math.round(imageZoom * 100)}%</span>
+              <button onClick={() => setImageZoom(z => Math.min(3, z + 0.25))} title="Zoom in"><ZoomIn size={20} /></button>
+              <button onClick={() => handleDownloadImage(imageViewerState.src, imageViewerState.name)} title="Download"><Download size={20} /></button>
+              {imageViewerState.isOwn && (
+                <>
+                  <label htmlFor="viewer-change-photo" className="fullscreen-toolbar-btn" title="Change photo">
+                    <Camera size={20} />
+                  </label>
+                  <input
+                    id="viewer-change-photo"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => { handleUpdateProfilePic(e); setImageViewerState({ open: false, src: null, type: "media", name: "", isOwn: false }); }}
+                    style={{ display: "none" }}
+                  />
+                  <button
+                    className="fullscreen-toolbar-btn danger"
+                    onClick={() => { handleRemoveProfilePic(); setImageViewerState({ open: false, src: null, type: "media", name: "", isOwn: false }); }}
+                    title="Remove photo"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </>
+              )}
+              <button onClick={() => { setImageViewerState({ open: false, src: null, type: "media", name: "", isOwn: false }); setImageZoom(1); }} title="Close"><X size={20} /></button>
+            </div>
+          </div>
+          <motion.div
+            className="fullscreen-viewer-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{ transform: `scale(${imageZoom})` }}
+          >
+            <img src={imageViewerState.src} alt={imageViewerState.name || "Full image"} />
+          </motion.div>
+        </div>
+      )}
+
+      {/* Image Crop Modal */}
+      {cropState.open && (
+        <ImageCropModal
+          src={cropState.src}
+          onCrop={handleCropSave}
+          onCancel={() => setCropState({ open: false, src: null, file: null })}
+        />
       )}
 
       <button
@@ -1921,6 +2135,15 @@ function Chat({ user: currentUser }) {
                       const stored = JSON.parse(localStorage.getItem("user") || "{}");
                       localStorage.setItem("user", JSON.stringify({ ...stored, displayName, bio }));
                     } catch (e) {}
+                    setUserNames(prev => ({ ...prev, [user.email.toLowerCase()]: displayName }));
+                    fetch(`${API_URL}/api/users/profile`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ email: user.email, displayName, bio }),
+                    }).catch(() => {});
+                    if (socket) {
+                      socket.emit("update-profile", { email: user.email, displayName, bio, profilePic: user.profilePic || null });
+                    }
                     setShowSettings(false);
                   }}
                   style={{ margin: 0 }}
