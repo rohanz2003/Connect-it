@@ -33,7 +33,6 @@ export const compressImage = (file, maxDimension = 500, quality = 0.8) => {
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, width, height);
         const dataUrl = canvas.toDataURL("image/jpeg", quality);
-        URL.revokeObjectURL(img.src);
         resolve(dataUrl);
       };
       img.onerror = () => reject(new Error("Failed to load image"));
