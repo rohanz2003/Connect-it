@@ -84,6 +84,7 @@ function Chat({ user: currentUser }) {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const loadingMessagesRef = useRef(false);
+  const hasMoreMessagesRef = useRef(false);
   const emojiPickerRef = useRef(null);
   const attachMenuRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -97,6 +98,7 @@ function Chat({ user: currentUser }) {
 
   useEffect(() => { selectedUserRef.current = selectedUser; }, [selectedUser]);
   useEffect(() => { chatHistoryRef.current = chatHistory; }, [chatHistory]);
+  useEffect(() => { hasMoreMessagesRef.current = hasMoreMessages; }, [hasMoreMessages]);
 
   useEffect(() => {
     document.body.classList.toggle("dark-mode", isDarkMode);
@@ -120,11 +122,11 @@ function Chat({ user: currentUser }) {
     const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
     setIsNearBottom(distanceFromBottom < 100);
 
-    if (container.scrollTop < 100 && hasMoreMessages && !loadingMessagesRef.current) {
+    if (container.scrollTop < 100 && hasMoreMessagesRef.current && !loadingMessagesRef.current) {
       scrollPositionRestore = container.scrollHeight;
       setCurrentPage(prev => prev + 1);
     }
-  }, [hasMoreMessages]);
+  }, []);
 
   useEffect(() => {
     if (!messagesContainerRef.current) return;
