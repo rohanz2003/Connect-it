@@ -11,6 +11,13 @@ export const useLastSeen = (userId, { pollInterval = 60000 } = {}) => {
   const intervalRef = useRef(null);
   const [display, setDisplay] = useState("last seen a long time ago");
 
+  // Reset state immediately when userId changes
+  useEffect(() => {
+    setLastSeen(null);
+    setIsOnline(false);
+    setDisplay("last seen a long time ago");
+  }, [userId]);
+
   const fetchLastSeen = useCallback(async () => {
     if (!userId) return;
     try {
