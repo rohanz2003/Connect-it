@@ -5,11 +5,17 @@ export const formatLastSeen = (date) => {
 
   const now = new Date();
   const diffMs = now - lastSeen;
-  const diffMin = Math.floor(diffMs / 60000);
+  const diffSec = Math.floor(diffMs / 1000);
 
-  if (diffMin < 1) return "online";
+  if (diffSec < 1) return "online";
 
-  if (diffMin < 60) return `last seen ${diffMin} minute${diffMin > 1 ? "s" : ""} ago`;
+  if (diffSec < 60) {
+    return `last seen ${diffSec} second${diffSec !== 1 ? "s" : ""} ago`;
+  }
+
+  const diffMin = Math.floor(diffSec / 60);
+
+  if (diffMin < 60) return `last seen ${diffMin} minute${diffMin !== 1 ? "s" : ""} ago`;
 
   const time = lastSeen.toLocaleTimeString("en-US", {
     hour: "numeric",

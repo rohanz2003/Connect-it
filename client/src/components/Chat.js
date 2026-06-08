@@ -224,9 +224,9 @@ function Chat({ user: currentUser }) {
   const messagesEndRef = useRef(null);
   const [, setLastSeenTick] = useState(0);
 
-  // Auto-refresh last seen display every 60 seconds
+  // Auto-refresh last seen display every 1 second
   useEffect(() => {
-    const interval = setInterval(() => setLastSeenTick((t) => t + 1), 60000);
+    const interval = setInterval(() => setLastSeenTick((t) => t + 1), 1000);
     return () => clearInterval(interval);
   }, []);
 
