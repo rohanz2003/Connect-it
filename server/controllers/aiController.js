@@ -1,7 +1,11 @@
 const AiConversation = require("../models/AiConversation");
+const { isDatabaseConnected } = require("../config/database");
 
 const SYSTEM_PROMPT =
   "You are a friendly, warm AI assistant. Talk like a human — be casual, natural, and approachable.\n\nGuidelines:\n- Be helpful for ALL types of queries: general knowledge, daily life, education, homework, coding, writing, math, science, history, and anything else\n- Answer in the same language the user is speaking\n- Be concise but thorough\n- If you don't know something, admit it honestly\n- Be encouraging and supportive\n- Use natural conversational tone, not robotic or formal";
+
+const OPENROUTER_API = "https://openrouter.ai/api/v1/chat/completions";
+const MODEL = "meta-llama/llama-3.1-8b-instruct:free";
 
 const chat = async (req, res) => {
   try {
@@ -41,6 +45,14 @@ const chat = async (req, res) => {
     res.setHeader("X-Accel-Buffering", "no");
 
     if (!conversationId) {
+      if (!isDatabaseConnected()) {
+        res.write(
+          `data: ${JSON.stringify({ type: "error", message: "Database is not connected. AI chat requires a database." })}\n\n`
+        );
+        res.write("data: [DONE]\n\n");
+        res.end();
+        return;
+      }
       await conversation.save();
     }
     res.write(
@@ -50,39 +62,43 @@ const chat = async (req, res) => {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
       res.write(
-        `data: ${JSON.stringify({ type: "error", message: "AI service is not configured. Please set OPENROUTER_API_KEY." })}\n\n`
+        `data: ${JSON.stringify({ type: "error", message: "AI service is not configured. Please set OPENROUTER_API_KEY in server .env." })}\n\n`
       );
       res.write("data: [DONE]\n\n");
       res.end();
       return;
     }
 
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer":
-            process.env.APP_URL || "http://localhost:5000",
-          "X-Title": "Connect It Chat",
-        },
-        body: JSON.stringify({
-          model: "meta-llama/llama-3.1-8b-instruct:free",
-          messages: apiMessages,
-          stream: true,
-          max_tokens: 2048,
-        }),
-      }
-    );
+    const controller = new AbortController();
+    req.on("close", () => controller.abort());
+
+    const response = await fetch(OPENROUTER_API, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": process.env.APP_URL || "http://localhost:5000",
+        "X-Title": "Connect It Chat",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: apiMessages,
+        stream: true,
+        max_tokens: 2048,
+      }),
+      signal: controller.signal,
+    });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("OpenRouter API error:", response.status, errorText);
-      res.write(
-        `data: ${JSON.stringify({ type: "error", message: "AI service is currently unavailable. Please try again later." })}\n\n`
-      );
+      let errorDetail = "";
+      try { errorDetail = await response.text(); } catch (_) {}
+      console.error("OpenRouter API error:", response.status, errorDetail);
+      const msg = response.status === 401
+        ? "AI API key is invalid. Please check your OPENROUTER_API_KEY."
+        : response.status === 429
+        ? "AI service rate limit exceeded. Please try again later."
+        : `AI service returned ${response.status}. Please try again.`;
+      res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
       res.write("data: [DONE]\n\n");
       res.end();
       return;
@@ -96,25 +112,21 @@ const chat = async (req, res) => {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value);
-      const lines = chunk.split("\n").filter((line) => line.startsWith("data: "));
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split("\n");
 
       for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
         const data = line.slice(6).trim();
         if (data === "[DONE]") continue;
-
         try {
           const parsed = JSON.parse(data);
           const content = parsed.choices?.[0]?.delta?.content || "";
           if (content) {
             fullContent += content;
-            res.write(
-              `data: ${JSON.stringify({ type: "token", content })}\n\n`
-            );
+            res.write(`data: ${JSON.stringify({ type: "token", content })}\n\n`);
           }
-        } catch (e) {
-          /* skip malformed JSON */
-        }
+        } catch (_) {}
       }
     }
 
@@ -123,7 +135,10 @@ const chat = async (req, res) => {
       content: fullContent,
       timestamp: new Date(),
     });
-    await conversation.save();
+
+    if (isDatabaseConnected()) {
+      await conversation.save();
+    }
 
     res.write(
       `data: ${JSON.stringify({ type: "done", conversationId: conversation._id.toString() })}\n\n`
@@ -131,12 +146,13 @@ const chat = async (req, res) => {
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (error) {
-    console.error("AI chat error:", error);
+    const errMsg = error.message || "Unknown error";
+    console.error("AI chat error:", errMsg);
     if (!res.headersSent) {
-      return res.status(500).json({ error: "Internal server error" });
+      return res.status(500).json({ error: errMsg });
     }
     res.write(
-      `data: ${JSON.stringify({ type: "error", message: "An unexpected error occurred." })}\n\n`
+      `data: ${JSON.stringify({ type: "error", message: `Error: ${errMsg}` })}\n\n`
     );
     res.write("data: [DONE]\n\n");
     res.end();
@@ -147,26 +163,30 @@ const getConversations = async (req, res) => {
   try {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: "userId is required" });
-
+    if (!isDatabaseConnected()) {
+      return res.status(503).json({ error: "Database not connected" });
+    }
     const conversations = await AiConversation.find({ userId })
       .sort({ updatedAt: -1 })
       .limit(20);
-
     res.json({ conversations });
   } catch (error) {
-    console.error("Get conversations error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Get conversations error:", error.message);
+    res.status(500).json({ error: error.message });
   }
 };
 
 const deleteConversation = async (req, res) => {
   try {
     const { conversationId } = req.params;
+    if (!isDatabaseConnected()) {
+      return res.status(503).json({ error: "Database not connected" });
+    }
     await AiConversation.findByIdAndDelete(conversationId);
     res.json({ success: true });
   } catch (error) {
-    console.error("Delete conversation error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Delete conversation error:", error.message);
+    res.status(500).json({ error: error.message });
   }
 };
 
