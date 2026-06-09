@@ -22,6 +22,7 @@ const initSocket = (server) => {
     transports: ["websocket", "polling"],
     pingTimeout: 60000,
     pingInterval: 25000,
+    maxHttpBufferSize: 50 * 1024 * 1024, // 50MB for audio/video uploads
   });
 
   const users = {};

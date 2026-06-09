@@ -234,7 +234,10 @@ function Chat({ user: currentUser }) {
     } catch {}
     return {};
   });
-  const [isMediaSending, setIsMediaSending] = useState(false); // Track media upload state
+  const [isMediaSending, setIsMediaSending] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [downloadProgress, setDownloadProgress] = useState({});
+  const [downloadingId, setDownloadingId] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem("theme") === "dark");
   const [isChatMinimized, setIsChatMinimized] = useState(false); // Track if chat is minimized
   const [contextMenu, setContextMenu] = useState(null);
@@ -310,6 +313,54 @@ function Chat({ user: currentUser }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleDownloadMedia = (msg) => {
+    if (!msg?.text?.data || downloadingId) return;
+    const msgId = msg._id || msg.tempId;
+    setDownloadingId(msgId);
+    setDownloadProgress((prev) => ({ ...prev, [msgId]: 0 }));
+
+    setTimeout(() => {
+      try {
+        setDownloadProgress((prev) => ({ ...prev, [msgId]: 30 }));
+        const byteString = atob(msg.text.data.split(',')[1]);
+        const mimeType = msg.text.type || "application/octet-stream";
+
+        setDownloadProgress((prev) => ({ ...prev, [msgId]: 50 }));
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) {
+          ia[i] = byteString.charCodeAt(i);
+          if (i % Math.max(1, Math.floor(byteString.length / 20)) === 0) {
+            setDownloadProgress((prev) => ({
+              ...prev,
+              [msgId]: Math.min(90, 50 + Math.round((i / byteString.length) * 40))
+            }));
+          }
+        }
+
+        setDownloadProgress((prev) => ({ ...prev, [msgId]: 95 }));
+        const blob = new Blob([ab], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = msg.text.name || `download.${mimeType.split('/')[1] || "bin"}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        setDownloadProgress((prev) => ({ ...prev, [msgId]: 100 }));
+      } catch (err) {
+        console.error("Download error:", err);
+      } finally {
+        setTimeout(() => {
+          setDownloadingId(null);
+          setDownloadProgress((prev) => ({ ...prev, [msgId]: undefined }));
+        }, 1000);
+      }
+    }, 100);
   };
 
   // Auto-scroll to bottom whenever messages or typing state changes
@@ -1171,11 +1222,10 @@ function Chat({ user: currentUser }) {
     setReplyTo(null);
   };
 
-  const handleMediaShare = (e) => {
+  const handleMediaShare = async (e) => {
     const file = e.target.files[0];
     if (!file || !user || !selectedUser || !socket) return;
 
-    // Check if socket is connected
     if (!socket.connected) {
       alert("❌ You are offline. Please check your connection.");
       e.target.value = null;
@@ -1184,90 +1234,93 @@ function Chat({ user: currentUser }) {
 
     ensureSocketJoined();
 
-    // Prevent multiple sends
     if (isMediaSending) {
       alert("⏳ File is already being sent. Please wait...");
       e.target.value = null;
       return;
     }
 
-    // Validate file size - REDUCED to prevent socket timeout
     const isImage = file.type.startsWith('image/');
-    const maxSize = isImage ? 3 * 1024 * 1024 : 10 * 1024 * 1024; // 3MB images, 10MB others
-    
+    const maxSize = isImage ? 5 * 1024 * 1024 : 25 * 1024 * 1024;
+
     if (file.size > maxSize) {
-      alert(`File size must be less than ${isImage ? '3MB' : '10MB'}. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      alert(`File size must be less than ${isImage ? '5MB' : '25MB'}. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB`);
       e.target.value = null;
       return;
     }
 
     setIsMediaSending(true);
+    setUploadProgress(0);
     const tempId = `${Date.now()}-${Math.random()}`;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        // Don't send huge base64 strings - compress image if possible
-        let fileData = {
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          data: reader.result
-        };
-
-        console.log(`📎 Sending file: ${file.name} (${(file.size / 1024).toFixed(2)}KB)`);
-
-        // Create message object
-        const newMsg = {
-          sender: user.email,
-          receiver: selectedUser,
-          text: fileData,
-          type: "media",
-          mediaType: file.type.split('/')[0],
-          tempId: tempId,
-          timestamp: new Date().toISOString()
-        };
-
-        const optimisticMsg = { ...newMsg, pending: true, _id: tempId };
-        const partner = normalizeEmail(selectedUser);
-
-        setChatHistory((prev) => ({
-          ...prev,
-          [partner]: upsertMessageInList(prev[partner] || [], optimisticMsg),
-        }));
-        setMessages((prev) => upsertMessageInList(prev, optimisticMsg));
-
-        socket.emit("send-message", newMsg, (ack) => {
-          if (!ack || ack.ok === false) {
-            setMessages((prev) =>
-              prev.map((m) => (m.tempId === tempId ? { ...m, failed: true, pending: false } : m))
-            );
-          }
-        });
-        
-      } catch (err) {
-        console.error("❌ Error processing file:", err);
-        alert("❌ Error sending file. Please try again.");
-      } finally {
-        setIsMediaSending(false);
-        e.target.value = null;
-      }
-    };
-
-    reader.onerror = () => {
-      console.error("❌ Error reading file");
-      alert("❌ Error reading file. Please try again.");
-      setIsMediaSending(false);
-      e.target.value = null;
-    };
-
-    // Read file as base64 but with a safety check
     try {
-      reader.readAsDataURL(file);
+      let dataUrl;
+
+      if (isImage) {
+        dataUrl = await compressImage(file, 1200, 0.85);
+        setUploadProgress(50);
+      } else {
+        dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onprogress = (e) => {
+            if (e.lengthComputable) {
+              setUploadProgress(Math.round((e.loaded / e.total) * 50));
+            }
+          };
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("Failed to read file"));
+          reader.readAsDataURL(file);
+        });
+      }
+
+      setUploadProgress(70);
+
+      let fileData = {
+        name: file.name,
+        type: isImage ? "image/jpeg" : file.type,
+        size: isImage ? Math.round(dataUrl.length * 0.75) : file.size,
+        data: dataUrl
+      };
+
+      const newMsg = {
+        sender: user.email,
+        receiver: selectedUser,
+        text: fileData,
+        type: "media",
+        mediaType: file.type.split('/')[0],
+        tempId: tempId,
+        timestamp: new Date().toISOString()
+      };
+
+      setUploadProgress(85);
+
+      const optimisticMsg = { ...newMsg, pending: true, _id: tempId };
+      const partner = normalizeEmail(selectedUser);
+
+      setChatHistory((prev) => ({
+        ...prev,
+        [partner]: upsertMessageInList(prev[partner] || [], optimisticMsg),
+      }));
+      setMessages((prev) => upsertMessageInList(prev, optimisticMsg));
+
+      setUploadProgress(95);
+
+      socket.emit("send-message", newMsg, (ack) => {
+        if (!ack || ack.ok === false) {
+          setMessages((prev) =>
+            prev.map((m) => (m.tempId === tempId ? { ...m, failed: true, pending: false } : m))
+          );
+        }
+        setUploadProgress(100);
+        setTimeout(() => { setIsMediaSending(false); setUploadProgress(0); }, 500);
+      });
+
     } catch (err) {
-      console.error("❌ Cannot read file:", err);
-      alert("❌ Cannot read this file. Please try another.");
+      console.error("❌ Error processing file:", err);
+      alert("❌ Error sending file. Please try again.");
       setIsMediaSending(false);
+      setUploadProgress(0);
+    } finally {
       e.target.value = null;
     }
   };
@@ -1970,25 +2023,65 @@ function Chat({ user: currentUser }) {
                           )}
                           {msg.type === "media" ? (
                             <div className="media-message">
+                              {msg.pending && (
+                                <div className="media-upload-progress">
+                                  <div className="media-upload-bar-track">
+                                    <div className="media-upload-bar-fill" style={{ width: `${uploadProgress}%` }} />
+                                  </div>
+                                  <span className="media-upload-label">{uploadProgress}%</span>
+                                </div>
+                              )}
                               {msg.mediaType === "image" && msg.text?.data?.startsWith("data:image/") && (
                                 <img src={msg.text.data} alt="Shared" className="media-image" onClick={() => handleViewFullImage(msg.text.data, "media")} />
                               )}
-                              {msg.mediaType === "video" && msg.text?.data?.startsWith("data:video/") && (
-                                <video controls className="media-video">
-                                  <source src={msg.text.data} type={msg.text.type} />
-                                  Your browser does not support video playback
-                                </video>
+                              {msg.mediaType === "video" && msg.text?.data && (
+                                <div className="media-video-wrap">
+                                  <video controls className="media-video" preload="metadata">
+                                    <source src={msg.text.data} type={msg.text.type} />
+                                  </video>
+                                  <div className="media-download-area">
+                                    {(downloadProgress[msg._id || msg.tempId] ?? -1) >= 0 && (downloadProgress[msg._id || msg.tempId] ?? 0) < 100 ? (
+                                      <div className="media-download-progress">
+                                        <div className="media-download-bar-track">
+                                          <div className="media-download-bar-fill" style={{ width: `${downloadProgress[msg._id || msg.tempId]}%` }} />
+                                        </div>
+                                        <span className="media-download-label">{downloadProgress[msg._id || msg.tempId]}%</span>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        className="download-btn"
+                                        onClick={() => handleDownloadMedia(msg)}
+                                        disabled={downloadingId === msg._id || downloadingId === msg.tempId}
+                                      >
+                                        {downloadingId === msg._id || downloadingId === msg.tempId ? "Preparing..." : "Download"}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
                               )}
-                              {msg.mediaType === "audio" && (
-                                <div className="media-file">
-                                  <div className="media-audio-wrap">
-                                    <div className="media-audio-player">
-                                      <audio controls>
-                                        <source src={msg.text?.data} type={msg.text?.type || "audio/mpeg"} />
-                                        Your browser does not support audio playback
-                                      </audio>
-                                    </div>
-                                    <span className="media-audio-label">🎵 {msg.text?.name || "Audio file"}</span>
+                              {msg.mediaType === "audio" && msg.text?.data && (
+                                <div className="media-audio-wrap">
+                                  <audio controls preload="metadata" className="media-audio-element">
+                                    <source src={msg.text.data} type={msg.text.type || "audio/mpeg"} />
+                                  </audio>
+                                  <span className="media-audio-label">{msg.text?.name || "Audio"}</span>
+                                  <div className="media-download-area">
+                                    {(downloadProgress[msg._id || msg.tempId] ?? -1) >= 0 && (downloadProgress[msg._id || msg.tempId] ?? 0) < 100 ? (
+                                      <div className="media-download-progress">
+                                        <div className="media-download-bar-track">
+                                          <div className="media-download-bar-fill" style={{ width: `${downloadProgress[msg._id || msg.tempId]}%` }} />
+                                        </div>
+                                        <span className="media-download-label">{downloadProgress[msg._id || msg.tempId]}%</span>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        className="download-btn"
+                                        onClick={() => handleDownloadMedia(msg)}
+                                        disabled={downloadingId === msg._id || downloadingId === msg.tempId}
+                                      >
+                                        {downloadingId === msg._id || downloadingId === msg.tempId ? "Preparing..." : "Download"}
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               )}
@@ -2006,7 +2099,24 @@ function Chat({ user: currentUser }) {
                                   {msg.text?.data?.startsWith("data:application/pdf") && (
                                     <iframe src={msg.text.data} className="pdf-preview" title={msg.text.name} />
                                   )}
-                                  <a href={msg.text.data} download={msg.text.name} className="download-btn">Download</a>
+                                  <div className="media-download-area">
+                                    {(downloadProgress[msg._id || msg.tempId] ?? -1) >= 0 && (downloadProgress[msg._id || msg.tempId] ?? 0) < 100 ? (
+                                      <div className="media-download-progress">
+                                        <div className="media-download-bar-track">
+                                          <div className="media-download-bar-fill" style={{ width: `${downloadProgress[msg._id || msg.tempId]}%` }} />
+                                        </div>
+                                        <span className="media-download-label">{downloadProgress[msg._id || msg.tempId]}%</span>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        className="download-btn"
+                                        onClick={() => handleDownloadMedia(msg)}
+                                        disabled={downloadingId === msg._id || downloadingId === msg.tempId}
+                                      >
+                                        {downloadingId === msg._id || downloadingId === msg.tempId ? "Preparing..." : "Download"}
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                               {msg.text?.data && msg.mediaType !== "image" && msg.mediaType !== "video" && msg.mediaType !== "audio" && msg.mediaType !== "application" && (
@@ -2018,9 +2128,24 @@ function Chat({ user: currentUser }) {
                                       <span className="media-file-size">{msg.text?.size ? `${(msg.text.size / 1024).toFixed(1)} KB` : "File"}</span>
                                     </div>
                                   </div>
-                                  {msg.text?.data && (
-                                    <a href={msg.text.data} download={msg.text?.name} className="download-btn">Download</a>
-                                  )}
+                                  <div className="media-download-area">
+                                    {(downloadProgress[msg._id || msg.tempId] ?? -1) >= 0 && (downloadProgress[msg._id || msg.tempId] ?? 0) < 100 ? (
+                                      <div className="media-download-progress">
+                                        <div className="media-download-bar-track">
+                                          <div className="media-download-bar-fill" style={{ width: `${downloadProgress[msg._id || msg.tempId]}%` }} />
+                                        </div>
+                                        <span className="media-download-label">{downloadProgress[msg._id || msg.tempId]}%</span>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        className="download-btn"
+                                        onClick={() => handleDownloadMedia(msg)}
+                                        disabled={downloadingId === msg._id || downloadingId === msg.tempId}
+                                      >
+                                        {downloadingId === msg._id || downloadingId === msg.tempId ? "Preparing..." : "Download"}
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                               {!msg.text?.data && msg.type === "media" && (
@@ -2209,7 +2334,12 @@ function Chat({ user: currentUser }) {
         <AnimatePresence>
           {isMediaSending && (
             <div className="toast-notice toast-animate">
-              Uploading file...
+              <div className="toast-progress">
+                <span className="toast-progress-label">Uploading... {uploadProgress}%</span>
+                <div className="toast-progress-track">
+                  <div className="toast-progress-fill" style={{ width: `${uploadProgress}%` }} />
+                </div>
+              </div>
             </div>
           )}
         </AnimatePresence>
