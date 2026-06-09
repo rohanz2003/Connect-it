@@ -2314,7 +2314,7 @@ function Chat({ user: currentUser }) {
               <small>Active chats</small>
             </div>
             <div className="stat-item">
-              <span>{Object.values(unreadMessages).reduce((s, c) => s + c, 0)}</span>
+              <span>{Object.keys(chatHistory).reduce((s, p) => s + getUnreadCount(p), 0)}</span>
               <small>Unread</small>
             </div>
             <div className="stat-item">
