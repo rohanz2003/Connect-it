@@ -1846,7 +1846,8 @@ function Chat({ user: currentUser }) {
                     </button>
                   </div>
                 </div>
-              )) : (
+                );
+              }) : (
                 <div className="empty-list">No archived chats.</div>
               )}
             </div>
