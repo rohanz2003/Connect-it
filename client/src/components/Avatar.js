@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 const AVATAR_COLORS = [
   "#1e88e5", "#43a047", "#e53935", "#8e24aa", "#fb8c00",
@@ -26,25 +26,23 @@ function getColorByEmail(email) {
 }
 
 function Avatar({ src, email, size = 40, className = "", onClick, style = {} }) {
-  const initials = useMemo(() => getInitials(email), [email]);
-  const bgColor = useMemo(() => getColorByEmail(email), [email]);
   const [imgError, setImgError] = useState(false);
+
+  const initials = getInitials(email);
+  const bgColor = getColorByEmail(email);
 
   useEffect(() => {
     // If src changes, allow the new image to render again.
     setImgError(false);
   }, [src]);
 
-  const commonStyle = useMemo(
-    () => ({
-      width: size,
-      height: size,
-      borderRadius: "50%",
-      cursor: onClick ? "pointer" : "default",
-      ...style,
-    }),
-    [size, onClick, style]
-  );
+  const commonStyle = {
+    width: size,
+    height: size,
+    borderRadius: "50%",
+    cursor: onClick ? "pointer" : "default",
+    ...style,
+  };
 
   // If we have a src but it fails to load (broken URL / blocked / invalid base64),
   // show initials fallback instead of hiding the avatar entirely.
