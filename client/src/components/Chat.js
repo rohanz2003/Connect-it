@@ -83,209 +83,42 @@ const upsertMessageInList = (list, msg) => {
 };
 
 const ImageCropModal = ({ src, onCrop, onCancel }) => {
-  const canvasRef = React.useRef(null);
-  const imgRef = React.useRef(null);
   const [scale, setScale] = React.useState(1);
-  const [offset, setOffset] = React.useState({ x: 0, y: 0 });
-  const [dragging, setDragging] = React.useState(false);
-  const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
-  const [imgError, setImgError] = React.useState(false);
-  const [imgLoaded, setImgLoaded] = React.useState(false);
-  const lastTouchRef = React.useRef({ x: 0, y: 0 });
-
-  React.useEffect(() => {
-    setImgError(false);
-    setImgLoaded(false);
-    setScale(1);
-    setOffset({ x: 0, y: 0 });
-  }, [src]);
-
-  React.useEffect(() => {
-    if (!src || !canvasRef.current) return;
-    
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      console.error("Failed to get canvas context");
-      setImgError(true);
-      return;
-    }
-    
-    const size = 280;
-    canvas.width = size;
-    canvas.height = size;
-
-    // Clear canvas before loading
-    ctx.clearRect(0, 0, size, size);
-
-    const img = new Image();
-    imgRef.current = img;
-    
-    img.onload = () => {
-      try {
-        if (!img.width || !img.height) {
-          console.error("Image loaded but has no dimensions");
-          setImgError(true);
-          return;
-        }
-        
-        setImgLoaded(true);
-        
-        ctx.clearRect(0, 0, size, size);
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-        ctx.clip();
-
-        const baseW = Math.min(size, img.width);
-        const baseH = (baseW / img.width) * img.height;
-        const drawW = baseW * scale;
-        const drawH = baseH * scale;
-        const x = (size - drawW) / 2 + offset.x;
-        const y = (size - drawH) / 2 + offset.y;
-        ctx.drawImage(img, x, y, drawW, drawH);
-        ctx.restore();
-      } catch (err) {
-        console.error("Canvas rendering error:", err);
-        setImgError(true);
-      }
-    };
-    
-    img.onerror = (e) => {
-      console.error("Image failed to load:", e);
-      setImgError(true);
-    };
-    
-    // Set src last to trigger load
-    img.src = src;
-  }, [src, scale, offset]);
-
-  const getPointerPos = (e) => {
-    if (e.touches && e.touches.length > 0) {
-      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    }
-    return { x: e.clientX, y: e.clientY };
-  };
-
-  const handleDragStart = (e) => {
-    e.preventDefault();
-    if (!imgLoaded) return;
-    const pos = getPointerPos(e);
-    setDragging(true);
-    setDragStart({ x: pos.x - offset.x, y: pos.y - offset.y });
-    lastTouchRef.current = pos;
-  };
-
-  const handleDragMove = (e) => {
-    if (!dragging || !imgLoaded) return;
-    e.preventDefault();
-    const pos = getPointerPos(e);
-    setOffset({ x: pos.x - dragStart.x, y: pos.y - dragStart.y });
-    lastTouchRef.current = pos;
-  };
-
-  const handleDragEnd = () => {
-    if (!imgLoaded) return;
-    setDragging(false);
-  };
 
   const handleCrop = () => {
-    if (!canvasRef.current || imgError || !imgLoaded) {
-      alert("Image not loaded properly. Please try again.");
-      return;
-    }
-    
     try {
-      const croppedData = canvasRef.current.toDataURL("image/jpeg", 0.8);
-      if (!croppedData || croppedData.length < 100) {
-        throw new Error("Failed to generate cropped image data");
-      }
-      onCrop(croppedData);
+      // Simply pass the compressed image directly without cropping
+      onCrop(src);
     } catch (err) {
-      console.error("Failed to crop image:", err);
-      alert("Failed to crop image. Please try again.");
+      console.error("Error:", err);
+      alert("Failed to save image. Please try again.");
     }
   };
-
-  if (imgError) {
-    return (
-      <div className="crop-overlay" onClick={onCancel}>
-        <div className="crop-modal crop-modal-animate" onClick={(e) => e.stopPropagation()}>
-          <div className="crop-header">
-            <h3>Image Error</h3>
-            <button onClick={onCancel}><X size={18} /></button>
-          </div>
-          <div style={{ padding: "20px", textAlign: "center" }}>
-            <p>Failed to load image. Please try a different file.</p>
-          </div>
-          <div className="crop-actions">
-            <button className="crop-cancel-btn" onClick={onCancel}>Close</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="crop-overlay" onClick={onCancel}>
       <div className="crop-modal crop-modal-animate" onClick={(e) => e.stopPropagation()}>
         <div className="crop-header">
-          <h3>Crop Profile Picture</h3>
+          <h3>Profile Picture</h3>
           <button onClick={onCancel}><X size={18} /></button>
         </div>
-        <div
-          className="crop-canvas-wrap"
-          onMouseDown={handleDragStart}
-          onMouseMove={handleDragMove}
-          onMouseUp={handleDragEnd}
-          onMouseLeave={handleDragEnd}
-          onTouchStart={handleDragStart}
-          onTouchMove={handleDragMove}
-          onTouchEnd={handleDragEnd}
-          onTouchCancel={handleDragEnd}
-          style={{ position: "relative" }}
-        >
-          <canvas ref={canvasRef} className="crop-canvas" />
-          {!imgLoaded && (
-            <div style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              color: "#666"
-            }}>
-              Loading...
-            </div>
-          )}
-        </div>
-        <div className="crop-zoom-row">
-          <ZoomOut size={16} />
-          <input
-            type="range"
-            min="0.5"
-            max="3"
-            step="0.05"
-            value={scale}
-            onChange={(e) => { 
-              if (imgLoaded) {
-                setScale(parseFloat(e.target.value)); 
-                setOffset({ x: 0, y: 0 }); 
-              }
-            }}
-            disabled={!imgLoaded}
+        <div style={{ padding: "20px", textAlign: "center" }}>
+          <img 
+            src={src} 
+            alt="Preview" 
+            style={{ 
+              maxWidth: "280px", 
+              maxHeight: "280px", 
+              borderRadius: "50%",
+              objectFit: "cover",
+              width: "280px",
+              height: "280px"
+            }} 
           />
-          <ZoomIn size={16} />
         </div>
         <div className="crop-actions">
           <button className="crop-cancel-btn" onClick={onCancel}>Cancel</button>
-          <button 
-            className="crop-save-btn" 
-            onClick={handleCrop}
-            disabled={!imgLoaded}
-            style={{ opacity: imgLoaded ? 1 : 0.5 }}
-          >
-            Crop & Save
-          </button>
+          <button className="crop-save-btn" onClick={handleCrop}>Save</button>
         </div>
       </div>
     </div>
@@ -2640,14 +2473,12 @@ function Chat({ user: currentUser }) {
       )}
 
       {/* Image Crop Modal */}
-      {cropState.open && (
-        <ErrorBoundary>
-          <ImageCropModal
-            src={cropState.src}
-            onCrop={handleCropSave}
-            onCancel={() => setCropState({ open: false, src: null, file: null })}
-          />
-        </ErrorBoundary>
+      {cropState.open && cropState.src && (
+        <ImageCropModal
+          src={cropState.src}
+          onCrop={handleCropSave}
+          onCancel={() => setCropState({ open: false, src: null, file: null })}
+        />
       )}
 
       <button
