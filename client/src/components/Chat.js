@@ -285,6 +285,35 @@ function Chat({ user: currentUser }) {
   const previousSelectedUserRef = useRef(null);
   useEffect(() => { selectedUserRef.current = selectedUser; }, [selectedUser]);
 
+  const redTimersRef = useRef(new Map());
+  const RED_TIMEOUT_MS = 5000;
+
+  const startRedTimer = (messageId) => {
+    const timers = redTimersRef.current;
+    if (timers.has(messageId)) clearTimeout(timers.get(messageId));
+    const timer = setTimeout(() => {
+      setMessages((prev) => prev.map((m) =>
+        (m._id === messageId || m.tempId === messageId) ? { ...m, _showRed: false } : m
+      ));
+      setChatHistory((prev) => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach((key) => {
+          updated[key] = updated[key].map((m) =>
+            (m._id === messageId || m.tempId === messageId) ? { ...m, _showRed: false } : m
+          );
+        });
+        return updated;
+      });
+      timers.delete(messageId);
+    }, RED_TIMEOUT_MS);
+    timers.set(messageId, timer);
+  };
+
+  const clearRedTimers = () => {
+    redTimersRef.current.forEach((t) => clearTimeout(t));
+    redTimersRef.current.clear();
+  };
+
   useEffect(() => {
     document.body.classList.toggle("dark-mode", isDarkMode);
     localStorage.setItem("theme", isDarkMode ? "dark" : "light");
@@ -781,18 +810,22 @@ function Chat({ user: currentUser }) {
         selectedUserRef.current &&
         normalizeEmail(selectedUserRef.current) === otherParty;
 
+      const isFromOther = normalizeEmail(msg.sender) !== normalizeEmail(user.email);
+      const isUndelivered = msg.status === "sent" && isFromOther;
+      const msgWithMeta = isUndelivered ? { ...msg, _showRed: true } : msg;
+
       setChatHistory((prev) => {
         const currentHistory = prev[otherParty] || [];
         const updated = {
           ...prev,
-          [otherParty]: upsertMessageInList(currentHistory, msg),
+          [otherParty]: upsertMessageInList(currentHistory, msgWithMeta),
         };
         persistHistory(updated, user.email);
         return updated;
       });
 
       if (isActiveChat) {
-        setMessages((prev) => upsertMessageInList(prev, msg));
+        setMessages((prev) => upsertMessageInList(prev, msgWithMeta));
         socket.emit("mark-as-read", {
           user1: normalizeEmail(user.email),
           user2: otherParty,
@@ -809,6 +842,10 @@ function Chat({ user: currentUser }) {
           return newCounts;
         });
       }
+
+      if (isUndelivered && !isActiveChat) {
+        startRedTimer(msg._id || msg.tempId);
+      }
     };
 
     socket.on("receive-message", handleIncomingMessage);
@@ -820,11 +857,12 @@ function Chat({ user: currentUser }) {
 
       msgs.forEach((msg) => {
         const otherParty = getOtherParty(msg, myEmail);
+        const msgWithRed = { ...msg, status: "sent", _showRed: true };
         setChatHistory((prev) => {
           const currentHistory = prev[otherParty] || [];
           return {
             ...prev,
-            [otherParty]: upsertMessageInList(currentHistory, { ...msg, status: "sent" }),
+            [otherParty]: upsertMessageInList(currentHistory, msgWithRed),
           };
         });
 
@@ -832,8 +870,9 @@ function Chat({ user: currentUser }) {
           selectedUserRef.current &&
           normalizeEmail(selectedUserRef.current) === otherParty
         ) {
-          setMessages((prev) => upsertMessageInList(prev, { ...msg, status: "sent" }));
+          setMessages((prev) => upsertMessageInList(prev, msgWithRed));
         }
+        startRedTimer(msg._id || msg.tempId);
       });
     });
 
@@ -842,7 +881,7 @@ function Chat({ user: currentUser }) {
       const applyStatus = (list) =>
         list.map((m) =>
           (m._id === messageId || m.tempId === tempId)
-            ? { ...m, status, pending: false }
+            ? { ...m, status, pending: false, _showRed: (status === "sent" ? m._showRed : false) }
             : m
         );
 
@@ -902,6 +941,7 @@ function Chat({ user: currentUser }) {
       socket.off("undelivered-messages");
       socket.off("message-status-update");
       socket.off("messages-read");
+      clearRedTimers();
     };
   }, [socket, user]);
 
@@ -996,7 +1036,8 @@ function Chat({ user: currentUser }) {
       // 1. Join room
       socket.emit("join-room", { user1: user.email, user2: selectedUser });
       
-      // 2. Mark messages as read on server
+      // 2. Clear red timers and mark messages as read
+      clearRedTimers();
       socket.emit("mark-as-read", { user1: user.email, user2: selectedUser });
       
       // 3. Fetch full history from Database (Fixes the "no msg show" issue)
@@ -1910,9 +1951,9 @@ function Chat({ user: currentUser }) {
                 </div>
               ) : (
                 <>
-                {messages.filter(m => m.status === "sent" && m.sender !== user.email).length > 0 && (
+                {messages.filter(m => m._showRed && m.sender !== user.email).length > 0 && (
                   <div className="unread-banner">
-                    🔴 {messages.filter(m => m.status === "sent" && m.sender !== user.email).length} unread message{messages.filter(m => m.status === "sent" && m.sender !== user.email).length > 1 ? 's' : ''}
+                    🔴 {messages.filter(m => m._showRed && m.sender !== user.email).length} unread message{messages.filter(m => m._showRed && m.sender !== user.email).length > 1 ? 's' : ''}
                   </div>
                 )}
                 {messages.map((msg, i) => {
@@ -1925,7 +1966,7 @@ function Chat({ user: currentUser }) {
                           <span>{formatDay(msg.timestamp || msg.createdAt)}</span>
                         </div>
                       )}
-                      <div className={`message ${msg.sender === user.email ? "sent" : "received"} message-animate${msg.status === "sent" && msg.sender !== user.email ? " undelivered" : ""}`} onContextMenu={(e) => handleContextMenu(e, msg)}>
+                      <div className={`message ${msg.sender === user.email ? "sent" : "received"} message-animate${msg._showRed ? " undelivered" : ""}`} onContextMenu={(e) => handleContextMenu(e, msg)}>
                         <div className="message-content">
                           {msg.replyTo && (
                             <div className="reply-quote">
@@ -2000,7 +2041,7 @@ function Chat({ user: currentUser }) {
                           <span>{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
                           {msg.pending && <span className="message-status pending">⏰ Sending…</span>}
                           {msg.failed && <span className="message-status failed">Failed</span>}
-                          {msg.status === "sent" && msg.sender !== user.email && (
+                          {msg._showRed && msg.sender !== user.email && (
                             <span className="message-status undelivered-status">🔴 New</span>
                           )}
                           {msg.sender === user.email && !msg.pending && !msg.failed && (
