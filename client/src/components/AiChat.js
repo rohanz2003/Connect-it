@@ -1,7 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { sendAiMessage } from "../services/aiService";
-import Avatar from "./Avatar";
-import { Send, Trash2, Loader2, Sparkles } from "lucide-react";
+import { Send } from "lucide-react";
+
+const SUGGESTIONS = [
+  "Explain quantum physics simply 🤔",
+  "Help me write an email ✉️",
+  "Best study tips for exams 📚",
+  "Tell me a joke 😂",
+];
 
 function AiChat({ user }) {
   const [messages, setMessages] = useState([]);
@@ -24,7 +30,7 @@ function AiChat({ user }) {
     setInput("");
     setError(null);
 
-    const userMsg = { role: "user", content: text };
+    const userMsg = { role: "user", content: text, timestamp: new Date() };
     setMessages((prev) => [...prev, userMsg]);
 
     setIsLoading(true);
@@ -45,7 +51,7 @@ function AiChat({ user }) {
       (id) => {
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: streamRef.current },
+          { role: "assistant", content: streamRef.current, timestamp: new Date() },
         ]);
         setStreamingContent("");
         streamRef.current = "";
@@ -77,41 +83,53 @@ function AiChat({ user }) {
     setIsLoading(false);
   };
 
+  const formatTime = (d) =>
+    new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
   return (
     <div className="ai-chat-container">
-      <div className="ai-chat-messages">
-        <div className="ai-welcome">
-          <div className="ai-welcome-avatar">
-            <Sparkles size={24} />
+      <div className="ai-chat-header">
+        <div className="ai-chat-header-left">
+          <div className="ai-chat-avatar">🤖</div>
+          <div>
+            <h3>AI Assistant</h3>
+            <span className="ai-chat-status">● Online</span>
           </div>
-          <h3>AI Assistant</h3>
-          <p>
-            Hi! I'm your AI assistant. Ask me anything — homework help, coding,
-            writing, general knowledge, daily life tips, and more!
-          </p>
         </div>
+        <button className="ai-header-clear" onClick={handleNewChat} disabled={isLoading} title="New conversation">
+          🗑️ Clear
+        </button>
+      </div>
+
+      <div className="ai-chat-messages">
+        {messages.length === 0 && (
+          <div className="ai-welcome">
+            <div className="ai-welcome-avatar">🤖</div>
+            <h3>Hey there! 👋</h3>
+            <p>
+              I'm your AI assistant. I can help you with pretty much anything —
+              studies, coding, daily life questions, creative writing, you name it!
+              What's on your mind? 😊
+            </p>
+          </div>
+        )}
 
         {messages.map((msg, i) => (
           <div
             key={i}
             className={`ai-message ${msg.role === "user" ? "ai-user" : "ai-assistant"}`}
           >
-            {msg.role === "assistant" && (
-              <div className="ai-msg-avatar">
-                <Avatar email="ai_assistant" size={32} />
-              </div>
-            )}
+            {msg.role === "assistant" && <div className="ai-msg-avatar">🤖</div>}
             <div className="ai-msg-content">
               <div className="ai-msg-bubble">{msg.content}</div>
+              <div className="ai-msg-time">{formatTime(msg.timestamp)}</div>
             </div>
           </div>
         ))}
 
         {streamingContent && (
           <div className="ai-message ai-assistant">
-            <div className="ai-msg-avatar">
-              <Avatar email="ai_assistant" size={32} />
-            </div>
+            <div className="ai-msg-avatar">🤖</div>
             <div className="ai-msg-content">
               <div className="ai-msg-bubble ai-streaming">
                 {streamingContent}
@@ -123,13 +141,12 @@ function AiChat({ user }) {
 
         {isLoading && !streamingContent && (
           <div className="ai-message ai-assistant">
-            <div className="ai-msg-avatar">
-              <Avatar email="ai_assistant" size={32} />
-            </div>
+            <div className="ai-msg-avatar">🤖</div>
             <div className="ai-msg-content">
-              <div className="ai-msg-bubble ai-typing">
-                <Loader2 size={16} className="ai-spin" />
-                <span>Thinking...</span>
+              <div className="ai-msg-bubble">
+                <div className="ai-typing-dots">
+                  <span /><span /><span />
+                </div>
               </div>
             </div>
           </div>
@@ -137,22 +154,24 @@ function AiChat({ user }) {
 
         {error && (
           <div className="ai-error">
-            <span>⚠️ {error}</span>
+            ⚠️ {error}
           </div>
         )}
 
         <div ref={endRef} />
       </div>
 
+      {messages.length === 0 && !isLoading && (
+        <div className="ai-suggestions">
+          {SUGGESTIONS.map((q, i) => (
+            <button key={i} className="ai-suggestion-btn" onClick={() => setInput(q)}>
+              {q}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="ai-chat-footer">
-        <button
-          className="ai-new-chat-btn"
-          onClick={handleNewChat}
-          title="New conversation"
-          disabled={isLoading}
-        >
-          <Trash2 size={16} />
-        </button>
         <input
           type="text"
           placeholder="Ask me anything..."
@@ -166,7 +185,7 @@ function AiChat({ user }) {
           onClick={handleSend}
           disabled={!input.trim() || isLoading}
         >
-          <Send size={18} />
+          {isLoading ? "⏳" : <Send size={18} />}
         </button>
       </div>
     </div>

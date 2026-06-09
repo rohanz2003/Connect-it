@@ -36,7 +36,6 @@ import {
   Palette,
   Save,
   Loader2,
-  Bot,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
@@ -1784,12 +1783,10 @@ function Chat({ user: currentUser }) {
           className={`ai-sidebar-item ${selectedUser === AI_ASSISTANT_ID ? "active" : ""}`}
           onClick={() => handleUserSelect(AI_ASSISTANT_ID)}
         >
-          <div className="ai-sidebar-avatar">
-            <Bot size={20} />
-          </div>
+          <div className="ai-sidebar-avatar">🤖</div>
           <div className="ai-sidebar-info">
-            <span className="ai-sidebar-name">AI Assistant</span>
-            <span className="ai-sidebar-status">Online</span>
+            <span className="ai-sidebar-name">AI Assistant ✨</span>
+            <span className="ai-sidebar-status">● Online</span>
           </div>
         </div>
 
@@ -1945,7 +1942,7 @@ function Chat({ user: currentUser }) {
           <div className="chat-panel-title">
             <div className="header-avatar-wrap">
               {selectedUser === AI_ASSISTANT_ID ? (
-                <div className="ai-header-avatar"><Bot size={22} /></div>
+                <div className="ai-header-avatar">🤖</div>
               ) : (
                 <Avatar
                   src={selectedUser ? userProfiles[selectedUser] : null}
