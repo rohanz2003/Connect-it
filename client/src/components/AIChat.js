@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Send, Trash2, Sparkles, Loader2 } from 'lucide-react';
+import { Send, Trash2, Sparkles, Loader2, MessageSquare } from 'lucide-react';
 import './AIChat.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
@@ -208,11 +208,11 @@ const AIChat = ({ socket, user, onClose }) => {
       <div className="ai-chat-header">
         <div className="ai-header-left">
           <div className="ai-avatar-wrapper">
-            <Bot className="ai-avatar-icon" size={24} />
+            <MessageSquare className="ai-avatar-icon" size={24} strokeWidth={2.5} />
             <Sparkles className="ai-sparkle" size={12} />
           </div>
           <div className="ai-header-info">
-            <h3>🤖 AI Assistant</h3>
+            <h3>AI Assistant</h3>
             <p>Powered by Llama 3.1</p>
           </div>
         </div>
@@ -230,7 +230,10 @@ const AIChat = ({ socket, user, onClose }) => {
       <div className="ai-messages-container">
         {messages.length === 0 && !streamingMessage && (
           <div className="ai-welcome">
-            <Bot className="ai-welcome-icon" size={64} />
+            <div className="ai-welcome-icon-wrapper">
+              <MessageSquare className="ai-welcome-icon" size={64} strokeWidth={2} />
+              <Sparkles className="ai-welcome-sparkle" size={24} />
+            </div>
             <h2>Hi! I'm your AI Assistant</h2>
             <p>I can help you with:</p>
             <ul>
@@ -252,7 +255,7 @@ const AIChat = ({ socket, user, onClose }) => {
           >
             {msg.role === 'assistant' && (
               <div className="ai-message-avatar">
-                <Bot size={20} />
+                <MessageSquare size={18} strokeWidth={2.5} />
               </div>
             )}
             <div className="ai-message-content">
@@ -266,7 +269,7 @@ const AIChat = ({ socket, user, onClose }) => {
         {streamingMessage && (
           <div className="ai-message ai-message-bot ai-message-streaming">
             <div className="ai-message-avatar">
-              <Bot size={20} />
+              <MessageSquare size={18} strokeWidth={2.5} />
             </div>
             <div className="ai-message-content">
               <div className="ai-message-text">{streamingMessage}</div>
@@ -278,7 +281,7 @@ const AIChat = ({ socket, user, onClose }) => {
         {isTyping && !streamingMessage && (
           <div className="ai-message ai-message-bot">
             <div className="ai-message-avatar">
-              <Bot size={20} />
+              <MessageSquare size={18} strokeWidth={2.5} />
             </div>
             <div className="ai-typing-indicator">
               <span></span>

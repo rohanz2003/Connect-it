@@ -1,4 +1,4 @@
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const fetch = require('node-fetch');
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -27,11 +27,13 @@ Important guidelines:
 
 Remember: You're here to help users learn, solve problems, and get answers quickly!`;
 
-async function getChatCompletion(messages, stream = false) {
+async function getChatCompletion(messages) {
   try {
     if (!OPENROUTER_API_KEY) {
       throw new Error('OpenRouter API key not configured');
     }
+
+    console.log('🤖 Calling OpenRouter API...');
 
     const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
@@ -47,7 +49,6 @@ async function getChatCompletion(messages, stream = false) {
           { role: 'system', content: SYSTEM_PROMPT },
           ...messages
         ],
-        stream: stream,
         temperature: 0.7,
         max_tokens: 1000,
       }),
@@ -55,24 +56,28 @@ async function getChatCompletion(messages, stream = false) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenRouter API error:', response.status, errorText);
+      console.error('❌ OpenRouter API error:', response.status, errorText);
       throw new Error(`OpenRouter API error: ${response.status}`);
     }
 
-    if (stream) {
-      return response.body;
-    }
-
     const data = await response.json();
-    return data.choices[0].message.content;
+    const content = data.choices[0].message.content;
+    console.log('✅ AI response received:', content.substring(0, 100) + '...');
+    return content;
   } catch (error) {
-    console.error('AI Service error:', error);
+    console.error('❌ AI Service error:', error);
     throw error;
   }
 }
 
 async function streamChatCompletion(messages, onChunk, onComplete, onError) {
   try {
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OpenRouter API key not configured');
+    }
+
+    console.log('🤖 Starting streaming response...');
+
     const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
       headers: {
@@ -94,43 +99,56 @@ async function streamChatCompletion(messages, onChunk, onComplete, onError) {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ OpenRouter API error:', response.status, errorText);
       throw new Error(`OpenRouter API error: ${response.status}`);
     }
 
-    const reader = response.body;
     let fullResponse = '';
+    let buffer = '';
 
-    for await (const chunk of reader) {
-      const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
-      
+    // Read the stream
+    for await (const chunk of response.body) {
+      buffer += chunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // Keep the incomplete line in buffer
+
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          
-          if (data === '[DONE]') {
-            onComplete(fullResponse);
-            return fullResponse;
-          }
+        const trimmedLine = line.trim();
+        if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
 
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content;
-            
-            if (content) {
-              fullResponse += content;
-              onChunk(content);
-            }
-          } catch (e) {
-            // Ignore parse errors for streaming chunks
+        const data = trimmedLine.slice(6); // Remove 'data: ' prefix
+        
+        if (data === '[DONE]') {
+          console.log('✅ Streaming complete. Total length:', fullResponse.length);
+          onComplete(fullResponse);
+          return fullResponse;
+        }
+
+        try {
+          const parsed = JSON.parse(data);
+          const content = parsed.choices?.[0]?.delta?.content;
+          
+          if (content) {
+            fullResponse += content;
+            onChunk(content);
           }
+        } catch (e) {
+          // Ignore parse errors for malformed chunks
+          console.warn('⚠️ Failed to parse chunk:', data.substring(0, 50));
         }
       }
     }
 
-    onComplete(fullResponse);
+    // In case stream ends without [DONE]
+    if (fullResponse) {
+      console.log('✅ Stream ended. Total length:', fullResponse.length);
+      onComplete(fullResponse);
+    }
+    
     return fullResponse;
   } catch (error) {
-    console.error('Stream error:', error);
+    console.error('❌ Stream error:', error);
     onError(error);
     throw error;
   }

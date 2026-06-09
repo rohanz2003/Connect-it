@@ -3318,6 +3318,13 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   border-radius: 50%;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
   animation: aiPulse 2s ease-in-out infinite;
+  color: white;
+}
+
+.ai-icon-svg {
+  width: 22px;
+  height: 22px;
+  color: white;
 }
 
 @keyframes aiPulse {

@@ -131,10 +131,22 @@
   height: 100%;
 }
 
+.ai-welcome-icon-wrapper {
+  position: relative;
+  margin-bottom: 20px;
+}
+
 .ai-welcome-icon {
   color: #667eea;
-  margin-bottom: 20px;
   animation: float 3s ease-in-out infinite;
+}
+
+.ai-welcome-sparkle {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  color: #ffd700;
+  animation: sparkle 2s ease-in-out infinite;
 }
 
 @keyframes float {
