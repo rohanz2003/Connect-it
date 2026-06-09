@@ -262,7 +262,7 @@ function Chat({ user: currentUser }) {
   const [archivedChats, setArchivedChats] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`archivedChats_${localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")).email : ""}`) || "[]"); } catch { return []; }
   });
-  const [showArchivedChats, setShowArchivedChats] = useState(false);
+  const [activeTab, setActiveTab] = useState("recent");
   const [displayName, setDisplayName] = useState(() => {
     try { return JSON.parse(localStorage.getItem("user") || "{}").displayName || ""; } catch { return ""; }
   });
@@ -1666,6 +1666,8 @@ function Chat({ user: currentUser }) {
     );
   });
 
+  const totalUnread = filteredRecentChats.reduce((sum, u) => sum + getUnreadCount(u), 0);
+
   if (!user) return <h2>Loading...</h2>;
 
   return (
@@ -1686,22 +1688,6 @@ function Chat({ user: currentUser }) {
           >
             {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-        </div>
-
-        <div className="sidebar-tabs">
-          <button className="tab active">
-            <MessageCircle size={16} /> Chats
-          </button>
-        </div>
-
-        <div className="sidebar-search">
-          <Search size={16} />
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search conversations"
-          />
         </div>
 
         <div className="profile-card">
@@ -1728,102 +1714,140 @@ function Chat({ user: currentUser }) {
           </button>
         </div>
 
-        <div className="sidebar-section">
-          <div className="sidebar-section-title">Recent Chats</div>
-          <div className="sidebar-list">
-            {filteredRecentChats.length > 0 ? filteredRecentChats.map((u, i) => {
-              const unreadCount = getUnreadCount(u);
-              return (
+        <div className="sidebar-tabs">
+          <button
+            className={`tab ${activeTab === "recent" ? "active" : ""}`}
+            onClick={() => setActiveTab("recent")}
+          >
+            <MessageCircle size={14} />
+            Recent
+            {totalUnread > 0 && <span className="tab-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
+          </button>
+          <button
+            className={`tab ${activeTab === "online" ? "active" : ""}`}
+            onClick={() => setActiveTab("online")}
+          >
+            <span className="tab-online-dot" />
+            Online
+            <span className="tab-count">{filteredOnlineUsers.length}</span>
+          </button>
+          <button
+            className={`tab ${activeTab === "archive" ? "active" : ""}`}
+            onClick={() => setActiveTab("archive")}
+          >
+            <Archive size={14} />
+            Archive
+            {archivedChatsList.length > 0 && <span className="tab-count">{archivedChatsList.length}</span>}
+          </button>
+        </div>
+
+        <div className="sidebar-search">
+          <Search size={16} />
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search online users" : "Search archived chats"}
+          />
+        </div>
+
+        {activeTab === "recent" && (
+          <div className="sidebar-section">
+            <div className="sidebar-list">
+              {filteredRecentChats.length > 0 ? filteredRecentChats.map((u, i) => {
+                const unreadCount = getUnreadCount(u);
+                return (
+                  <div
+                    key={`recent-${i}`}
+                    className={`user-item ${selectedUser === u ? "active" : ""}`}
+                    onClick={() => handleUserSelect(u)}
+                  >
+                    <div className="avatar-wrap">
+                      <Avatar
+                        src={userProfiles[u]}
+                        email={u}
+                        size={40}
+                        className="user-avatar"
+                        onClick={(e) => handleAvatarClick(e, u, false)}
+                      />
+                      {isUserOnline(u) && <span className="status-dot online" />}
+                    </div>
+                    <div className="user-item-copy">
+                      <span className="user-name">{getDisplayName(u)}</span>
+                      <span className="user-last">
+                        {isUserOnline(u) ? "Online" : formatLastSeen(lastSeen[u])}
+                      </span>
+                    </div>
+                    <div className="user-item-actions">
+                      {unreadCount > 0 && (
+                        <span className="unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
+                      )}
+                      <button
+                        className="remove-recent-btn"
+                        onClick={(e) => handleArchiveChat(e, u)}
+                        title="Archive chat"
+                      >
+                        <Archive size={14} />
+                      </button>
+                      <button 
+                        className="remove-recent-btn" 
+                        onClick={(e) => handleRemoveChatFromRecent(e, u)}
+                        title="Remove from list"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="empty-list">Try searching or start a new conversation.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "online" && (
+          <div className="sidebar-section">
+            <div className="sidebar-list">
+              {filteredOnlineUsers.length > 0 ? filteredOnlineUsers.map((u, i) => (
                 <div
-                  key={`recent-${i}`}
+                  key={`online-${i}`}
                   className={`user-item ${selectedUser === u ? "active" : ""}`}
                   onClick={() => handleUserSelect(u)}
                 >
                   <div className="avatar-wrap">
-                    <Avatar
-                      src={userProfiles[u]}
-                      email={u}
-                      size={40}
-                      className="user-avatar"
-                      onClick={(e) => handleAvatarClick(e, u, false)}
-                    />
-                    {isUserOnline(u) && <span className="status-dot online" />}
+                      <Avatar
+                        src={userProfiles[u]}
+                        email={u}
+                        size={40}
+                        className="user-avatar"
+                        onClick={(e) => handleAvatarClick(e, u, false)}
+                      />
+                    <span className="status-dot online" />
                   </div>
                   <div className="user-item-copy">
                     <span className="user-name">{getDisplayName(u)}</span>
-                    <span className="user-last">
-                      {isUserOnline(u) ? "Online" : formatLastSeen(lastSeen[u])}
-                    </span>
+                    <span className="user-last">Available now</span>
                   </div>
-                  <div className="user-item-actions">
-                    {unreadCount > 0 && (
-                      <span className="unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
-                    )}
-                    <button
-                      className="remove-recent-btn"
-                      onClick={(e) => handleArchiveChat(e, u)}
-                      title="Archive chat"
-                    >
-                      <Archive size={14} />
-                    </button>
-                    <button 
-                      className="remove-recent-btn" 
-                      onClick={(e) => handleRemoveChatFromRecent(e, u)}
-                      title="Remove from list"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
+                  {getUnreadCount(u) > 0 && (
+                    <span className="unread-badge">{getUnreadCount(u) > 99 ? "99+" : getUnreadCount(u)}</span>
+                  )}
                 </div>
-              );
-            }) : (
-              <div className="empty-list">Try searching or start a new conversation.</div>
-            )}
+              )) : (
+                <div className="empty-list">No contacts are available right now.</div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="sidebar-section">
-          <div className="sidebar-section-title">Online Users</div>
-          <div className="sidebar-list">
-            {filteredOnlineUsers.length > 0 ? filteredOnlineUsers.map((u, i) => (
-              <div
-                key={`online-${i}`}
-                className={`user-item ${selectedUser === u ? "active" : ""}`}
-                onClick={() => handleUserSelect(u)}
-              >
-                <div className="avatar-wrap">
-                    <Avatar
-                      src={userProfiles[u]}
-                      email={u}
-                      size={40}
-                      className="user-avatar"
-                      onClick={(e) => handleAvatarClick(e, u, false)}
-                    />
-                  <span className="status-dot online" />
-                </div>
-                <div className="user-item-copy">
-                  <span className="user-name">{getDisplayName(u)}</span>
-                  <span className="user-last">Available now</span>
-                </div>
-                {getUnreadCount(u) > 0 && (
-                  <span className="unread-badge">{getUnreadCount(u) > 99 ? "99+" : getUnreadCount(u)}</span>
-                )}
-              </div>
-            )) : (
-              <div className="empty-list">No contacts are available right now.</div>
-            )}
-          </div>
-        </div>
-
-        {showArchivedChats && (
+        {activeTab === "archive" && (
           <div className="sidebar-section">
-            <div className="sidebar-section-title">Archived Chats</div>
             <div className="sidebar-list">
               {archivedChatsList.length > 0 ? archivedChatsList.map((u, i) => (
                 <div
                   key={`archived-${i}`}
                   className={`user-item ${selectedUser === u ? "active" : ""}`}
-                  onClick={() => { handleUserSelect(u); setShowArchivedChats(false); }}
+                  onClick={() => { handleUserSelect(u); setActiveTab("recent"); }}
                 >
                   <div className="avatar-wrap">
                     <Avatar
@@ -1855,9 +1879,6 @@ function Chat({ user: currentUser }) {
         )}
 
         <div className="sidebar-actions">
-          <button className="secondary-btn" onClick={() => setShowArchivedChats(!showArchivedChats)}>
-            <Archive size={16} /> {showArchivedChats ? "Back to Chats" : "Archived Chats"}
-          </button>
           <button className="secondary-btn" onClick={() => setShowSettings(true)}>
             <Settings size={16} /> Settings
           </button>
@@ -2365,9 +2386,9 @@ function Chat({ user: currentUser }) {
       </button>
 
       <nav className="bottom-nav">
-        <button className="bottom-nav-btn active"><MessageCircle size={18} /><span>Chat</span></button>
-        <button className="bottom-nav-btn" onClick={() => setSelectedUser(null)}><Users size={18} /><span>Contacts</span></button>
-        <button className="bottom-nav-btn" onClick={() => setShowArchivedChats(!showArchivedChats)}><Archive size={18} /><span>Archive</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "recent" ? "active" : ""}`} onClick={() => setActiveTab("recent")}><MessageCircle size={18} /><span>Chat</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "online" ? "active" : ""}`} onClick={() => setActiveTab("online")}><Users size={18} /><span>Contacts</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={() => setActiveTab("archive")}><Archive size={18} /><span>Archive</span></button>
         <button className="bottom-nav-btn" onClick={() => setShowSettings(true)}><Settings size={18} /><span>More</span></button>
       </nav>
 

@@ -234,6 +234,54 @@ body {
   color: white;
 }
 
+.tab-badge {
+  background: var(--danger-color, #ef4444);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  margin-left: 2px;
+}
+
+.tab-count {
+  background: rgba(255,255,255,0.2);
+  color: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  margin-left: 2px;
+}
+
+.tab.active .tab-count {
+  background: rgba(255,255,255,0.25);
+}
+
+.tab-online-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+}
+
+.tab.active .tab-online-dot {
+  background: #86efac;
+}
+
 .sidebar-search {
   padding: 12px;
   border-bottom: 1px solid var(--border-color);
