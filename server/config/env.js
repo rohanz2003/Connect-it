@@ -7,10 +7,10 @@ require("dotenv").config({
 });
 
 const getEmailPassword = () =>
+  process.env.SMTP_PASS ||
   process.env.EMAIL_PASS ||
   process.env.EMAIL_PASSWORD ||
-  process.env.GMAIL_APP_PASSWORD ||
-  process.env.SMTP_PASS;
+  process.env.GMAIL_APP_PASSWORD;
 
 const hasAnyEmailConfig = () => {
   return Boolean(

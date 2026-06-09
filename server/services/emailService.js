@@ -13,15 +13,15 @@ const detectProvider = () => {
   if (process.env.SENDGRID_API_KEY && sgMail) return "sendgrid";
   if (process.env.SENDGRID_API_KEY) return "sendgrid-smtp";
   if (process.env.SMTP_HOST) return "smtp";
-  if (process.env.EMAIL_USER && (process.env.EMAIL_PASS || process.env.GMAIL_APP_PASSWORD)) return "gmail";
+  if (process.env.EMAIL_USER && !process.env.SMTP_HOST && (process.env.EMAIL_PASS || process.env.GMAIL_APP_PASSWORD)) return "gmail";
   return "log";
 };
 
 const getEmailPassword = () =>
+  process.env.SMTP_PASS ||
   process.env.EMAIL_PASS ||
   process.env.EMAIL_PASSWORD ||
-  process.env.GMAIL_APP_PASSWORD ||
-  process.env.SMTP_PASS;
+  process.env.GMAIL_APP_PASSWORD;
 
 const getFromEmail = () =>
   process.env.FROM_EMAIL || process.env.EMAIL_USER || "noreply@connectit.app";
