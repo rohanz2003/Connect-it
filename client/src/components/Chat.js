@@ -1145,7 +1145,7 @@ function Chat({ user: currentUser }) {
       };
     }
 
-    const optimisticMsg = { ...newMsg, pending: true, _id: tempId };
+    const optimisticMsg = { ...newMsg, pending: true, status: 'sent', _id: tempId };
     const partner = normalizeEmail(selectedUser);
 
     setChatHistory((prev) => ({
@@ -1246,7 +1246,7 @@ function Chat({ user: currentUser }) {
 
       setUploadProgress(85);
 
-      const optimisticMsg = { ...newMsg, pending: true, _id: tempId };
+      const optimisticMsg = { ...newMsg, pending: true, status: 'sent', _id: tempId };
       const partner = normalizeEmail(selectedUser);
 
       setChatHistory((prev) => ({
@@ -2200,10 +2200,16 @@ function Chat({ user: currentUser }) {
                         <div className="message-meta">
                           <span>{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
                           {msg.pending && <span className="message-status pending">⏰ Sending…</span>}
-                          {msg.failed && <span className="message-status failed">Failed</span>}
+                          {msg.failed && <span className="message-status failed">❌ Failed</span>}
                           {msg.sender === user.email && !msg.pending && !msg.failed && (
-                            <span className={`read-receipt${msg.status === "read" ? " read" : ""}`}>
-                              {msg.status === "read" ? "✓✓" : msg.status === "delivered" ? "✓✓" : "✓"}
+                            <span className={`message-status-tick ${msg.status || 'sent'}`}>
+                              {msg.status === "read" ? (
+                                <span className="double-tick read">✓✓</span>
+                              ) : msg.status === "delivered" ? (
+                                <span className="double-tick delivered">✓✓</span>
+                              ) : (
+                                <span className="single-tick sent">✓</span>
+                              )}
                             </span>
                           )}
                         </div>

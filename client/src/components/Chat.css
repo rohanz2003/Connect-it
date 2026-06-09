@@ -957,12 +957,60 @@ body {
 .message-status.pending {
   color: var(--text-muted, #6b7280);
   font-size: 11px;
+  font-weight: 500;
 }
 
 .message-status.failed {
   color: #ef4444;
   font-size: 11px;
   font-weight: 600;
+}
+
+/* WhatsApp-Style Message Status Ticks */
+.message-status-tick {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -2px;
+}
+
+/* Single Tick - Gray (Sent) */
+.single-tick.sent {
+  color: #9ca3af;
+  font-weight: 900;
+  font-size: 15px;
+}
+
+/* Double Tick - Gray (Delivered) */
+.double-tick.delivered {
+  color: #9ca3af;
+  font-weight: 900;
+  font-size: 15px;
+  letter-spacing: -3px;
+}
+
+/* Double Tick - Blue (Read) */
+.double-tick.read {
+  color: #53bdeb;
+  font-weight: 900;
+  font-size: 15px;
+  letter-spacing: -3px;
+  animation: readPulse 0.3s ease-in-out;
+}
+
+@keyframes readPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .media-unavailable {
@@ -1063,13 +1111,11 @@ body {
 }
 
 .read-receipt {
-  color: #9ca3af;
-  font-weight: 600;
-  font-size: 12px;
+  display: none; /* Replaced with new message-status-tick */
 }
 
 .read-receipt.read {
-  color: #53bdeb;
+  display: none; /* Replaced with new message-status-tick */
 }
 
 /* Enhanced message styling for better distinction */
