@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, useState, useEffect } from "react";
 
 const AVATAR_COLORS = [
   "#1e88e5", "#43a047", "#e53935", "#8e24aa", "#fb8c00",
@@ -26,21 +26,37 @@ function getColorByEmail(email) {
 }
 
 function Avatar({ src, email, size = 40, className = "", onClick, style = {} }) {
-  const initials = getInitials(email);
-  const bgColor = getColorByEmail(email);
+  const initials = useMemo(() => getInitials(email), [email]);
+  const bgColor = useMemo(() => getColorByEmail(email), [email]);
+  const [imgError, setImgError] = useState(false);
 
-  if (src) {
+  useEffect(() => {
+    // If src changes, allow the new image to render again.
+    setImgError(false);
+  }, [src]);
+
+  const commonStyle = useMemo(
+    () => ({
+      width: size,
+      height: size,
+      borderRadius: "50%",
+      cursor: onClick ? "pointer" : "default",
+      ...style,
+    }),
+    [size, onClick, style]
+  );
+
+  // If we have a src but it fails to load (broken URL / blocked / invalid base64),
+  // show initials fallback instead of hiding the avatar entirely.
+  if (src && !imgError) {
     return (
       <img
         src={src}
         alt={email || "User"}
         className={className}
-        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", cursor: onClick ? "pointer" : "default", ...style }}
+        style={{ ...commonStyle, objectFit: "cover" }}
         onClick={onClick}
-        onError={(e) => {
-          e.target.style.display = "none";
-          e.target.nextSibling && (e.target.nextSibling.style.display = "flex");
-        }}
+        onError={() => setImgError(true)}
       />
     );
   }
@@ -50,9 +66,7 @@ function Avatar({ src, email, size = 40, className = "", onClick, style = {} }) 
       className={className}
       onClick={onClick}
       style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
+        ...commonStyle,
         backgroundColor: bgColor,
         color: "#fff",
         display: "flex",
@@ -61,10 +75,8 @@ function Avatar({ src, email, size = 40, className = "", onClick, style = {} }) 
         fontSize: size * 0.4,
         fontWeight: 600,
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-        cursor: onClick ? "pointer" : "default",
         flexShrink: 0,
         userSelect: "none",
-        ...style,
       }}
     >
       {initials}
