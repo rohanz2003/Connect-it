@@ -23,6 +23,7 @@ const messageSchema = new mongoose.Schema({
   replyTo: replyToSchema,
   timestamp: { type: Date, default: Date.now, index: true },
   seen: { type: Boolean, default: false },
+  delivered: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
 });
 

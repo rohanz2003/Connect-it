@@ -1,5 +1,7 @@
 const { normalizeEmail, registerSocket } = require("../utils/socketAuth");
 const User = require("../modules/User");
+const Message = require("../models/Message");
+const { decryptMessageDoc } = require("../utils/messageCrypto");
 const { updateLastSeen } = require("../controllers/userController");
 
 module.exports = (io, socket, users, userProfiles) => {
@@ -64,6 +66,27 @@ module.exports = (io, socket, users, userProfiles) => {
     }
     
     io.emit("online-users", Object.keys(users));
+
+    // Fetch and send undelivered messages (delivered: false) to this user
+    (async () => {
+      try {
+        const undelivered = await Message.find({
+          receiver: userId,
+          delivered: false,
+        })
+          .sort({ timestamp: 1 })
+          .limit(100)
+          .lean();
+
+        if (undelivered.length > 0) {
+          const decrypted = undelivered.map(decryptMessageDoc);
+          io.to(userId).emit("undelivered-messages", decrypted);
+          console.log(`📨 ${undelivered.length} undelivered message(s) sent to ${userId}`);
+        }
+      } catch (err) {
+        console.error("❌ Failed to fetch undelivered messages:", err.message);
+      }
+    })();
   });
 
   socket.on("leave", (data) => {

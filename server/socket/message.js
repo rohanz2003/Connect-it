@@ -129,6 +129,8 @@ module.exports = (io, socket, users) => {
         return;
       }
 
+      const receiverOnline = isUserOnline(users, normalizedReceiver);
+
       const optimisticMessage = {
         _id: tempId || `temp-${Date.now()}`,
         sender: normalizedSender,
@@ -140,6 +142,7 @@ module.exports = (io, socket, users) => {
         replyTo: replyTo || null,
         timestamp: msgTimestamp,
         seen: false,
+        delivered: receiverOnline,
         pending: true,
       };
 
@@ -165,6 +168,7 @@ module.exports = (io, socket, users) => {
           replyTo: replyTo || undefined,
           timestamp: msgTimestamp,
           seen: false,
+          delivered: receiverOnline,
         });
 
         io.to(roomId).to(normalizedReceiver).emit("message-saved", {
@@ -219,8 +223,14 @@ module.exports = (io, socket, users) => {
 
     Message.updateMany(
       { sender: normalizedUser2, receiver: normalizedUser1, seen: false },
-      { seen: true }
+      { seen: true, delivered: true }
     ).catch((err) => console.warn("mark-as-read DB update failed:", err.message));
+
+    const roomId = getRoomId(normalizedUser2, normalizedUser1);
+    io.to(roomId).emit("message-seen", {
+      sender: normalizedUser2,
+      receiver: normalizedUser1,
+    });
 
     if (isUserOnline(users, normalizedUser1)) {
       io.to(normalizedUser1).emit("unread-update", unreadMessages);
@@ -235,13 +245,14 @@ module.exports = (io, socket, users) => {
 
       await Message.updateMany(
         { sender: normalizeEmail(sender), receiver: normalizedReceiver, seen: false },
-        { seen: true }
+        { seen: true, delivered: true }
       );
 
       const roomId = getRoomId(sender, receiver);
       io.to(roomId).emit("message-seen", {
         sender: normalizeEmail(sender),
         receiver: normalizedReceiver,
+        delivered: true,
       });
     } catch (err) {
       console.warn("seen-message failed:", err.message);
