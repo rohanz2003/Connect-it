@@ -1,10 +1,17 @@
 const nodemailer = require("nodemailer");
+let sgMail = null;
+try {
+  sgMail = require("@sendgrid/mail");
+} catch {
+  // @sendgrid/mail not installed, fall back to SMTP
+}
 
 let transporter = null;
 let transporterReady = false;
 
 const detectProvider = () => {
-  if (process.env.SENDGRID_API_KEY) return "sendgrid";
+  if (process.env.SENDGRID_API_KEY && sgMail) return "sendgrid";
+  if (process.env.SENDGRID_API_KEY) return "sendgrid-smtp";
   if (process.env.SMTP_HOST) return "smtp";
   if (process.env.EMAIL_USER && (process.env.EMAIL_PASS || process.env.GMAIL_APP_PASSWORD)) return "gmail";
   return "log";
@@ -28,7 +35,13 @@ const createTransporter = () => {
   }
 
   if (provider === "sendgrid") {
-    console.log("📧 Email: using SendGrid (SMTP)");
+    console.log("📧 Email: using SendGrid API");
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    return null;
+  }
+
+  if (provider === "sendgrid-smtp") {
+    console.log("📧 Email: using SendGrid via SMTP (fallback)");
     return nodemailer.createTransport({
       host: "smtp.sendgrid.net",
       port: 587,
@@ -72,6 +85,12 @@ const createTransporter = () => {
 };
 
 const init = async () => {
+  const provider = detectProvider();
+  if (provider === "sendgrid") {
+    transporterReady = true;
+    console.log("📧 SendGrid API ready ✅");
+    return;
+  }
   transporter = createTransporter();
   if (!transporter) {
     transporterReady = false;
@@ -88,6 +107,8 @@ const init = async () => {
 };
 
 const ensureTransporter = async () => {
+  const provider = detectProvider();
+  if (provider === "sendgrid") return true;
   if (transporterReady) return true;
   if (transporter) {
     try {
@@ -108,6 +129,15 @@ const sendMail = async ({ to, subject, html, text }) => {
     return { success: true, logOnly: true };
   }
 
+  const from = getFromEmail();
+
+  if (provider === "sendgrid") {
+    const msg = { to, from, subject, html, text };
+    const response = await sgMail.send(msg);
+    console.log(`📧 SendGrid email sent to ${to}:`, response[0]?.statusCode);
+    return { success: true, messageId: response[0]?.headers?.["x-message-id"] };
+  }
+
   const ready = await ensureTransporter();
   if (!ready) {
     console.warn("📧 Email transporter not ready, logging instead:", { to, subject });
@@ -115,7 +145,6 @@ const sendMail = async ({ to, subject, html, text }) => {
     return { success: true, logOnly: true };
   }
 
-  const from = getFromEmail();
   const info = await transporter.sendMail({ from, to, subject, html, text });
   console.log(`📧 Email sent to ${to}:`, info.messageId);
   return { success: true, messageId: info.messageId };
