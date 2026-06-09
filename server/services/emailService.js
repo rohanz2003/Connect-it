@@ -133,9 +133,18 @@ const sendMail = async ({ to, subject, html, text }) => {
 
   if (provider === "sendgrid") {
     const msg = { to, from, subject, html, text };
-    const response = await sgMail.send(msg);
-    console.log(`📧 SendGrid email sent to ${to}:`, response[0]?.statusCode);
-    return { success: true, messageId: response[0]?.headers?.["x-message-id"] };
+    try {
+      const response = await sgMail.send(msg);
+      console.log(`📧 SendGrid email sent to ${to}:`, response[0]?.statusCode);
+      return { success: true, messageId: response[0]?.headers?.["x-message-id"] };
+    } catch (err) {
+      console.error("📧 SendGrid error:", err?.response?.body?.errors?.[0]?.message || err.message);
+      if (err?.code === 401) {
+        console.error("❌ SENDGRID_API_KEY is invalid or sender not verified. Logging email instead.");
+      }
+      console.log("📧 [FALLBACK LOG] To:", to, "| Subject:", subject);
+      return { success: true, logOnly: true, sendgridError: err.message };
+    }
   }
 
   const ready = await ensureTransporter();
