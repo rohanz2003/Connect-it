@@ -1241,6 +1241,13 @@ function Chat({ user: currentUser }) {
     }
 
     const isImage = file.type.startsWith('image/');
+
+    const ext = file.name?.split('.').pop()?.toLowerCase() || '';
+    const audioExts = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma', 'opus', 'm4b', 'm4p', 'amr', '3gp', 'weba'];
+    const videoExts = ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv', 'wmv', 'm4v', 'mpg', 'mpeg'];
+
+    const mediaType = audioExts.includes(ext) ? 'audio' : videoExts.includes(ext) ? 'video' : file.type.split('/')[0];
+
     const maxSize = isImage ? 5 * 1024 * 1024 : 25 * 1024 * 1024;
 
     if (file.size > maxSize) {
@@ -1287,7 +1294,7 @@ function Chat({ user: currentUser }) {
         receiver: selectedUser,
         text: fileData,
         type: "media",
-        mediaType: file.type.split('/')[0],
+        mediaType,
         tempId: tempId,
         timestamp: new Date().toISOString()
       };
