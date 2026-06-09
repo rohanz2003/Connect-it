@@ -1420,6 +1420,7 @@ function Chat({ user: currentUser }) {
     const partner = normalizeEmail(partnerEmail);
     const newArchived = archivedChats.filter(a => normalizeEmail(a) !== partner);
     setArchivedChats(newArchived);
+    setActiveTab("recent");
     try {
       localStorage.setItem(`archivedChats_${user.email}`, JSON.stringify(newArchived));
     } catch (e) {}
