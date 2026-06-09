@@ -2634,6 +2634,83 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   background: var(--primary-hover);
 }
 
+/* CSS animation for crop modal (replaces framer-motion) */
+.crop-modal-animate {
+  animation: cropModalIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes cropModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* CSS animations for components (replaces framer-motion) */
+.message-animate {
+  animation: messageIn 0.25s ease-out forwards;
+}
+
+@keyframes messageIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.typing-animate {
+  animation: typingIn 0.2s ease-out forwards;
+}
+
+@keyframes typingIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.profile-card-animate {
+  animation: profileCardIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes profileCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-animate {
+  animation: toastIn 0.2s ease-out forwards;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ============================================================================
    REDESIGNED SETTINGS MODAL
    ============================================================================ */

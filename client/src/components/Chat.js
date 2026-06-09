@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import EmojiPicker from "emoji-picker-react";
 import {
   Search,
@@ -169,12 +169,7 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
 
   return (
     <div className="crop-overlay" onClick={onCancel}>
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="crop-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="crop-modal crop-modal-animate" onClick={(e) => e.stopPropagation()}>
         <div className="crop-header">
           <h3>Crop Profile Picture</h3>
           <button onClick={onCancel}><X size={18} /></button>
@@ -208,7 +203,7 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
           <button className="crop-cancel-btn" onClick={onCancel}>Cancel</button>
           <button className="crop-save-btn" onClick={handleCrop}>Crop & Save</button>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };
@@ -1842,13 +1837,7 @@ function Chat({ user: currentUser }) {
                           <span>{formatDay(msg.timestamp || msg.createdAt)}</span>
                         </div>
                       )}
-                      <motion.div
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25 }}
-                        className={`message ${msg.sender === user.email ? "sent" : "received"}`}
-                        onContextMenu={(e) => handleContextMenu(e, msg)}
-                      >
+                      <div className={`message ${msg.sender === user.email ? "sent" : "received"} message-animate`} onContextMenu={(e) => handleContextMenu(e, msg)}>
                         <div className="message-content">
                           {msg.replyTo && (
                             <div className="reply-quote">
@@ -1927,7 +1916,7 @@ function Chat({ user: currentUser }) {
                             <span className="read-receipt">✓✓</span>
                           )}
                         </div>
-                      </motion.div>
+                      </div>
                     </React.Fragment>
                   );
                 })
@@ -1935,17 +1924,11 @@ function Chat({ user: currentUser }) {
 
               <AnimatePresence>
                 {typingUser && typingUser !== user.email && (
-                  <motion.div
-                    className="typing-indicator"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    title="Someone is typing..."
-                  >
+                  <div className="typing-indicator typing-animate" title="Someone is typing...">
                     <span />
                     <span />
                     <span />
-                  </motion.div>
+                  </div>
                 )}
               </AnimatePresence>
               <div ref={messagesEndRef} />
@@ -2096,18 +2079,13 @@ function Chat({ user: currentUser }) {
         </div>
       </aside>
 
-      <AnimatePresence>
-        {isMediaSending && (
-          <motion.div
-            className="toast-notice"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
-          >
-            Uploading file...
-          </motion.div>
-        )}
-      </AnimatePresence>
+        <AnimatePresence>
+          {isMediaSending && (
+            <div className="toast-notice toast-animate">
+              Uploading file...
+            </div>
+          )}
+        </AnimatePresence>
 
       {contextMenu && (
         <div className="context-menu" style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x }}>
@@ -2125,12 +2103,7 @@ function Chat({ user: currentUser }) {
       {/* Profile Preview Modal */}
       {profilePreviewUser && (
         <div className="profile-preview-overlay" onClick={() => setProfilePreviewUser(null)}>
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="profile-preview-card"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="profile-preview-card profile-card-animate" onClick={(e) => e.stopPropagation()}>
             <button className="profile-preview-close" onClick={() => setProfilePreviewUser(null)}>
               <X size={20} />
             </button>
@@ -2187,7 +2160,7 @@ function Chat({ user: currentUser }) {
                 </>
               )}
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
 
@@ -2225,13 +2198,13 @@ function Chat({ user: currentUser }) {
               <button onClick={() => { setImageViewerState({ open: false, src: null, type: "media", name: "", isOwn: false }); setImageZoom(1); }} title="Close"><X size={20} /></button>
             </div>
           </div>
-          <motion.div
+          <div
             className="fullscreen-viewer-content"
             onClick={(e) => e.stopPropagation()}
             style={{ transform: `scale(${imageZoom})` }}
           >
             <img src={imageViewerState.src} alt={imageViewerState.name || "Full image"} />
-          </motion.div>
+          </div>
         </div>
       )}
 
