@@ -1984,11 +1984,6 @@ function Chat({ user: currentUser }) {
                 </div>
               ) : (
                 <>
-                {messages.filter(m => m._showRed && m.sender !== user.email).length > 0 && (
-                  <div className="unread-banner">
-                    🔴 {messages.filter(m => m._showRed && m.sender !== user.email).length} unread message{messages.filter(m => m._showRed && m.sender !== user.email).length > 1 ? 's' : ''}
-                  </div>
-                )}
                 {messages.map((msg, i) => {
                   const previousMsg = messages[i - 1];
                   const showDay = !previousMsg || new Date(msg.timestamp || msg.createdAt).toDateString() !== new Date(previousMsg.timestamp || previousMsg.createdAt).toDateString();
@@ -1999,7 +1994,7 @@ function Chat({ user: currentUser }) {
                           <span>{formatDay(msg.timestamp || msg.createdAt)}</span>
                         </div>
                       )}
-                      <div className={`message ${msg.sender === user.email ? "sent" : "received"} message-animate${msg._showRed ? " undelivered" : ""}`} onContextMenu={(e) => handleContextMenu(e, msg)}>
+                      <div className={`message ${msg.sender === user.email ? "sent" : "received"} message-animate`} onContextMenu={(e) => handleContextMenu(e, msg)}>
                         <div className="message-content">
                           {msg.replyTo && (
                             <div className="reply-quote">
@@ -2074,9 +2069,6 @@ function Chat({ user: currentUser }) {
                           <span>{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
                           {msg.pending && <span className="message-status pending">⏰ Sending…</span>}
                           {msg.failed && <span className="message-status failed">Failed</span>}
-                          {msg._showRed && msg.sender !== user.email && (
-                            <span className="message-status undelivered-status">🔴 New</span>
-                          )}
                           {msg.sender === user.email && !msg.pending && !msg.failed && (
                             <span className={`read-receipt${msg.status === "read" ? " read" : ""}`}>
                               {msg.status === "read" ? "✓✓" : msg.status === "delivered" ? "✓✓" : "✓"}
