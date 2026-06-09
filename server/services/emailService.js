@@ -139,24 +139,22 @@ const sendMail = async ({ to, subject, html, text }) => {
       return { success: true, messageId: response[0]?.headers?.["x-message-id"] };
     } catch (err) {
       console.error("📧 SendGrid error:", err?.response?.body?.errors?.[0]?.message || err.message);
-      if (err?.code === 401) {
-        console.error("❌ SENDGRID_API_KEY is invalid or sender not verified. Logging email instead.");
-      }
       console.log("📧 [FALLBACK LOG] To:", to, "| Subject:", subject);
       return { success: true, logOnly: true, sendgridError: err.message };
     }
   }
 
-  const ready = await ensureTransporter();
-  if (!ready) {
-    console.warn("📧 Email transporter not ready, logging instead:", { to, subject });
-    console.log("📧 [FALLBACK LOG] To:", to, "| Subject:", subject, "| Body:", text || html?.substring(0, 200));
-    return { success: true, logOnly: true };
+  try {
+    const t = transporter || createTransporter();
+    const info = await t.sendMail({ from, to, subject, html, text });
+    console.log(`📧 Email sent to ${to}:`, info.messageId, info.accepted);
+    if (!transporter) transporter = t;
+    return { success: true, messageId: info.messageId, accepted: info.accepted };
+  } catch (err) {
+    console.error(`📧 Failed to send email to ${to}:`, err?.message || err);
+    console.log("📧 [FALLBACK LOG] To:", to, "| Subject:", subject);
+    return { success: true, logOnly: true, smtpError: err.message };
   }
-
-  const info = await transporter.sendMail({ from, to, subject, html, text });
-  console.log(`📧 Email sent to ${to}:`, info.messageId);
-  return { success: true, messageId: info.messageId };
 };
 
 const sendInviteEmail = async ({ email, invitedByName, workspaceName, inviteLink }) => {
