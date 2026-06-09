@@ -223,7 +223,6 @@ function Chat({ user: currentUser }) {
   const [lastSeen, setLastSeen] = useState({});
   const [messages, setMessages] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [unreadMessages, setUnreadMessages] = useState({}); // Track unread counts
   const [userProfiles, setUserProfiles] = useState(() => {
     try {
       const email = JSON.parse(localStorage.getItem("user") || "{}").email;
@@ -285,35 +284,6 @@ function Chat({ user: currentUser }) {
   const selectedUserRef = useRef(selectedUser);
   const previousSelectedUserRef = useRef(null);
   useEffect(() => { selectedUserRef.current = selectedUser; }, [selectedUser]);
-
-  const redTimersRef = useRef(new Map());
-  const RED_TIMEOUT_MS = 5000;
-
-  const startRedTimer = (messageId) => {
-    const timers = redTimersRef.current;
-    if (timers.has(messageId)) clearTimeout(timers.get(messageId));
-    const timer = setTimeout(() => {
-      setMessages((prev) => prev.map((m) =>
-        (m._id === messageId || m.tempId === messageId) ? { ...m, _showRed: false } : m
-      ));
-      setChatHistory((prev) => {
-        const updated = { ...prev };
-        Object.keys(updated).forEach((key) => {
-          updated[key] = updated[key].map((m) =>
-            (m._id === messageId || m.tempId === messageId) ? { ...m, _showRed: false } : m
-          );
-        });
-        return updated;
-      });
-      timers.delete(messageId);
-    }, RED_TIMEOUT_MS);
-    timers.set(messageId, timer);
-  };
-
-  const clearRedTimers = () => {
-    redTimersRef.current.forEach((t) => clearTimeout(t));
-    redTimersRef.current.clear();
-  };
 
   useEffect(() => {
     document.body.classList.toggle("dark-mode", isDarkMode);
@@ -608,12 +578,6 @@ function Chat({ user: currentUser }) {
     // Subscribe to push notifications
     subscribeToPush(user.email.toLowerCase());
 
-    // Restore unread counts
-    const storedUnread = localStorage.getItem(`unread_${user.email.toLowerCase()}`);
-    if (storedUnread) {
-      try { setUnreadMessages(JSON.parse(storedUnread)); } catch (e) { console.error('Failed to parse stored unread counts', e); }
-    }
-
     const handleOnlineUsers = (users) => {
       setOnlineUsers(users);
     };
@@ -658,12 +622,6 @@ function Chat({ user: currentUser }) {
         ...prev,
         [data.userId]: data.time,
       }));
-    });
-
-    // Listen for unread message updates from server
-    socket.on("unread-update", (unreadData) => {
-      console.log("📬 Unread messages updated:", unreadData);
-      setUnreadMessages(unreadData);
     });
 
     // Listen for profile picture updates
@@ -720,19 +678,6 @@ function Chat({ user: currentUser }) {
         updated[partner] = [];
         persistHistory(updated, user.email);
         return updated;
-      });
-
-      setUnreadMessages((prev) => {
-        const key = `${partner}_${normalizeEmail(user.email)}`;
-        if (!prev[key]) return prev;
-        const next = { ...prev };
-        delete next[key];
-        try {
-          localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
-        } catch (e) {
-          console.error("Failed to persist unread counts", e);
-        }
-        return next;
       });
 
       if (selectedUserRef.current && normalizeEmail(selectedUserRef.current) === partner) {
@@ -811,41 +756,22 @@ function Chat({ user: currentUser }) {
         selectedUserRef.current &&
         normalizeEmail(selectedUserRef.current) === otherParty;
 
-      const isFromOther = normalizeEmail(msg.sender) !== normalizeEmail(user.email);
-      const isUndelivered = msg.status === "sent" && isFromOther;
-      const msgWithMeta = isUndelivered ? { ...msg, _showRed: true } : msg;
-
       setChatHistory((prev) => {
         const currentHistory = prev[otherParty] || [];
         const updated = {
           ...prev,
-          [otherParty]: upsertMessageInList(currentHistory, msgWithMeta),
+          [otherParty]: upsertMessageInList(currentHistory, msg),
         };
         persistHistory(updated, user.email);
         return updated;
       });
 
       if (isActiveChat) {
-        setMessages((prev) => upsertMessageInList(prev, msgWithMeta));
+        setMessages((prev) => upsertMessageInList(prev, msg));
         socket.emit("mark-as-read", {
           user1: normalizeEmail(user.email),
           user2: otherParty,
         });
-      } else if (normalizeEmail(msg.sender) !== normalizeEmail(user.email)) {
-        setUnreadMessages((prev) => {
-          const key = `${otherParty}_${normalizeEmail(user.email)}`;
-          const newCounts = { ...prev, [key]: (prev[key] || 0) + 1 };
-          try {
-            localStorage.setItem(`unread_${user.email}`, JSON.stringify(newCounts));
-          } catch (e) {
-            console.error("Failed to persist unread counts", e);
-          }
-          return newCounts;
-        });
-      }
-
-      if (isUndelivered && !isActiveChat) {
-        startRedTimer(msg._id || msg.tempId);
       }
     };
 
@@ -858,12 +784,11 @@ function Chat({ user: currentUser }) {
 
       msgs.forEach((msg) => {
         const otherParty = getOtherParty(msg, myEmail);
-        const msgWithRed = { ...msg, status: "sent", _showRed: true };
         setChatHistory((prev) => {
           const currentHistory = prev[otherParty] || [];
           return {
             ...prev,
-            [otherParty]: upsertMessageInList(currentHistory, msgWithRed),
+            [otherParty]: upsertMessageInList(currentHistory, msg),
           };
         });
 
@@ -871,9 +796,8 @@ function Chat({ user: currentUser }) {
           selectedUserRef.current &&
           normalizeEmail(selectedUserRef.current) === otherParty
         ) {
-          setMessages((prev) => upsertMessageInList(prev, msgWithRed));
+          setMessages((prev) => upsertMessageInList(prev, msg));
         }
-        startRedTimer(msg._id || msg.tempId);
       });
     });
 
@@ -882,7 +806,7 @@ function Chat({ user: currentUser }) {
       const applyStatus = (list) =>
         list.map((m) =>
           (m._id === messageId || m.tempId === tempId)
-            ? { ...m, status, pending: false, _showRed: (status === "sent" ? m._showRed : false) }
+            ? { ...m, status, pending: false }
             : m
         );
 
@@ -932,7 +856,6 @@ function Chat({ user: currentUser }) {
       socket.off("typing");
       socket.off("stop-typing");
       socket.off("last-seen");
-      socket.off("unread-update");
       socket.off("user-profile-update");
       socket.off("chat-cleared", handleChatCleared);
       socket.off("message-saved", handleMessageSaved);
@@ -942,7 +865,6 @@ function Chat({ user: currentUser }) {
       socket.off("undelivered-messages");
       socket.off("message-status-update");
       socket.off("messages-read");
-      clearRedTimers();
     };
   }, [socket, user]);
 
@@ -1037,8 +959,7 @@ function Chat({ user: currentUser }) {
       // 1. Join room
       socket.emit("join-room", { user1: user.email, user2: selectedUser });
       
-      // 2. Clear red timers and mark messages as read
-      clearRedTimers();
+      // 2. Mark messages as read
       socket.emit("mark-as-read", { user1: user.email, user2: selectedUser });
       
       // 3. Fetch full history from Database (Fixes the "no msg show" issue)
@@ -1335,17 +1256,6 @@ function Chat({ user: currentUser }) {
       return updated;
     });
 
-    setUnreadMessages((prev) => {
-      const key = `${partner}_${normalizeEmail(user.email)}`;
-      if (!prev[key]) return prev;
-      const next = { ...prev };
-      delete next[key];
-      try {
-        localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
-      } catch (e) {}
-      return next;
-    });
-
     if (selectedUser && normalizeEmail(selectedUser) === partner) {
       setMessages([]);
     }
@@ -1370,10 +1280,8 @@ function Chat({ user: currentUser }) {
       )
     ) {
       localStorage.removeItem(`chatHistory_${user.email}`);
-      localStorage.removeItem(`unread_${user.email}`);
       setChatHistory({});
       setMessages([]);
-      setUnreadMessages({});
       setSelectedUser(null);
     }
   };
@@ -1599,21 +1507,10 @@ function Chat({ user: currentUser }) {
       setMessages([...chatHistory[u]].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
     }
 
-    // Clear unread badge for this chat immediately
-    if (user) {
-      setUnreadMessages(prev => {
-        const key = `${u.toLowerCase()}_${user.email.toLowerCase()}`;
-        if (!prev[key]) return prev;
-        const next = { ...prev };
-        delete next[key];
-        try { localStorage.setItem(`unread_${user.email}`, JSON.stringify(next)); } catch (e) {}
-        return next;
-      });
-      // Mark messages as read on server
-      if (socket && socket.connected) {
-        socket.emit("mark-as-read", { user1: user.email, user2: u });
-        socket.emit("seen-message", { sender: u, receiver: user.email });
-      }
+    // Mark messages as read on server
+    if (socket && socket.connected && user) {
+      socket.emit("mark-as-read", { user1: user.email, user2: u });
+      socket.emit("seen-message", { sender: u, receiver: user.email });
     }
   };
 
@@ -1644,13 +1541,6 @@ function Chat({ user: currentUser }) {
   const isUserOnline = (userEmail) =>
     onlineUsers.some((u) => normalizeEmail(u) === normalizeEmail(userEmail));
 
-  // Get unread count for a user
-  const getUnreadCount = (otherUser) => {
-    if (!user || !otherUser) return 0;
-    const key = `${otherUser.toLowerCase()}_${user.email.toLowerCase()}`;
-    return unreadMessages[key] || 0;
-  };
-
   const searchValue = searchTerm.trim().toLowerCase();
   const filteredRecentChats = recentChats.filter((u) => {
     const normalizedEmail = normalizeEmail(u);
@@ -1666,8 +1556,6 @@ function Chat({ user: currentUser }) {
       getDisplayName(u).includes(searchValue)
     );
   });
-
-  const totalUnread = filteredRecentChats.reduce((sum, u) => sum + getUnreadCount(u), 0);
 
   if (!user) return <h2>Loading...</h2>;
 
@@ -1722,7 +1610,7 @@ function Chat({ user: currentUser }) {
           >
             <MessageCircle size={14} />
             Recent
-            {totalUnread > 0 && <span className="tab-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
+            
           </button>
           <button
             className={`tab ${activeTab === "online" ? "active" : ""}`}
@@ -1756,7 +1644,6 @@ function Chat({ user: currentUser }) {
           <div className="sidebar-section">
             <div className="sidebar-list">
               {filteredRecentChats.length > 0 ? filteredRecentChats.map((u, i) => {
-                const unreadCount = getUnreadCount(u);
                 return (
                   <div
                     key={`recent-${i}`}
@@ -1780,9 +1667,6 @@ function Chat({ user: currentUser }) {
                       </span>
                     </div>
                     <div className="user-item-actions">
-                      {unreadCount > 0 && (
-                        <span className="unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
-                      )}
                       <button
                         className="remove-recent-btn"
                         onClick={(e) => handleArchiveChat(e, u)}
@@ -1830,9 +1714,6 @@ function Chat({ user: currentUser }) {
                     <span className="user-name">{getDisplayName(u)}</span>
                     <span className="user-last">Available now</span>
                   </div>
-                  {getUnreadCount(u) > 0 && (
-                    <span className="unread-badge">{getUnreadCount(u) > 99 ? "99+" : getUnreadCount(u)}</span>
-                  )}
                 </div>
               )) : (
                 <div className="empty-list">No contacts are available right now.</div>
@@ -1975,11 +1856,6 @@ function Chat({ user: currentUser }) {
                 </div>
               ) : (
                 <>
-                {messages.filter(m => m._showRed && m.sender !== user.email).length > 0 && (
-                  <div className="unread-banner">
-                    🔴 {messages.filter(m => m._showRed && m.sender !== user.email).length} unread message{messages.filter(m => m._showRed && m.sender !== user.email).length > 1 ? 's' : ''}
-                  </div>
-                )}
                 {messages.map((msg, i) => {
                   const previousMsg = messages[i - 1];
                   const showDay = !previousMsg || new Date(msg.timestamp || msg.createdAt).toDateString() !== new Date(previousMsg.timestamp || previousMsg.createdAt).toDateString();
@@ -1990,7 +1866,7 @@ function Chat({ user: currentUser }) {
                           <span>{formatDay(msg.timestamp || msg.createdAt)}</span>
                         </div>
                       )}
-                      <div className={`message ${msg.sender === user.email ? "sent" : "received"} message-animate${msg._showRed ? " undelivered" : ""}`} onContextMenu={(e) => handleContextMenu(e, msg)}>
+                      <div className={`message ${msg.sender === user.email ? "sent" : "received"} message-animate`} onContextMenu={(e) => handleContextMenu(e, msg)}>
                         <div className="message-content">
                           {msg.replyTo && (
                             <div className="reply-quote">
@@ -2065,9 +1941,6 @@ function Chat({ user: currentUser }) {
                           <span>{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
                           {msg.pending && <span className="message-status pending">⏰ Sending…</span>}
                           {msg.failed && <span className="message-status failed">Failed</span>}
-                          {msg._showRed && msg.sender !== user.email && (
-                            <span className="message-status undelivered-status">🔴 New</span>
-                          )}
                           {msg.sender === user.email && !msg.pending && !msg.failed && (
                             <span className={`read-receipt${msg.status === "read" ? " read" : ""}`}>
                               {msg.status === "read" ? "✓✓" : msg.status === "delivered" ? "✓✓" : "✓"}

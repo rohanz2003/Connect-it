@@ -6,7 +6,6 @@ const { isDatabaseConnected } = require("../config/database");
 const { sendPushNotification } = require("../services/pushService");
 
 const roomUsers = {};
-const unreadMessages = {};
 
 const isUserOnline = (users, email) => {
   const entry = users[normalizeEmail(email)];
@@ -41,13 +40,6 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
       roomUsers[roomId].push(normalizedUser1);
     }
 
-    const unreadKey = `${normalizedUser2}_${normalizedUser1}`;
-    if (unreadMessages[unreadKey]) {
-      unreadMessages[unreadKey] = 0;
-      if (isUserOnline(users, normalizedUser1)) {
-        io.to(normalizedUser1).emit("unread-update", unreadMessages);
-      }
-    }
   });
 
   socket.on("send-message", async (data, callback) => {
@@ -158,13 +150,6 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
       // Also emit to the personal room for backward compatibility
       io.to(normalizedReceiver).emit("receive-message", optimisticMessage);
 
-      const unreadKey = `${normalizedSender}_${normalizedReceiver}`;
-      unreadMessages[unreadKey] = (unreadMessages[unreadKey] || 0) + 1;
-
-      if (isUserOnline(users, normalizedReceiver)) {
-        io.to(normalizedReceiver).emit("unread-update", unreadMessages);
-      }
-
       if (callback) callback({ ok: true, pending: true, tempId });
 
       try {
@@ -273,9 +258,6 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
     const normalizedUser2 = normalizeEmail(user2);
     if (!authUser || authUser !== normalizedUser1) return;
 
-    const unreadKey = `${normalizedUser2}_${normalizedUser1}`;
-    unreadMessages[unreadKey] = 0;
-
     const readingDeviceId = socketToDevice ? socketToDevice[socket.id] : null;
 
     const updateOp = {
@@ -308,9 +290,6 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
       readOnDevice: readingDeviceId,
     });
 
-    if (isUserOnline(users, normalizedUser1)) {
-      io.to(normalizedUser1).emit("unread-update", unreadMessages);
-    }
   });
 
   socket.on("seen-message", async ({ sender, receiver }) => {

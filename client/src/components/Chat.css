@@ -234,22 +234,6 @@ body {
   color: white;
 }
 
-.tab-badge {
-  background: var(--danger-color, #ef4444);
-  color: white;
-  font-size: 10px;
-  font-weight: 700;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  margin-left: 2px;
-}
-
 .tab-count {
   background: rgba(255,255,255,0.2);
   color: inherit;
@@ -539,28 +523,6 @@ body {
 .remove-recent-btn:hover {
   background: var(--danger-light);
   color: var(--danger-color);
-}
-
-.unread-badge {
-  background: var(--danger-color);
-  color: white;
-  border-radius: var(--radius-full);
-  padding: 2px 8px;
-  font-size: 10px;
-  font-weight: 700;
-  min-width: 20px;
-  text-align: center;
-  flex-shrink: 0;
-  animation: badge-pulse 2s infinite;
-}
-
-@keyframes badge-pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
-  }
 }
 
 .empty-list {
@@ -982,24 +944,6 @@ body {
   color: var(--text-light);
 }
 
-.unread-banner {
-  background: #fff3cd;
-  border: 1px solid #ffc107;
-  color: #856404;
-  padding: 8px 14px;
-  margin: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  text-align: center;
-  animation: unreadBannerIn 0.3s ease-out;
-}
-
-@keyframes unreadBannerIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 .empty-chat-state svg {
   color: var(--border-color);
   opacity: 0.5;
@@ -1078,39 +1022,6 @@ body {
 
 .message.received .message-meta {
   justify-content: flex-start;
-}
-
-/* Undelivered message (red) styling for messages received while offline */
-.message.received.undelivered {
-  animation: undeliveredPulse 2s ease-in-out infinite;
-}
-
-.message.received.undelivered .message-content {
-  border: 2px solid #ef4444;
-  background: #fef2f2;
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.15);
-}
-
-.message.received.undelivered .message-content,
-.message.received.undelivered .message-content a {
-  color: #b91c1c;
-}
-
-.message-status.undelivered-status {
-  color: #dc2626;
-  font-size: 11px;
-  font-weight: 700;
-  animation: undeliveredBadgePulse 2s ease-in-out infinite;
-}
-
-@keyframes undeliveredPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.85; }
-}
-
-@keyframes undeliveredBadgePulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
 }
 
 .read-receipt {
