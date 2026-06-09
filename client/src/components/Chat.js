@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
+import ErrorBoundary from "./ErrorBoundary";
 import { auth } from "../firebase";
 import useSocket from "../hooks/useSocket";
 import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
@@ -89,27 +90,47 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
   const [dragging, setDragging] = React.useState(false);
   const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
   const [imgError, setImgError] = React.useState(false);
+  const [imgLoaded, setImgLoaded] = React.useState(false);
   const lastTouchRef = React.useRef({ x: 0, y: 0 });
 
   React.useEffect(() => {
     setImgError(false);
+    setImgLoaded(false);
     setScale(1);
     setOffset({ x: 0, y: 0 });
   }, [src]);
 
   React.useEffect(() => {
-    if (!src || !canvasRef.current || imgError) return;
+    if (!src || !canvasRef.current) return;
+    
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) {
+      console.error("Failed to get canvas context");
+      setImgError(true);
+      return;
+    }
+    
     const size = 280;
     canvas.width = size;
     canvas.height = size;
 
+    // Clear canvas before loading
+    ctx.clearRect(0, 0, size, size);
+
     const img = new Image();
     imgRef.current = img;
+    
     img.onload = () => {
       try {
+        if (!img.width || !img.height) {
+          console.error("Image loaded but has no dimensions");
+          setImgError(true);
+          return;
+        }
+        
+        setImgLoaded(true);
+        
         ctx.clearRect(0, 0, size, size);
         ctx.save();
         ctx.beginPath();
@@ -129,9 +150,15 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
         setImgError(true);
       }
     };
-    img.onerror = () => setImgError(true);
+    
+    img.onerror = (e) => {
+      console.error("Image failed to load:", e);
+      setImgError(true);
+    };
+    
+    // Set src last to trigger load
     img.src = src;
-  }, [src, scale, offset, imgError]);
+  }, [src, scale, offset]);
 
   const getPointerPos = (e) => {
     if (e.touches && e.touches.length > 0) {
@@ -142,6 +169,7 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
 
   const handleDragStart = (e) => {
     e.preventDefault();
+    if (!imgLoaded) return;
     const pos = getPointerPos(e);
     setDragging(true);
     setDragStart({ x: pos.x - offset.x, y: pos.y - offset.y });
@@ -149,25 +177,54 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
   };
 
   const handleDragMove = (e) => {
-    if (!dragging) return;
+    if (!dragging || !imgLoaded) return;
     e.preventDefault();
     const pos = getPointerPos(e);
     setOffset({ x: pos.x - dragStart.x, y: pos.y - dragStart.y });
     lastTouchRef.current = pos;
   };
 
-  const handleDragEnd = () => setDragging(false);
+  const handleDragEnd = () => {
+    if (!imgLoaded) return;
+    setDragging(false);
+  };
 
   const handleCrop = () => {
-    if (!canvasRef.current || imgError) return;
+    if (!canvasRef.current || imgError || !imgLoaded) {
+      alert("Image not loaded properly. Please try again.");
+      return;
+    }
+    
     try {
       const croppedData = canvasRef.current.toDataURL("image/jpeg", 0.8);
+      if (!croppedData || croppedData.length < 100) {
+        throw new Error("Failed to generate cropped image data");
+      }
       onCrop(croppedData);
     } catch (err) {
       console.error("Failed to crop image:", err);
       alert("Failed to crop image. Please try again.");
     }
   };
+
+  if (imgError) {
+    return (
+      <div className="crop-overlay" onClick={onCancel}>
+        <div className="crop-modal crop-modal-animate" onClick={(e) => e.stopPropagation()}>
+          <div className="crop-header">
+            <h3>Image Error</h3>
+            <button onClick={onCancel}><X size={18} /></button>
+          </div>
+          <div style={{ padding: "20px", textAlign: "center" }}>
+            <p>Failed to load image. Please try a different file.</p>
+          </div>
+          <div className="crop-actions">
+            <button className="crop-cancel-btn" onClick={onCancel}>Close</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="crop-overlay" onClick={onCancel}>
@@ -186,8 +243,20 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
           onTouchMove={handleDragMove}
           onTouchEnd={handleDragEnd}
           onTouchCancel={handleDragEnd}
+          style={{ position: "relative" }}
         >
           <canvas ref={canvasRef} className="crop-canvas" />
+          {!imgLoaded && (
+            <div style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              color: "#666"
+            }}>
+              Loading...
+            </div>
+          )}
         </div>
         <div className="crop-zoom-row">
           <ZoomOut size={16} />
@@ -197,13 +266,26 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
             max="3"
             step="0.05"
             value={scale}
-            onChange={(e) => { setScale(parseFloat(e.target.value)); setOffset({ x: 0, y: 0 }); }}
+            onChange={(e) => { 
+              if (imgLoaded) {
+                setScale(parseFloat(e.target.value)); 
+                setOffset({ x: 0, y: 0 }); 
+              }
+            }}
+            disabled={!imgLoaded}
           />
           <ZoomIn size={16} />
         </div>
         <div className="crop-actions">
           <button className="crop-cancel-btn" onClick={onCancel}>Cancel</button>
-          <button className="crop-save-btn" onClick={handleCrop}>Crop & Save</button>
+          <button 
+            className="crop-save-btn" 
+            onClick={handleCrop}
+            disabled={!imgLoaded}
+            style={{ opacity: imgLoaded ? 1 : 0.5 }}
+          >
+            Crop & Save
+          </button>
         </div>
       </div>
     </div>
@@ -616,10 +698,13 @@ function Chat({ user: currentUser }) {
     if (!user || !socket) return;
 
     const handleJoin = () => {
-      const joinData = { email: user.email };
-      if (user.profilePic) {
-        joinData.profilePic = user.profilePic;
-      }
+      const joinData = { 
+        email: user.email,
+        profilePic: user.profilePic || userProfiles[user.email.toLowerCase()] || null,
+        displayName: displayName || null,
+        bio: bio || null
+      };
+      console.log("📡 Joining socket with data:", { email: joinData.email, hasProfilePic: !!joinData.profilePic });
       socket.emit("join", joinData);
     };
 
@@ -691,12 +776,34 @@ function Chat({ user: currentUser }) {
     // Listen for profile picture updates
     socket.on("user-profile-update", (data) => {
       console.log("👤 Profile update:", data);
-      if (data.profilePic) {
+      const updatedEmail = data.email.toLowerCase();
+      
+      // Handle profile picture updates (including removal)
+      if (data.hasOwnProperty('profilePic')) {
         setUserProfiles((prev) => {
-          const updated = {
-            ...prev,
-            [data.email.toLowerCase()]: data.profilePic
-          };
+          const updated = { ...prev };
+          
+          if (data.profilePic === null || data.profilePic === "") {
+            // Remove profile picture
+            delete updated[updatedEmail];
+            // Also remove from localStorage
+            try {
+              localStorage.removeItem(`profilePic_${updatedEmail}`);
+            } catch (e) {
+              console.warn("Failed to remove profile pic from localStorage");
+            }
+          } else {
+            // Update profile picture
+            updated[updatedEmail] = data.profilePic;
+            // Store in localStorage
+            try {
+              localStorage.setItem(`profilePic_${updatedEmail}`, data.profilePic);
+            } catch (e) {
+              console.warn("Failed to store profile pic in localStorage");
+            }
+          }
+          
+          // Persist all profiles to localStorage
           try {
             if (user) {
               const toStore = {};
@@ -710,14 +817,17 @@ function Chat({ user: currentUser }) {
           } catch (e) {
             console.warn("Failed to persist user profiles to localStorage");
           }
+          
           return updated;
         });
       }
-      if (data.displayName || data.bio) {
+      
+      // Handle display name and bio updates
+      if (data.displayName !== undefined || data.bio !== undefined) {
         setUserNames((prev) => {
           const updated = {
             ...prev,
-            [data.email.toLowerCase()]: data.displayName || null,
+            [updatedEmail]: data.displayName || null,
           };
           try {
             if (user) {
@@ -1514,22 +1624,50 @@ function Chat({ user: currentUser }) {
   const handleCropSave = (croppedDataUrl) => {
     if (!user || !user.email) return;
     const email = user.email.toLowerCase();
+    
+    // Update local user state
     const updatedUser = { ...user, profilePic: croppedDataUrl };
     setUser(updatedUser);
+    
+    // Store in localStorage
     safeLocalStorageSet("user", JSON.stringify({ email: updatedUser.email, uid: updatedUser.uid }));
     safeLocalStorageSet(`profilePic_${email}`, croppedDataUrl);
-    setUserProfiles(prev => ({ ...prev, [email]: croppedDataUrl }));
+    
+    // Update userProfiles state
+    setUserProfiles(prev => {
+      const updated = { ...prev, [email]: croppedDataUrl };
+      
+      // Persist to localStorage
+      try {
+        const toStore = {};
+        Object.entries(updated).forEach(([k, v]) => {
+          if (v && typeof v === "string" && v.length < 500000) {
+            toStore[k] = v;
+          }
+        });
+        localStorage.setItem(`userProfiles_${email}`, JSON.stringify(toStore));
+      } catch (e) {
+        console.warn("Failed to persist user profiles to localStorage");
+      }
+      
+      return updated;
+    });
 
+    // Persist to database
     fetch(`${API_URL}/api/users/avatar`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: user.email, avatarUrl: croppedDataUrl }),
-    }).catch(() => {});
+    }).catch((err) => {
+      console.error("Failed to update avatar on server:", err);
+    });
 
-    if (socket) {
+    // Broadcast via socket to all connected clients
+    if (socket && socket.connected) {
       socket.emit("update-profile", { email: user.email, profilePic: croppedDataUrl });
     }
 
+    // Close crop modal
     setCropState({ open: false, src: null, file: null });
   };
 
@@ -1577,28 +1715,57 @@ function Chat({ user: currentUser }) {
 
   const handleRemoveProfilePic = () => {
     if (!user) return;
+    const email = user.email.toLowerCase();
+    
+    // Update local user state
     const updatedUser = { ...user, profilePic: null };
     setUser(updatedUser);
-    localStorage.removeItem(`profilePic_${user.email.toLowerCase()}`);
+    
+    // Remove from localStorage
+    localStorage.removeItem(`profilePic_${email}`);
     safeLocalStorageSet("user", JSON.stringify({
       email: updatedUser.email,
       uid: updatedUser.uid
     }));
+    
+    // Update userProfiles state
     setUserProfiles(prev => {
       const updated = { ...prev };
-      delete updated[user.email.toLowerCase()];
+      delete updated[email];
+      
+      // Update localStorage for userProfiles
+      try {
+        const toStore = {};
+        Object.entries(updated).forEach(([k, v]) => {
+          if (v && typeof v === "string" && v.length < 500000) {
+            toStore[k] = v;
+          }
+        });
+        localStorage.setItem(`userProfiles_${email}`, JSON.stringify(toStore));
+      } catch (e) {
+        console.warn("Failed to update userProfiles in localStorage");
+      }
+      
       return updated;
     });
 
+    // Persist to database
     fetch(`${API_URL}/api/users/avatar`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: user.email, avatarUrl: null }),
-    }).catch(() => {});
+    }).catch((err) => {
+      console.error("Failed to update avatar on server:", err);
+    });
 
-    if (socket) {
+    // Broadcast via socket to all connected clients
+    if (socket && socket.connected) {
       socket.emit("remove-profile-pic", { email: user.email });
     }
+    
+    // Close any open modals
+    setShowSettings(false);
+    setProfilePreviewUser(null);
   };
 
   const ensureSocketJoined = () => {
@@ -2474,11 +2641,13 @@ function Chat({ user: currentUser }) {
 
       {/* Image Crop Modal */}
       {cropState.open && (
-        <ImageCropModal
-          src={cropState.src}
-          onCrop={handleCropSave}
-          onCancel={() => setCropState({ open: false, src: null, file: null })}
-        />
+        <ErrorBoundary>
+          <ImageCropModal
+            src={cropState.src}
+            onCrop={handleCropSave}
+            onCancel={() => setCropState({ open: false, src: null, file: null })}
+          />
+        </ErrorBoundary>
       )}
 
       <button

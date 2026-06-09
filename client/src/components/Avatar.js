@@ -27,14 +27,16 @@ function getColorByEmail(email) {
 
 function Avatar({ src, email, size = 40, className = "", onClick, style = {} }) {
   const [imgError, setImgError] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState(src);
+
+  useEffect(() => {
+    // If src changes, update currentSrc and reset error state
+    setCurrentSrc(src);
+    setImgError(false);
+  }, [src]);
 
   const initials = getInitials(email);
   const bgColor = getColorByEmail(email);
-
-  useEffect(() => {
-    // If src changes, allow the new image to render again.
-    setImgError(false);
-  }, [src]);
 
   const commonStyle = {
     width: size,
@@ -44,21 +46,25 @@ function Avatar({ src, email, size = 40, className = "", onClick, style = {} }) 
     ...style,
   };
 
-  // If we have a src but it fails to load (broken URL / blocked / invalid base64),
-  // show initials fallback instead of hiding the avatar entirely.
-  if (src && !imgError) {
+  // If we have a valid src and it hasn't failed to load, show image
+  // If src is null, undefined, or empty string, show initials
+  if (currentSrc && !imgError && currentSrc.trim() !== "") {
     return (
       <img
-        src={src}
+        src={currentSrc}
         alt={email || "User"}
         className={className}
         style={{ ...commonStyle, objectFit: "cover" }}
         onClick={onClick}
-        onError={() => setImgError(true)}
+        onError={() => {
+          console.warn(`Failed to load avatar for ${email}`);
+          setImgError(true);
+        }}
       />
     );
   }
 
+  // Show initials fallback for: no src, empty src, or failed image load
   return (
     <div
       className={className}

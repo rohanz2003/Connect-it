@@ -145,57 +145,91 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
 
   socket.on("update-profile", async (data) => {
     const email = data?.email?.toLowerCase()?.trim();
-    if (!email) return;
-
-    const profilePayload = {
-      email,
-      profilePic: data.profilePic !== undefined ? data.profilePic : (userProfiles[email] || null),
-      displayName: data.displayName || null,
-      bio: data.bio || null,
-    };
+    if (!email) {
+      console.warn("update-profile: email is missing");
+      return;
+    }
 
     // Update in-memory profiles
-    if (data.profilePic !== undefined) {
-      userProfiles[email] = data.profilePic;
+    if (data.hasOwnProperty('profilePic')) {
+      userProfiles[email] = data.profilePic || null;
+    }
+
+    // Prepare profile payload for broadcasting
+    const profilePayload = {
+      email,
+    };
+    
+    // Always include profilePic if it's being updated
+    if (data.hasOwnProperty('profilePic')) {
+      profilePayload.profilePic = data.profilePic || null;
+    } else {
+      // If not updating profilePic, send current value
+      profilePayload.profilePic = userProfiles[email] || null;
+    }
+    
+    if (data.hasOwnProperty('displayName')) {
+      profilePayload.displayName = data.displayName || null;
+    }
+    
+    if (data.hasOwnProperty('bio')) {
+      profilePayload.bio = data.bio || null;
     }
 
     // Persist to database
     try {
       const update = {};
-      if (data.profilePic !== undefined) update.avatarUrl = data.profilePic;
-      if (data.displayName !== undefined) update.displayName = data.displayName;
-      if (data.bio !== undefined) update.bio = data.bio;
+      if (data.hasOwnProperty('profilePic')) {
+        update.avatarUrl = data.profilePic || null;
+      }
+      if (data.hasOwnProperty('displayName')) {
+        update.displayName = data.displayName || null;
+      }
+      if (data.hasOwnProperty('bio')) {
+        update.bio = data.bio || null;
+      }
+      
       if (Object.keys(update).length > 0) {
         await User.findOneAndUpdate(
           { email },
           { $set: update },
           { upsert: true }
         );
+        console.log(`✅ Profile updated in DB for ${email}:`, Object.keys(update));
       }
     } catch (err) {
       console.error("Error persisting profile update:", err.message);
     }
 
-    // Broadcast to all connected clients
+    // Broadcast to ALL connected clients (including all devices of the user)
+    console.log(`📡 Broadcasting profile update for ${email} to all clients`);
     io.emit("user-profile-update", profilePayload);
   });
 
   socket.on("remove-profile-pic", async (data) => {
     const email = data?.email?.toLowerCase()?.trim();
-    if (!email) return;
+    if (!email) {
+      console.warn("remove-profile-pic: email is missing");
+      return;
+    }
 
+    // Update in-memory profiles
     userProfiles[email] = null;
 
+    // Persist to database
     try {
       await User.findOneAndUpdate(
         { email },
         { $set: { avatarUrl: null } },
         { upsert: true }
       );
+      console.log(`✅ Profile picture removed from DB for ${email}`);
     } catch (err) {
       console.error("Error removing profile pic:", err.message);
     }
 
+    // Broadcast to ALL connected clients (including all devices of the user)
+    console.log(`📡 Broadcasting profile pic removal for ${email} to all clients`);
     io.emit("user-profile-update", {
       email,
       profilePic: null,
