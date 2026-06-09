@@ -1641,6 +1641,8 @@ function Chat({ user: currentUser }) {
     return chatHistory[normalizeEmail(a)] || true;
   });
 
+  const archivedUnreadTotal = archivedChatsList.reduce((sum, u) => sum + getUnreadCount(u), 0);
+
   const isUserOnline = (userEmail) =>
     onlineUsers.some((u) => normalizeEmail(u) === normalizeEmail(userEmail));
 
@@ -1738,7 +1740,11 @@ function Chat({ user: currentUser }) {
           >
             <Archive size={14} />
             Archive
-            {archivedChatsList.length > 0 && <span className="tab-count">{archivedChatsList.length}</span>}
+            {archivedUnreadTotal > 0 ? (
+              <span className="tab-badge">{archivedUnreadTotal > 99 ? "99+" : archivedUnreadTotal}</span>
+            ) : archivedChatsList.length > 0 ? (
+              <span className="tab-count">{archivedChatsList.length}</span>
+            ) : null}
           </button>
         </div>
 
@@ -1863,6 +1869,9 @@ function Chat({ user: currentUser }) {
                     <span className="user-last">Archived</span>
                   </div>
                   <div className="user-item-actions">
+                    {getUnreadCount(u) > 0 && (
+                      <span className="unread-badge">{getUnreadCount(u) > 99 ? "99+" : getUnreadCount(u)}</span>
+                    )}
                     <button
                       className="remove-recent-btn"
                       onClick={(e) => { e.stopPropagation(); handleUnarchiveChat(e, u); }}
