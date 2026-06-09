@@ -36,6 +36,7 @@ import {
   Palette,
   Save,
   Loader2,
+  Bot,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
@@ -46,6 +47,8 @@ import { validateImageFile, compressImage } from "../utils/imageUtils";
 import { getDeviceInfo } from "../utils/deviceDetector";
 import { subscribeToPush } from "../utils/pushHelper";
 import { fetchMessages, fetchRecentChats } from "../services/messageService";
+import { AI_ASSISTANT_ID } from "../services/aiService";
+import AiChat from "./AiChat";
 import { useNavigate } from "react-router-dom";
 import "./Chat.css";
 
@@ -427,6 +430,7 @@ function Chat({ user: currentUser }) {
   };
 
   const getDisplayName = (email) => {
+    if (email === AI_ASSISTANT_ID) return "AI Assistant";
     const normalized = normalizeEmail(email);
     return userNames[normalized] || (email || "").split("@")[0];
   };
@@ -1041,7 +1045,7 @@ function Chat({ user: currentUser }) {
 
   useEffect(() => {
     const syncChat = async () => {
-      if (!user || !selectedUser || !socket) return;
+      if (!user || !selectedUser || !socket || selectedUser === AI_ASSISTANT_ID) return;
 
       console.log(`📍 Joining room and fetching history: ${user.email} ↔ ${selectedUser}`);
 
@@ -1111,7 +1115,7 @@ function Chat({ user: currentUser }) {
       typingTimeoutRef.current = null;
     }
 
-    if (user && socket && socket.connected && previousSelectedUserRef.current) {
+    if (user && socket && socket.connected && previousSelectedUserRef.current && previousSelectedUserRef.current !== AI_ASSISTANT_ID) {
       const stopPayload = {
         from: normalizeEmail(user.email),
         to: normalizeEmail(previousSelectedUserRef.current),
@@ -1164,7 +1168,7 @@ function Chat({ user: currentUser }) {
   };
 
   const sendMessage = () => {
-    if (!user || !selectedUser || !message.trim() || !socket) return;
+    if (!user || !selectedUser || !message.trim() || !socket || selectedUser === AI_ASSISTANT_ID) return;
 
     // Check if socket is connected
     if (!socket.connected) {
@@ -1224,7 +1228,7 @@ function Chat({ user: currentUser }) {
 
   const handleMediaShare = async (e) => {
     const file = e.target.files[0];
-    if (!file || !user || !selectedUser || !socket) return;
+    if (!file || !user || !selectedUser || !socket || selectedUser === AI_ASSISTANT_ID) return;
 
     if (!socket.connected) {
       alert("❌ You are offline. Please check your connection.");
@@ -1371,7 +1375,7 @@ function Chat({ user: currentUser }) {
   };
 
   const handleClearCurrentChat = () => {
-    if (!selectedUser) return;
+    if (!selectedUser || selectedUser === AI_ASSISTANT_ID) return;
     if (
       window.confirm(
         "Clear this chat for you only? The other person will still see all messages."
@@ -1623,7 +1627,9 @@ function Chat({ user: currentUser }) {
 
   const handleUserSelect = (u) => {
     setSelectedUser(u);
-    
+
+    if (u === AI_ASSISTANT_ID) return;
+
     // Update messages when user is selected, ensuring chronological order
     if (chatHistory[u]) {
       setMessages([...chatHistory[u]].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
@@ -1772,6 +1778,19 @@ function Chat({ user: currentUser }) {
             Archive
             {archivedChatsList.length > 0 && <span className="tab-count">{archivedChatsList.length}</span>}
           </button>
+        </div>
+
+        <div
+          className={`ai-sidebar-item ${selectedUser === AI_ASSISTANT_ID ? "active" : ""}`}
+          onClick={() => handleUserSelect(AI_ASSISTANT_ID)}
+        >
+          <div className="ai-sidebar-avatar">
+            <Bot size={20} />
+          </div>
+          <div className="ai-sidebar-info">
+            <span className="ai-sidebar-name">AI Assistant</span>
+            <span className="ai-sidebar-status">Online</span>
+          </div>
         </div>
 
         <div className="sidebar-search">
@@ -1925,21 +1944,25 @@ function Chat({ user: currentUser }) {
         <div className="chat-panel-header">
           <div className="chat-panel-title">
             <div className="header-avatar-wrap">
-              <Avatar
-                src={selectedUser ? userProfiles[selectedUser] : null}
-                email={selectedUser || "default"}
-                size={40}
-                className="header-avatar"
-                onClick={() => selectedUser && handleAvatarClick({ stopPropagation: () => {} }, selectedUser, false)}
-              />
+              {selectedUser === AI_ASSISTANT_ID ? (
+                <div className="ai-header-avatar"><Bot size={22} /></div>
+              ) : (
+                <Avatar
+                  src={selectedUser ? userProfiles[selectedUser] : null}
+                  email={selectedUser || "default"}
+                  size={40}
+                  className="header-avatar"
+                  onClick={() => selectedUser && selectedUser !== AI_ASSISTANT_ID && handleAvatarClick({ stopPropagation: () => {} }, selectedUser, false)}
+                />
+              )}
             </div>
             <div>
-              <h3>{selectedUser ? getDisplayName(selectedUser) : "Welcome to Connect"}</h3>
-              <p>{selectedUser ? <LastSeen userId={selectedUser} /> : "Choose a conversation or create a new one."}</p>
+              <h3>{selectedUser === AI_ASSISTANT_ID ? "AI Assistant" : selectedUser ? getDisplayName(selectedUser) : "Welcome to Connect"}</h3>
+              <p>{selectedUser === AI_ASSISTANT_ID ? "Online · Ask me anything!" : selectedUser ? <LastSeen userId={selectedUser} /> : "Choose a conversation or create a new one."}</p>
             </div>
           </div>
           <div className="chat-header-actions">
-            {selectedUser && (
+            {selectedUser && selectedUser !== AI_ASSISTANT_ID && (
               <>
                 <button
                   className="secondary-btn clear-chat-btn"
@@ -1948,6 +1971,10 @@ function Chat({ user: currentUser }) {
                 >
                   <Trash2 size={16} /> Clear Chat
                 </button>
+              </>
+            )}
+            {selectedUser && (
+              <>
                 <button 
                   className="icon-btn minimize-btn" 
                   title={isChatMinimized ? "Expand chat" : "Minimize chat"}
@@ -2000,7 +2027,9 @@ function Chat({ user: currentUser }) {
 
         {!isChatMinimized && (
         <div className="chat-panel-body">
-          {selectedUser ? (
+          {selectedUser === AI_ASSISTANT_ID ? (
+            <AiChat user={user} />
+          ) : selectedUser ? (
             <div className="chat-messages">
               {messages.length === 0 ? (
                 <div className="empty-chat-state">
@@ -2203,7 +2232,7 @@ function Chat({ user: currentUser }) {
         </div>
         )}
 
-        {!isChatMinimized && (
+        {!isChatMinimized && selectedUser !== AI_ASSISTANT_ID && (
         <div className="chat-panel-footer">
           {showEmojiPicker && (
             <div ref={emojiPickerRef} className="emoji-picker-wrapper">
