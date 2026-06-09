@@ -2310,16 +2310,16 @@ function Chat({ user: currentUser }) {
           </div>
           <div className="stats-grid">
             <div className="stat-item">
-              <span>24</span>
+              <span>{recentChats.length}</span>
               <small>Active chats</small>
             </div>
             <div className="stat-item">
-              <span>8</span>
+              <span>{Object.values(unreadMessages).reduce((s, c) => s + c, 0)}</span>
               <small>Unread</small>
             </div>
             <div className="stat-item">
-              <span>3</span>
-              <small>New contacts</small>
+              <span>{otherOnlineUsers.length}</span>
+              <small>Online users</small>
             </div>
           </div>
           <div className="bar-chart" />
