@@ -12,16 +12,23 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error("ErrorBoundary caught:", error, errorInfo);
+    console.error("Error stack:", error.stack);
   }
 
   render() {
     if (this.state.hasError) {
+      const err = this.state.error;
       return (
         <div style={{ padding: 40, textAlign: "center" }}>
           <h2>Something went wrong</h2>
           <p style={{ color: "#888", marginBottom: 16 }}>
-            {this.state.error?.message || "An unexpected error occurred"}
+            {err?.message || "An unexpected error occurred"}
           </p>
+          {err?.stack && (
+            <pre style={{ fontSize: 11, color: "#aaa", textAlign: "left", maxWidth: 600, margin: "0 auto 16px", overflow: "auto", maxHeight: 200, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+              {err.stack}
+            </pre>
+          )}
           <button
             onClick={() => {
               this.setState({ hasError: false, error: null });
