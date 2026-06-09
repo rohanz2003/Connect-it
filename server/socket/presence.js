@@ -2,10 +2,11 @@ const { normalizeEmail, registerSocket } = require("../utils/socketAuth");
 const User = require("../modules/User");
 const Message = require("../models/Message");
 const ClearedChat = require("../models/ClearedChat");
+const Device = require("../models/Device");
 const { decryptMessageDoc } = require("../utils/messageCrypto");
 const { updateLastSeen } = require("../controllers/userController");
 
-module.exports = (io, socket, users, userProfiles) => {
+module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSockets) => {
   socket.on("join", async (data) => {
     let userId = typeof data === 'string' ? data : data?.email;
     const profilePic = typeof data === 'object' ? data?.profilePic : null;
@@ -28,6 +29,26 @@ module.exports = (io, socket, users, userProfiles) => {
 
     // Update lastSeen on join (login)
     updateLastSeen(userId);
+
+    // Register device in userDeviceSockets mapping
+    const devId = socketToDevice[socket.id];
+    if (devId) {
+      if (!userDeviceSockets[userId]) {
+        userDeviceSockets[userId] = {};
+      }
+      userDeviceSockets[userId][devId] = socket.id;
+
+      // Mark device active in DB
+      try {
+        await Device.findOneAndUpdate(
+          { deviceId: devId },
+          { isActive: true, socketId: socket.id, lastSeen: new Date() },
+          { upsert: true }
+        );
+      } catch (err) {
+        console.error("Device active update error:", err.message);
+      }
+    }
 
     // Only store in memory if a truthy value was provided (never overwrite with null)
     if (typeof data === 'object' && data?.profilePic) {

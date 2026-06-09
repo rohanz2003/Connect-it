@@ -43,6 +43,7 @@ import { auth } from "../firebase";
 import useSocket from "../hooks/useSocket";
 import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
 import { validateImageFile, compressImage } from "../utils/imageUtils";
+import { getDeviceInfo } from "../utils/deviceDetector";
 import { subscribeToPush } from "../utils/pushHelper";
 import { fetchMessages, fetchRecentChats } from "../services/messageService";
 import { useNavigate } from "react-router-dom";
@@ -1177,6 +1178,7 @@ function Chat({ user: currentUser }) {
       timestamp: new Date().toISOString(),
       senderDisplayName: getDisplayName(user.email),
       textPreview: msgText.substring(0, 100),
+      deviceId: localStorage.getItem("deviceId") || undefined,
     };
 
     // Add reply metadata if replying

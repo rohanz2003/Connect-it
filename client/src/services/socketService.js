@@ -1,9 +1,8 @@
 import { io } from "socket.io-client";
 
-// Use production backend URL in production, localhost in development
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5000";
 
-console.log("🔗 Connecting to Socket Server:", SOCKET_URL);
+console.log("🔗 Socket Server:", SOCKET_URL);
 
 const socket = io(SOCKET_URL, {
   autoConnect: true,
@@ -24,7 +23,7 @@ socket.on("disconnect", () => {
 });
 
 socket.on("connect_error", (error) => {
-  console.error("❌ Connection Error:", error);
+  console.error("❌ Connection Error:", error.message);
 });
 
 export default socket;

@@ -30,6 +30,7 @@ const adminRoutes = require("./routes/adminRoutes");
 const initSocket = require("./socket/socket");
 const { initPush } = require("./services/pushService");
 const PushSubscription = require("./models/PushSubscription");
+const Device = require("./models/Device");
 
 const app = express();
 const server = http.createServer(app);
@@ -68,6 +69,30 @@ app.post("/api/save-subscription", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("save-subscription error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get user's active devices
+app.get("/api/devices/:userId", async (req, res) => {
+  try {
+    const userId = req.params.userId.toLowerCase().trim();
+    const devices = await Device.find({ userId }).sort({ lastSeen: -1 }).lean();
+    res.json({
+      active: devices.filter((d) => d.isActive).length,
+      total: devices.length,
+      devices: devices.map((d) => ({
+        deviceId: d.deviceId,
+        deviceName: d.deviceName,
+        deviceType: d.deviceType,
+        browser: d.browser,
+        os: d.os,
+        isActive: d.isActive,
+        lastSeen: d.lastSeen,
+      })),
+    });
+  } catch (err) {
+    console.error("devices error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

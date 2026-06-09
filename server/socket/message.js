@@ -13,7 +13,7 @@ const isUserOnline = (users, email) => {
   return entry instanceof Set ? entry.size > 0 : Boolean(entry);
 };
 
-module.exports = (io, socket, users) => {
+module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
   socket.on("join-room", ({ user1, user2 }) => {
     const authUser = getAuthenticatedEmail(socket, users);
     const normalizedUser1 = normalizeEmail(user1);
@@ -131,6 +131,7 @@ module.exports = (io, socket, users) => {
       }
 
       const receiverOnline = isUserOnline(users, normalizedReceiver);
+      const receiverDevices = userDeviceSockets[normalizedReceiver] || {};
 
       const optimisticMessage = {
         _id: tempId || `temp-${Date.now()}`,
@@ -146,7 +147,16 @@ module.exports = (io, socket, users) => {
         pending: true,
       };
 
-      io.to(roomId).to(normalizedReceiver).emit("receive-message", optimisticMessage);
+      // Emit to all active device sockets of the receiver
+      const deviceIds = Object.keys(receiverDevices);
+      if (deviceIds.length > 0) {
+        deviceIds.forEach((devId) => {
+          const sid = receiverDevices[devId];
+          io.to(sid).emit("receive-message", optimisticMessage);
+        });
+      }
+      // Also emit to the personal room for backward compatibility
+      io.to(normalizedReceiver).emit("receive-message", optimisticMessage);
 
       const unreadKey = `${normalizedSender}_${normalizedReceiver}`;
       unreadMessages[unreadKey] = (unreadMessages[unreadKey] || 0) + 1;
@@ -168,6 +178,8 @@ module.exports = (io, socket, users) => {
           replyTo: replyTo || undefined,
           timestamp: msgTimestamp,
           status: "sent",
+          deliveredDevices: [],
+          readDevices: [],
         });
 
         // Emit message-status-update: sent (✓ gray)
@@ -177,16 +189,23 @@ module.exports = (io, socket, users) => {
           status: "sent",
         });
 
-        // If receiver is online, update to delivered (✓✓ gray)
-        if (receiverOnline) {
+        // Determine which devices received the message
+        const deliveredDeviceIds = Object.keys(receiverDevices);
+
+        if (deliveredDeviceIds.length > 0) {
+          // Update DB with delivered devices and status
           await Message.updateOne(
             { _id: saved._id },
-            { status: "delivered" }
+            {
+              status: "delivered",
+              $addToSet: { deliveredDevices: { $each: deliveredDeviceIds } },
+            }
           );
           io.to(roomId).to(normalizedSender).emit("message-status-update", {
             messageId: saved._id,
             tempId: tempId || null,
             status: "delivered",
+            deliveredDevices: deliveredDeviceIds,
           });
         } else {
           // Receiver offline → send push notification
@@ -210,7 +229,7 @@ module.exports = (io, socket, users) => {
           tempId: tempId || null,
           _id: saved._id,
           timestamp: saved.timestamp,
-          status: receiverOnline ? "delivered" : "sent",
+          status: deliveredDeviceIds.length > 0 ? "delivered" : "sent",
         });
       } catch (dbErr) {
         console.error(`❌ Failed to save message from ${normalizedSender} to ${normalizedReceiver}:`, dbErr.message);
@@ -257,16 +276,36 @@ module.exports = (io, socket, users) => {
     const unreadKey = `${normalizedUser2}_${normalizedUser1}`;
     unreadMessages[unreadKey] = 0;
 
+    const readingDeviceId = socketToDevice ? socketToDevice[socket.id] : null;
+
+    const updateOp = {
+      status: "read",
+    };
+    if (readingDeviceId) {
+      updateOp.$addToSet = { readDevices: readingDeviceId, deliveredDevices: readingDeviceId };
+    }
+
     Message.updateMany(
       { sender: normalizedUser2, receiver: normalizedUser1, status: "delivered" },
-      { status: "read" }
+      updateOp
     ).catch((err) => console.warn("mark-as-read DB update failed:", err.message));
 
-    // Notify sender that messages were read (✓✓ blue)
-    const roomId = getRoomId(normalizedUser2, normalizedUser1);
-    io.to(roomId).emit("messages-read", {
+    // Notify ALL sender's device sockets that messages were read (✓✓ blue)
+    const senderDevices = userDeviceSockets ? userDeviceSockets[normalizedUser2] : null;
+    if (senderDevices) {
+      Object.values(senderDevices).forEach((sid) => {
+        io.to(sid).emit("messages-read", {
+          sender: normalizedUser2,
+          receiver: normalizedUser1,
+          readOnDevice: readingDeviceId,
+        });
+      });
+    }
+    // Also emit to their personal room
+    io.to(normalizedUser2).emit("messages-read", {
       sender: normalizedUser2,
       receiver: normalizedUser1,
+      readOnDevice: readingDeviceId,
     });
 
     if (isUserOnline(users, normalizedUser1)) {
@@ -280,15 +319,33 @@ module.exports = (io, socket, users) => {
       const normalizedReceiver = normalizeEmail(receiver);
       if (!authUser || authUser !== normalizedReceiver) return;
 
+      const readingDeviceId = socketToDevice ? socketToDevice[socket.id] : null;
+      const updateOp = {
+        status: "read",
+      };
+      if (readingDeviceId) {
+        updateOp.$addToSet = { readDevices: readingDeviceId, deliveredDevices: readingDeviceId };
+      }
+
       await Message.updateMany(
         { sender: normalizeEmail(sender), receiver: normalizedReceiver, status: "delivered" },
-        { status: "read" }
+        updateOp
       );
 
-      const roomId = getRoomId(sender, receiver);
-      io.to(roomId).emit("messages-read", {
+      const senderDevices = userDeviceSockets ? userDeviceSockets[normalizeEmail(sender)] : null;
+      if (senderDevices) {
+        Object.values(senderDevices).forEach((sid) => {
+          io.to(sid).emit("messages-read", {
+            sender: normalizeEmail(sender),
+            receiver: normalizedReceiver,
+            readOnDevice: readingDeviceId,
+          });
+        });
+      }
+      io.to(normalizeEmail(sender)).emit("messages-read", {
         sender: normalizeEmail(sender),
         receiver: normalizedReceiver,
+        readOnDevice: readingDeviceId,
       });
     } catch (err) {
       console.warn("seen-message failed:", err.message);
