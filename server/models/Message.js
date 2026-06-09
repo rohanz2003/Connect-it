@@ -22,8 +22,11 @@ const messageSchema = new mongoose.Schema({
   tempId: { type: String, index: true, sparse: true },
   replyTo: replyToSchema,
   timestamp: { type: Date, default: Date.now, index: true },
-  seen: { type: Boolean, default: false },
-  delivered: { type: Boolean, default: false },
+  status: {
+    type: String,
+    enum: ["sent", "delivered", "read"],
+    default: "sent",
+  },
   createdAt: { type: Date, default: Date.now },
 });
 

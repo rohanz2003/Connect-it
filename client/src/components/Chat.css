@@ -1048,8 +1048,13 @@ body {
 }
 
 .read-receipt {
-  color: var(--primary-color);
+  color: #9ca3af;
   font-weight: 600;
+  font-size: 12px;
+}
+
+.read-receipt.read {
+  color: #53bdeb;
 }
 
 /* Enhanced message styling for better distinction */

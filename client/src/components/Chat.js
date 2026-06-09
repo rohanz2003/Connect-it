@@ -708,11 +708,11 @@ function Chat({ user: currentUser }) {
 
     socket.on("chat-cleared", handleChatCleared);
 
-    const handleMessageSaved = ({ tempId, _id, timestamp }) => {
+    const handleMessageSaved = ({ tempId, _id, timestamp, status }) => {
       const applySaved = (list) =>
         list.map((m) =>
           m.tempId === tempId
-            ? { ...m, _id, timestamp: timestamp || m.timestamp, pending: false }
+            ? { ...m, _id, timestamp: timestamp || m.timestamp, pending: false, status: status || m.status }
             : m
         );
 
@@ -809,7 +809,7 @@ function Chat({ user: currentUser }) {
 
     socket.on("receive-message", handleIncomingMessage);
 
-    // Listen for undelivered messages (sent while user was offline)
+    // Listen for undelivered messages (status: sent) sent while user was offline
     socket.on("undelivered-messages", (msgs) => {
       console.log("🔴 Undelivered messages received:", msgs.length);
       const myEmail = normalizeEmail(user.email);
@@ -820,7 +820,7 @@ function Chat({ user: currentUser }) {
           const currentHistory = prev[otherParty] || [];
           return {
             ...prev,
-            [otherParty]: upsertMessageInList(currentHistory, { ...msg, delivered: false }),
+            [otherParty]: upsertMessageInList(currentHistory, { ...msg, status: "sent" }),
           };
         });
 
@@ -828,22 +828,43 @@ function Chat({ user: currentUser }) {
           selectedUserRef.current &&
           normalizeEmail(selectedUserRef.current) === otherParty
         ) {
-          setMessages((prev) => upsertMessageInList(prev, { ...msg, delivered: false }));
+          setMessages((prev) => upsertMessageInList(prev, { ...msg, status: "sent" }));
         }
       });
     });
 
-    // Listen for message-seen (receiver read our messages)
-    socket.on("message-seen", ({ sender, receiver }) => {
+    // Listen for message-status-update (sent ✓, delivered ✓✓)
+    socket.on("message-status-update", ({ messageId, tempId, status }) => {
+      const applyStatus = (list) =>
+        list.map((m) =>
+          (m._id === messageId || m.tempId === tempId)
+            ? { ...m, status, pending: false }
+            : m
+        );
+
+      setChatHistory((prev) => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach((key) => {
+          updated[key] = applyStatus(updated[key] || []);
+        });
+        return updated;
+      });
+
+      if (selectedUserRef.current) {
+        setMessages((prev) => applyStatus(prev));
+      }
+    });
+
+    // Listen for messages-read (receiver read our messages → ✓✓ blue)
+    socket.on("messages-read", ({ sender, receiver }) => {
       const myEmail = normalizeEmail(user.email);
-      // If our message was seen by the other party
       if (normalizeEmail(receiver) === myEmail) {
         const otherParty = normalizeEmail(sender);
         setChatHistory((prev) => {
           const updated = { ...prev };
           if (updated[otherParty]) {
             updated[otherParty] = updated[otherParty].map((m) =>
-              m.sender === myEmail ? { ...m, delivered: true, seen: true } : m
+              m.sender === myEmail ? { ...m, status: "read" } : m
             );
           }
           return updated;
@@ -854,7 +875,7 @@ function Chat({ user: currentUser }) {
         ) {
           setMessages((prev) =>
             prev.map((m) =>
-              m.sender === myEmail ? { ...m, delivered: true, seen: true } : m
+              m.sender === myEmail ? { ...m, status: "read" } : m
             )
           );
         }
@@ -875,7 +896,8 @@ function Chat({ user: currentUser }) {
       socket.off("message-deleted");
       socket.off("receive-message", handleIncomingMessage);
       socket.off("undelivered-messages");
-      socket.off("message-seen");
+      socket.off("message-status-update");
+      socket.off("messages-read");
     };
   }, [socket, user]);
 
@@ -1891,7 +1913,7 @@ function Chat({ user: currentUser }) {
                           <span>{formatDay(msg.timestamp || msg.createdAt)}</span>
                         </div>
                       )}
-                      <div className={`message ${msg.sender === user.email ? "sent" : "received"} message-animate${!msg.delivered && msg.sender !== user.email ? " undelivered" : ""}`} onContextMenu={(e) => handleContextMenu(e, msg)}>
+                      <div className={`message ${msg.sender === user.email ? "sent" : "received"} message-animate${msg.status === "sent" && msg.sender !== user.email ? " undelivered" : ""}`} onContextMenu={(e) => handleContextMenu(e, msg)}>
                         <div className="message-content">
                           {msg.replyTo && (
                             <div className="reply-quote">
@@ -1964,13 +1986,15 @@ function Chat({ user: currentUser }) {
                         </div>
                         <div className="message-meta">
                           <span>{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
-                          {msg.pending && <span className="message-status pending">Sending…</span>}
+                          {msg.pending && <span className="message-status pending">⏰ Sending…</span>}
                           {msg.failed && <span className="message-status failed">Failed</span>}
-                          {!msg.delivered && msg.sender !== user.email && (
+                          {msg.status === "sent" && msg.sender !== user.email && (
                             <span className="message-status undelivered-status">🔴 New</span>
                           )}
                           {msg.sender === user.email && !msg.pending && !msg.failed && (
-                            <span className="read-receipt">{msg.delivered ? "✓✓" : "✓"}</span>
+                            <span className={`read-receipt${msg.status === "read" ? " read" : ""}`}>
+                              {msg.status === "read" ? "✓✓" : msg.status === "delivered" ? "✓✓" : "✓"}
+                            </span>
                           )}
                         </div>
                       </div>

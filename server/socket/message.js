@@ -141,8 +141,7 @@ module.exports = (io, socket, users) => {
         tempId: tempId || null,
         replyTo: replyTo || null,
         timestamp: msgTimestamp,
-        seen: false,
-        delivered: receiverOnline,
+        status: receiverOnline ? "delivered" : "sent",
         pending: true,
       };
 
@@ -167,14 +166,34 @@ module.exports = (io, socket, users) => {
           tempId: tempId || undefined,
           replyTo: replyTo || undefined,
           timestamp: msgTimestamp,
-          seen: false,
-          delivered: receiverOnline,
+          status: "sent",
         });
+
+        // Emit message-status-update: sent (✓ gray)
+        io.to(roomId).to(normalizedSender).emit("message-status-update", {
+          messageId: saved._id,
+          tempId: tempId || null,
+          status: "sent",
+        });
+
+        // If receiver is online, update to delivered (✓✓ gray)
+        if (receiverOnline) {
+          await Message.updateOne(
+            { _id: saved._id },
+            { status: "delivered" }
+          );
+          io.to(roomId).to(normalizedSender).emit("message-status-update", {
+            messageId: saved._id,
+            tempId: tempId || null,
+            status: "delivered",
+          });
+        }
 
         io.to(roomId).to(normalizedReceiver).emit("message-saved", {
           tempId: tempId || null,
           _id: saved._id,
           timestamp: saved.timestamp,
+          status: receiverOnline ? "delivered" : "sent",
         });
       } catch (dbErr) {
         console.error(`❌ Failed to save message from ${normalizedSender} to ${normalizedReceiver}:`, dbErr.message);
@@ -222,12 +241,13 @@ module.exports = (io, socket, users) => {
     unreadMessages[unreadKey] = 0;
 
     Message.updateMany(
-      { sender: normalizedUser2, receiver: normalizedUser1, seen: false },
-      { seen: true, delivered: true }
+      { sender: normalizedUser2, receiver: normalizedUser1, status: "delivered" },
+      { status: "read" }
     ).catch((err) => console.warn("mark-as-read DB update failed:", err.message));
 
+    // Notify sender that messages were read (✓✓ blue)
     const roomId = getRoomId(normalizedUser2, normalizedUser1);
-    io.to(roomId).emit("message-seen", {
+    io.to(roomId).emit("messages-read", {
       sender: normalizedUser2,
       receiver: normalizedUser1,
     });
@@ -244,15 +264,14 @@ module.exports = (io, socket, users) => {
       if (!authUser || authUser !== normalizedReceiver) return;
 
       await Message.updateMany(
-        { sender: normalizeEmail(sender), receiver: normalizedReceiver, seen: false },
-        { seen: true, delivered: true }
+        { sender: normalizeEmail(sender), receiver: normalizedReceiver, status: "delivered" },
+        { status: "read" }
       );
 
       const roomId = getRoomId(sender, receiver);
-      io.to(roomId).emit("message-seen", {
+      io.to(roomId).emit("messages-read", {
         sender: normalizeEmail(sender),
         receiver: normalizedReceiver,
-        delivered: true,
       });
     } catch (err) {
       console.warn("seen-message failed:", err.message);

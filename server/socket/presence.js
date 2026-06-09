@@ -67,12 +67,12 @@ module.exports = (io, socket, users, userProfiles) => {
     
     io.emit("online-users", Object.keys(users));
 
-    // Fetch and send undelivered messages (delivered: false) to this user
+    // Fetch and send undelivered messages (status: sent) to this user
     (async () => {
       try {
         const undelivered = await Message.find({
           receiver: userId,
-          delivered: false,
+          status: "sent",
         })
           .sort({ timestamp: 1 })
           .limit(100)
