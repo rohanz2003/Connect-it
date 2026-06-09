@@ -78,19 +78,18 @@ const upsertMessageInList = (list, msg) => {
 
 const ImageCropModal = ({ src, onCrop, onCancel }) => {
   const canvasRef = React.useRef(null);
+  const imgRef = React.useRef(null);
   const [scale, setScale] = React.useState(1);
   const [offset, setOffset] = React.useState({ x: 0, y: 0 });
   const [dragging, setDragging] = React.useState(false);
   const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
   const [imgError, setImgError] = React.useState(false);
+  const lastTouchRef = React.useRef({ x: 0, y: 0 });
 
   React.useEffect(() => {
-    if (!src) return;
     setImgError(false);
-    const img = new Image();
-    img.onload = () => {};
-    img.onerror = () => setImgError(true);
-    img.src = src;
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
   }, [src]);
 
   React.useEffect(() => {
@@ -103,6 +102,7 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
     canvas.height = size;
 
     const img = new Image();
+    imgRef.current = img;
     img.onload = () => {
       try {
         ctx.clearRect(0, 0, size, size);
@@ -128,17 +128,30 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
     img.src = src;
   }, [src, scale, offset, imgError]);
 
-  const handleMouseDown = (e) => {
+  const getPointerPos = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    return { x: e.clientX, y: e.clientY };
+  };
+
+  const handleDragStart = (e) => {
+    e.preventDefault();
+    const pos = getPointerPos(e);
     setDragging(true);
-    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+    setDragStart({ x: pos.x - offset.x, y: pos.y - offset.y });
+    lastTouchRef.current = pos;
   };
 
-  const handleMouseMove = (e) => {
+  const handleDragMove = (e) => {
     if (!dragging) return;
-    setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    e.preventDefault();
+    const pos = getPointerPos(e);
+    setOffset({ x: pos.x - dragStart.x, y: pos.y - dragStart.y });
+    lastTouchRef.current = pos;
   };
 
-  const handleMouseUp = () => setDragging(false);
+  const handleDragEnd = () => setDragging(false);
 
   const handleCrop = () => {
     if (!canvasRef.current || imgError) return;
@@ -165,10 +178,14 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
         </div>
         <div
           className="crop-canvas-wrap"
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
+          onMouseDown={handleDragStart}
+          onMouseMove={handleDragMove}
+          onMouseUp={handleDragEnd}
+          onMouseLeave={handleDragEnd}
+          onTouchStart={handleDragStart}
+          onTouchMove={handleDragMove}
+          onTouchEnd={handleDragEnd}
+          onTouchCancel={handleDragEnd}
         >
           <canvas ref={canvasRef} className="crop-canvas" />
         </div>
@@ -1330,6 +1347,8 @@ function Chat({ user: currentUser }) {
 
     try {
       const compressed = await compressImage(file, 500, 0.8);
+      setShowSettings(false);
+      setProfilePreviewUser(null);
       setCropState({ open: true, src: compressed, file });
     } catch (err) {
       console.error("Failed to process image:", err);
@@ -1338,11 +1357,13 @@ function Chat({ user: currentUser }) {
   };
 
   const handleCropSave = (croppedDataUrl) => {
+    if (!user || !user.email) return;
+    const email = user.email.toLowerCase();
     const updatedUser = { ...user, profilePic: croppedDataUrl };
     setUser(updatedUser);
     safeLocalStorageSet("user", JSON.stringify({ email: updatedUser.email, uid: updatedUser.uid }));
-    safeLocalStorageSet(`profilePic_${user.email.toLowerCase()}`, croppedDataUrl);
-    setUserProfiles(prev => ({ ...prev, [user.email.toLowerCase()]: croppedDataUrl }));
+    safeLocalStorageSet(`profilePic_${email}`, croppedDataUrl);
+    setUserProfiles(prev => ({ ...prev, [email]: croppedDataUrl }));
 
     fetch(`${API_URL}/api/users/avatar`, {
       method: "PUT",
