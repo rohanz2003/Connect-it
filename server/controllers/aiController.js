@@ -5,7 +5,11 @@ const SYSTEM_PROMPT =
   "You are a friendly, warm AI assistant. Talk like a human — be casual, natural, and approachable.\n\nGuidelines:\n- Be helpful for ALL types of queries: general knowledge, daily life, education, homework, coding, writing, math, science, history, and anything else\n- Answer in the same language the user is speaking\n- Be concise but thorough\n- If you don't know something, admit it honestly\n- Be encouraging and supportive\n- Use natural conversational tone, not robotic or formal";
 
 const OPENROUTER_API = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "meta-llama/llama-3.1-8b-instruct:free";
+const MODELS = [
+  "google/gemma-4-31b-it:free",
+  "liquid/lfm-2.5-1.2b-instruct:free",
+  "openai/gpt-oss-20b:free",
+];
 
 const chat = async (req, res) => {
   try {
@@ -72,32 +76,44 @@ const chat = async (req, res) => {
     const controller = new AbortController();
     req.on("close", () => controller.abort());
 
-    const response = await fetch(OPENROUTER_API, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.APP_URL || "http://localhost:5000",
-        "X-Title": "Connect It Chat",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: apiMessages,
-        stream: true,
-        max_tokens: 2048,
-      }),
-      signal: controller.signal,
-    });
+    let response = null;
+    let lastError = "";
 
-    if (!response.ok) {
-      let errorDetail = "";
-      try { errorDetail = await response.text(); } catch (_) {}
-      console.error("OpenRouter API error:", response.status, errorDetail);
-      const msg = response.status === 401
+    for (const model of MODELS) {
+      if (controller.signal.aborted) break;
+      response = await fetch(OPENROUTER_API, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.APP_URL || "http://localhost:5000",
+          "X-Title": "Connect It Chat",
+        },
+        body: JSON.stringify({
+          model,
+          messages: apiMessages,
+          stream: true,
+          max_tokens: 2048,
+        }),
+        signal: controller.signal,
+      });
+
+      if (response.ok) break;
+
+      let detail = "";
+      try {
+        const text = await response.text();
+        const parsed = JSON.parse(text);
+        detail = parsed.error?.message || text.substring(0, 200);
+      } catch (_) { detail = `HTTP ${response.status}`; }
+      lastError = `${model}: ${detail}`;
+      console.warn(`⚠️ Model ${model} failed: ${lastError}`);
+    }
+
+    if (!response || !response.ok) {
+      const msg = lastError.includes("401")
         ? "AI API key is invalid. Please check your OPENROUTER_API_KEY."
-        : response.status === 429
-        ? "AI service rate limit exceeded. Please try again later."
-        : `AI service returned ${response.status}. Please try again.`;
+        : `AI models are currently unavailable. ${lastError.substring(0, 100)}`;
       res.write(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`);
       res.write("data: [DONE]\n\n");
       res.end();
