@@ -41,11 +41,13 @@ const sendFeedback = async (req, res) => {
 
     try {
       await Feedback.create({ name, email, message, rating: safeRating });
+      console.log("Feedback saved to DB ✅");
     } catch (dbErr) {
       console.warn("Could not save feedback to DB:", dbErr.message);
     }
 
-    const results = await Promise.allSettled([
+    // Fire-and-forget emails — never block the response on email delivery
+    Promise.allSettled([
       sendNotificationEmail({
         email: adminMailTo,
         subject: `New Feedback from ${name} - Connect It`,
@@ -98,24 +100,17 @@ const sendFeedback = async (req, res) => {
           </div>
         `,
       }),
-    ]);
-
-    const adminSent = results[0].status === "fulfilled";
-    const userSent = results[1].status === "fulfilled";
-
-    if (!adminSent && !userSent) {
-      const adminErr = results[0].reason?.message;
-      const userErr = results[1].reason?.message;
-      console.warn("Both feedback emails failed — admin:", adminErr, "user:", userErr);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to send feedback emails. Please check server email configuration.",
-      });
-    }
+    ]).then((results) => {
+      const adminOk = results[0].status === "fulfilled";
+      const userOk = results[1].status === "fulfilled";
+      if (!adminOk) console.warn("Admin feedback email failed:", results[0].reason?.message);
+      if (!userOk) console.warn("User confirmation email failed:", results[1].reason?.message);
+      if (adminOk || userOk) console.log("Feedback email(s) sent ✅");
+    });
 
     return res.status(200).json({
       success: true,
-      message: "Feedback received." + (adminSent && userSent ? " Emails sent successfully." : adminSent ? " Admin notified; user email failed." : " User notified; admin email failed."),
+      message: "Thank you! Your feedback has been received.",
     });
   } catch (error) {
     console.error("Error sending feedback email:", error);
