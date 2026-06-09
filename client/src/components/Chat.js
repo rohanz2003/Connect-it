@@ -223,6 +223,7 @@ function Chat({ user: currentUser }) {
   const [lastSeen, setLastSeen] = useState({});
   const [messages, setMessages] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [unreadMessages, setUnreadMessages] = useState({}); // Track unread counts
   const [userProfiles, setUserProfiles] = useState(() => {
     try {
       const email = JSON.parse(localStorage.getItem("user") || "{}").email;
@@ -583,6 +584,12 @@ function Chat({ user: currentUser }) {
     };
     socket.on("online-users", handleOnlineUsers);
 
+    // Restore unread counts
+    const storedUnread = localStorage.getItem(`unread_${user.email.toLowerCase()}`);
+    if (storedUnread) {
+      try { setUnreadMessages(JSON.parse(storedUnread)); } catch (e) { console.error('Failed to parse stored unread counts', e); }
+    }
+
     socket.on("typing", ({ from }) => {
       const activeChat = selectedUserRef.current;
       const normalizedFrom = normalizeEmail(from);
@@ -622,6 +629,12 @@ function Chat({ user: currentUser }) {
         ...prev,
         [data.userId]: data.time,
       }));
+    });
+
+    // Listen for unread message updates from server
+    socket.on("unread-update", (unreadData) => {
+      console.log("📬 Unread messages updated:", unreadData);
+      setUnreadMessages(unreadData);
     });
 
     // Listen for profile picture updates
@@ -683,6 +696,19 @@ function Chat({ user: currentUser }) {
       if (selectedUserRef.current && normalizeEmail(selectedUserRef.current) === partner) {
         setMessages([]);
       }
+
+      setUnreadMessages((prev) => {
+        const key = `${partner}_${normalizeEmail(user.email)}`;
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        try {
+          localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
+        } catch (e) {
+          console.error("Failed to persist unread counts", e);
+        }
+        return next;
+      });
     };
 
     socket.on("chat-cleared", handleChatCleared);
@@ -772,6 +798,17 @@ function Chat({ user: currentUser }) {
           user1: normalizeEmail(user.email),
           user2: otherParty,
         });
+      } else if (normalizeEmail(msg.sender) !== normalizeEmail(user.email)) {
+        setUnreadMessages((prev) => {
+          const key = `${otherParty}_${normalizeEmail(user.email)}`;
+          const newCounts = { ...prev, [key]: (prev[key] || 0) + 1 };
+          try {
+            localStorage.setItem(`unread_${user.email}`, JSON.stringify(newCounts));
+          } catch (e) {
+            console.error("Failed to persist unread counts", e);
+          }
+          return newCounts;
+        });
       }
     };
 
@@ -856,6 +893,7 @@ function Chat({ user: currentUser }) {
       socket.off("typing");
       socket.off("stop-typing");
       socket.off("last-seen");
+      socket.off("unread-update");
       socket.off("user-profile-update");
       socket.off("chat-cleared", handleChatCleared);
       socket.off("message-saved", handleMessageSaved);
@@ -1259,6 +1297,17 @@ function Chat({ user: currentUser }) {
     if (selectedUser && normalizeEmail(selectedUser) === partner) {
       setMessages([]);
     }
+
+    setUnreadMessages((prev) => {
+      const key = `${partner}_${normalizeEmail(user.email)}`;
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      try {
+        localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
   };
 
   const handleClearCurrentChat = () => {
@@ -1280,8 +1329,10 @@ function Chat({ user: currentUser }) {
       )
     ) {
       localStorage.removeItem(`chatHistory_${user.email}`);
+      localStorage.removeItem(`unread_${user.email}`);
       setChatHistory({});
       setMessages([]);
+      setUnreadMessages({});
       setSelectedUser(null);
     }
   };
@@ -1304,6 +1355,17 @@ function Chat({ user: currentUser }) {
         setMessages([]);
         setSelectedUser(null);
       }
+
+      setUnreadMessages((prev) => {
+        const key = `${partner}_${normalizeEmail(user.email)}`;
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        try {
+          localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
     }
   };
 
@@ -1512,6 +1574,18 @@ function Chat({ user: currentUser }) {
       socket.emit("mark-as-read", { user1: user.email, user2: u });
       socket.emit("seen-message", { sender: u, receiver: user.email });
     }
+
+    // Clear unread badge for this chat immediately
+    if (user) {
+      setUnreadMessages(prev => {
+        const key = `${u.toLowerCase()}_${user.email.toLowerCase()}`;
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        try { localStorage.setItem(`unread_${user.email}`, JSON.stringify(next)); } catch (e) {}
+        return next;
+      });
+    }
   };
 
   // Filter out current user from the user list
@@ -1541,6 +1615,13 @@ function Chat({ user: currentUser }) {
   const isUserOnline = (userEmail) =>
     onlineUsers.some((u) => normalizeEmail(u) === normalizeEmail(userEmail));
 
+  // Get unread count for a user
+  const getUnreadCount = (otherUser) => {
+    if (!user || !otherUser) return 0;
+    const key = `${otherUser.toLowerCase()}_${user.email.toLowerCase()}`;
+    return unreadMessages[key] || 0;
+  };
+
   const searchValue = searchTerm.trim().toLowerCase();
   const filteredRecentChats = recentChats.filter((u) => {
     const normalizedEmail = normalizeEmail(u);
@@ -1556,6 +1637,8 @@ function Chat({ user: currentUser }) {
       getDisplayName(u).includes(searchValue)
     );
   });
+
+  const totalUnread = filteredRecentChats.reduce((sum, u) => sum + getUnreadCount(u), 0);
 
   if (!user) return <h2>Loading...</h2>;
 
@@ -1610,6 +1693,7 @@ function Chat({ user: currentUser }) {
           >
             <MessageCircle size={14} />
             Recent
+            {totalUnread > 0 && <span className="tab-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
             
           </button>
           <button
@@ -1644,6 +1728,7 @@ function Chat({ user: currentUser }) {
           <div className="sidebar-section">
             <div className="sidebar-list">
               {filteredRecentChats.length > 0 ? filteredRecentChats.map((u, i) => {
+                const unreadCount = getUnreadCount(u);
                 return (
                   <div
                     key={`recent-${i}`}
@@ -1667,6 +1752,9 @@ function Chat({ user: currentUser }) {
                       </span>
                     </div>
                     <div className="user-item-actions">
+                      {unreadCount > 0 && (
+                        <span className="unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
+                      )}
                       <button
                         className="remove-recent-btn"
                         onClick={(e) => handleArchiveChat(e, u)}
@@ -1725,7 +1813,9 @@ function Chat({ user: currentUser }) {
         {activeTab === "archive" && (
           <div className="sidebar-section">
             <div className="sidebar-list">
-              {archivedChatsList.length > 0 ? archivedChatsList.map((u, i) => (
+              {archivedChatsList.length > 0 ? archivedChatsList.map((u, i) => {
+                const unreadCount = getUnreadCount(u);
+                return (
                 <div
                   key={`archived-${i}`}
                   className={`user-item ${selectedUser === u ? "active" : ""}`}
@@ -1744,6 +1834,9 @@ function Chat({ user: currentUser }) {
                     <span className="user-last">Archived</span>
                   </div>
                   <div className="user-item-actions">
+                    {unreadCount > 0 && (
+                      <span className="unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
+                    )}
                     <button
                       className="remove-recent-btn"
                       onClick={(e) => { e.stopPropagation(); handleUnarchiveChat(e, u); }}
