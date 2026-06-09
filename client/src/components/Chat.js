@@ -33,6 +33,9 @@ import {
   ZoomIn,
   ZoomOut,
   Camera,
+  Palette,
+  Save,
+  Loader2,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
@@ -269,6 +272,7 @@ function Chat({ user: currentUser }) {
   const [bio, setBio] = useState(() => {
     try { return JSON.parse(localStorage.getItem("user") || "{}").bio || ""; } catch { return ""; }
   });
+  const [isSaving, setIsSaving] = useState(false);
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -1378,6 +1382,48 @@ function Chat({ user: currentUser }) {
     setCropState({ open: false, src: null, file: null });
   };
 
+  const handleSaveSettings = async () => {
+    if (!user || !user.email) return;
+    setIsSaving(true);
+    try {
+      const email = user.email.toLowerCase();
+      const updatedUser = { ...user, displayName, bio };
+      setUser(updatedUser);
+      
+      // Update local state immediately for real-time feel
+      setUserNames(prev => ({ ...prev, [email]: displayName }));
+      
+      // Update localStorage
+      try {
+        const stored = JSON.parse(localStorage.getItem("user") || "{}");
+        localStorage.setItem("user", JSON.stringify({ ...stored, displayName, bio }));
+      } catch (e) {}
+
+      // Persist to database
+      const res = await fetch(`${API_URL}/api/users/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user.email, displayName, bio }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error("Failed to save profile");
+      }
+
+      // Broadcast to all connected users via socket
+      if (socket) {
+        socket.emit("update-profile", { email: user.email, displayName, bio });
+      }
+
+      setShowSettings(false);
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+      alert("Failed to save changes. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleRemoveProfilePic = () => {
     if (!user) return;
     const updatedUser = { ...user, profilePic: null };
@@ -2219,24 +2265,28 @@ function Chat({ user: currentUser }) {
           <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
             <div className="settings-header">
               <h3>Settings</h3>
-              <button onClick={() => setShowSettings(false)}><X size={18} /></button>
+              <button className="settings-close-btn" onClick={() => setShowSettings(false)} aria-label="Close">
+                <X size={20} />
+              </button>
             </div>
             <div className="settings-body">
-              <div className="settings-section">
-                <h4>Profile</h4>
-                <div className="settings-avatar-section">
+              <div className="settings-section settings-profile">
+                <div className="settings-avatar-wrapper">
                   <Avatar
-                    src={userProfiles[user.email.toLowerCase()] || user.profilePic}
-                    email={user.email}
-                    size={80}
+                    src={userProfiles[user?.email?.toLowerCase()] || user?.profilePic}
+                    email={user?.email}
+                    size={96}
+                    className="settings-avatar"
                   />
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <label htmlFor="update-profile-pic-settings" className="primary-btn" style={{ cursor: 'pointer', fontSize: '13px', padding: '8px 16px', margin: 0 }}>
-                      Change Photo
+                  <div className="avatar-actions">
+                    <label htmlFor="update-profile-pic-settings" className="avatar-action-btn primary">
+                      <Camera size={16} />
+                      <span>Change Photo</span>
                     </label>
-                    {(userProfiles[user.email.toLowerCase()] || user.profilePic) && (
-                      <button className="settings-avatar-remove" onClick={handleRemoveProfilePic}>
-                        Remove
+                    {(userProfiles[user?.email?.toLowerCase()] || user?.profilePic) && (
+                      <button className="avatar-action-btn danger" onClick={handleRemoveProfilePic}>
+                        <Trash2 size={16} />
+                        <span>Remove</span>
                       </button>
                     )}
                   </div>
@@ -2245,91 +2295,95 @@ function Chat({ user: currentUser }) {
                     type="file"
                     accept="image/*"
                     onChange={handleUpdateProfilePic}
-                    style={{ display: "none" }}
+                    className="avatar-file-input"
                   />
                 </div>
-                <div className="settings-field">
-                  <label>Display Name</label>
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Enter your display name"
-                  />
-                </div>
-                <div className="settings-field">
-                  <label>Bio</label>
-                  <textarea
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    placeholder="Write something about yourself..."
-                    rows={3}
-                  />
-                </div>
-              </div>
-
-              <div className="settings-section">
-                <h4>Account Information</h4>
-                <div className="settings-info">
-                  <div className="settings-info-row">
-                    <span className="settings-label">Display Name</span>
-                    <span className="settings-value">{displayName || getDisplayName(user.email)}</span>
+                
+                <div className="settings-form-grid">
+                  <div className="settings-field">
+                    <label htmlFor="display-name">Display Name</label>
+                    <input
+                      id="display-name"
+                      type="text"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="Enter your display name"
+                      maxLength={30}
+                    />
+                    <span className="field-hint">{displayName.length}/30</span>
                   </div>
-                  <div className="settings-info-row">
-                    <span className="settings-label">Email</span>
-                    <span className="settings-value">{user.email}</span>
-                  </div>
-                  <div className="settings-info-row">
-                    <span className="settings-label">Bio</span>
-                    <span className="settings-value">{bio || "No bio set"}</span>
+                  <div className="settings-field">
+                    <label htmlFor="bio">Bio</label>
+                    <textarea
+                      id="bio"
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      placeholder="Write something about yourself..."
+                      rows={3}
+                      maxLength={160}
+                    />
+                    <span className="field-hint">{bio.length}/160</span>
                   </div>
                 </div>
               </div>
 
-              <div className="settings-section">
-                <h4>Appearance</h4>
-                <div className="settings-info-row" style={{ background: 'transparent', padding: '12px 0' }}>
-                  <span className="settings-label">Dark Mode</span>
+              <div className="settings-section settings-appearance">
+                <h4 className="settings-section-title">
+                  <Palette size={18} />
+                  <span>Appearance</span>
+                </h4>
+                <div className="settings-toggle-row">
+                  <div className="toggle-info">
+                    <span className="toggle-icon">{isDarkMode ? <Sun size={20} /> : <Moon size={20} />}</span>
+                    <div className="toggle-text">
+                      <strong>Dark Mode</strong>
+                      <small>{isDarkMode ? "Enabled" : "Disabled"}</small>
+                    </div>
+                  </div>
                   <button
-                    className="secondary-btn"
+                    className={`settings-toggle ${isDarkMode ? "active" : ""}`}
                     onClick={() => setIsDarkMode(!isDarkMode)}
-                    style={{ margin: 0, fontSize: '13px' }}
+                    aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
                   >
-                    {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-                    {isDarkMode ? " Light Mode" : " Dark Mode"}
+                    <span className="toggle-thumb" />
                   </button>
                 </div>
               </div>
 
-              <div className="settings-actions">
-                <button className="secondary-btn" onClick={() => setShowSettings(false)} style={{ margin: 0 }}>
-                  Cancel
-                </button>
-                <button
-                  className="primary-btn"
-                  onClick={() => {
-                    const updatedUser = { ...user, displayName, bio };
-                    setUser(updatedUser);
-                    try {
-                      const stored = JSON.parse(localStorage.getItem("user") || "{}");
-                      localStorage.setItem("user", JSON.stringify({ ...stored, displayName, bio }));
-                    } catch (e) {}
-                    setUserNames(prev => ({ ...prev, [user.email.toLowerCase()]: displayName }));
-                    fetch(`${API_URL}/api/users/profile`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ email: user.email, displayName, bio }),
-                    }).catch(() => {});
-                    if (socket) {
-                      socket.emit("update-profile", { email: user.email, displayName, bio });
-                    }
-                    setShowSettings(false);
-                  }}
-                  style={{ margin: 0 }}
-                >
-                  Save Changes
-                </button>
+              <div className="settings-section settings-account">
+                <h4 className="settings-section-title">
+                  <User size={18} />
+                  <span>Account</span>
+                </h4>
+                <div className="settings-info-list">
+                  <div className="settings-info-item">
+                    <span className="info-label">Email</span>
+                    <span className="info-value">{user?.email}</span>
+                  </div>
+                </div>
               </div>
+            </div>
+            <div className="settings-footer">
+              <button className="settings-btn secondary" onClick={() => setShowSettings(false)} disabled={isSaving}>
+                Cancel
+              </button>
+              <button
+                className="settings-btn primary"
+                onClick={handleSaveSettings}
+                disabled={isSaving || (!displayName.trim() && !bio.trim())}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 size={16} className="btn-spinner" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save size={16} />
+                    <span>Save Changes</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
