@@ -1,6 +1,7 @@
 const { normalizeEmail, registerSocket } = require("../utils/socketAuth");
 const User = require("../modules/User");
 const Message = require("../models/Message");
+const ClearedChat = require("../models/ClearedChat");
 const { decryptMessageDoc } = require("../utils/messageCrypto");
 const { updateLastSeen } = require("../controllers/userController");
 
@@ -70,10 +71,22 @@ module.exports = (io, socket, users, userProfiles) => {
     // Fetch and send undelivered messages (status: sent) to this user
     (async () => {
       try {
-        const undelivered = await Message.find({
+        // Get cleared chats to exclude messages from cleared conversations
+        const clearedRecords = await ClearedChat.find({ user: userId }).lean();
+        const clearedFilters = clearedRecords.map((r) => ({
+          sender: r.partner,
+          timestamp: { $lte: r.clearedAt },
+        }));
+
+        const query = {
           receiver: userId,
           status: "sent",
-        })
+        };
+        if (clearedFilters.length > 0) {
+          query.$nor = clearedFilters;
+        }
+
+        const undelivered = await Message.find(query)
           .sort({ timestamp: 1 })
           .limit(100)
           .lean();
