@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef } from "react";
-import { AnimatePresence } from "framer-motion";
 import EmojiPicker from "emoji-picker-react";
 import {
   Search,
@@ -43,7 +42,6 @@ import { auth } from "../firebase";
 import useSocket from "../hooks/useSocket";
 import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
 import { validateImageFile, compressImage } from "../utils/imageUtils";
-import { getDeviceInfo } from "../utils/deviceDetector";
 import { subscribeToPush } from "../utils/pushHelper";
 import { fetchMessages, fetchRecentChats } from "../services/messageService";
 import { useNavigate } from "react-router-dom";
@@ -2083,15 +2081,13 @@ function Chat({ user: currentUser }) {
               </>
               )}
 
-              <AnimatePresence>
-                {typingUser && typingUser !== user.email && (
-                  <div className="typing-indicator typing-animate" title="Someone is typing...">
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                )}
-              </AnimatePresence>
+              {typingUser && typingUser !== user.email && (
+                <div className="typing-indicator typing-animate" title="Someone is typing...">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
           ) : (
@@ -2240,13 +2236,11 @@ function Chat({ user: currentUser }) {
         </div>
       </aside>
 
-        <AnimatePresence>
-          {isMediaSending && (
-            <div className="toast-notice toast-animate">
-              Uploading file...
-            </div>
-          )}
-        </AnimatePresence>
+        {isMediaSending && (
+          <div className="toast-notice toast-animate">
+            Uploading file...
+          </div>
+        )}
 
       {contextMenu && (
         <div className="context-menu" style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x }}>

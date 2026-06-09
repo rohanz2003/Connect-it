@@ -1,7 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { MessageCircle, Lock, Users, Zap } from "lucide-react";
-import { motion } from "framer-motion";
 import Header from "./Header";
 import Footer from "./Footer";
 import "../styles/Landing.css";
@@ -34,37 +33,14 @@ const Landing = () => {
     },
   ];
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5, ease: "easeOut" },
-    },
-  };
-
   return (
     <div className="landing-page">
       <Header isLanding={true} />
 
       {/* Hero Section */}
       <section className="hero-section">
-        <motion.div
+        <div
           className="hero-content"
-          initial={{ opacity: 0, y: -30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
         >
           <div className="hero-badge">Welcome to Connect It</div>
           <h1 className="hero-title">
@@ -83,72 +59,56 @@ const Landing = () => {
           <p className="hero-cta">
             or <Link to="/login">Sign in to your account</Link>
           </p>
-        </motion.div>
+        </div>
 
-        <motion.div
+        <div
           className="hero-illustration"
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 3, repeat: Infinity }}
         >
           <div className="chat-bubble bubble-1">Hi there! 👋</div>
           <div className="chat-bubble bubble-2">Let's chat! 💬</div>
           <div className="chat-bubble bubble-3">Awesome! 🎉</div>
-        </motion.div>
+        </div>
       </section>
 
       {/* About Section */}
       <section className="about-section" id="about">
         <div className="about-container">
-          <motion.div
+          <div
             className="section-header"
-            initial={{ opacity: 0, y: -20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            viewport={{ once: true }}
           >
             <h2 className="section-title">Why Choose Connect It?</h2>
             <p className="section-subtitle">
               Discover the features that make Connect It the perfect messaging
               platform
             </p>
-          </motion.div>
+          </div>
 
-          <motion.div
+          <div
             className="features-grid"
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
           >
             {features.map((feature, index) => {
               const IconComponent = feature.icon;
               return (
-                <motion.div
+                <div
                   key={index}
                   className="feature-card"
-                  variants={itemVariants}
-                  whileHover={{ y: -10, boxShadow: "0 20px 40px rgba(0,0,0,0.1)" }}
                 >
                   <div className="feature-icon">
                     <IconComponent size={32} />
                   </div>
                   <h3 className="feature-title">{feature.title}</h3>
                   <p className="feature-description">{feature.description}</p>
-                </motion.div>
+                </div>
               );
             })}
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* CTA Section */}
       <section className="cta-section">
-        <motion.div
+        <div
           className="cta-content"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          viewport={{ once: true }}
         >
           <h2 className="cta-title">Ready to Start Chatting?</h2>
           <p className="cta-subtitle">
@@ -160,7 +120,7 @@ const Landing = () => {
           <Link to="/admin" className="admin-link-hidden" title="Admin Dashboard">
             🔐
           </Link>
-        </motion.div>
+        </div>
       </section>
 
       <Footer />

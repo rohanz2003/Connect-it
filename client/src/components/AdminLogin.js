@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Mail, KeyRound, Loader2 } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 const AdminLogin = () => {
     const [email, setEmail] = useState('zenderohan2012@gmail.com');
@@ -49,9 +48,7 @@ const AdminLogin = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-            <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+            <div 
                 className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8"
             >
                 <div className="text-center mb-8">
@@ -86,7 +83,7 @@ const AdminLogin = () => {
                     </div>
 
                     {step === 2 && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                        <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">One-Time Password (OTP)</label>
                             <div className="relative">
                                 <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -101,7 +98,7 @@ const AdminLogin = () => {
                                 />
                             </div>
                             <p className="text-xs text-gray-400 mt-2 text-center">Check your Gmail for the 6-digit code</p>
-                        </motion.div>
+                        </div>
                     )}
 
                     <button 
@@ -112,7 +109,7 @@ const AdminLogin = () => {
                         {loading ? <Loader2 className="animate-spin w-5 h-5" /> : (step === 1 ? 'Send Verification Code' : 'Verify & Login')}
                     </button>
                 </form>
-            </motion.div>
+            </div>
         </div>
     );
 };

@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { motion } from "framer-motion";
 import { Star, Home, Send } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import "../styles/Feedback.css";
@@ -109,62 +108,35 @@ const Feedback = () => {
     }
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5, ease: "easeOut" },
-    },
-  };
-
   return (
     <div className="feedback-page">
       {/* Header with Home Icon */}
       <div className="feedback-header">
-        <motion.button
+        <button
           className="home-button"
           onClick={() => navigate("/")}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
           title="Go back to home"
         >
           <Home size={24} />
-        </motion.button>
+        </button>
         <h1 className="feedback-page-title">Connect It</h1>
       </div>
 
       {/* Main Content */}
       <div className="feedback-container">
-        <motion.div
-          className="feedback-form-wrapper"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
+        <div className="feedback-form-wrapper">
           {/* Title Section */}
-          <motion.div className="feedback-title-section" variants={itemVariants}>
+          <div className="feedback-title-section">
             <div className="feedback-badge">We Value Your Feedback</div>
             <h2 className="feedback-main-title">Tell Us Your Experience</h2>
             <p className="feedback-subtitle">
               Your feedback helps us improve Connect It and provide you with better service.
               We'd love to hear from you!
             </p>
-          </motion.div>
+          </div>
 
           {/* Form Section */}
-          <motion.form onSubmit={handleSubmit} className="feedback-form" variants={itemVariants}>
+          <form onSubmit={handleSubmit} className="feedback-form">
             {/* Name Field */}
             <div className="form-group">
               <label htmlFor="name" className="form-label">
@@ -218,7 +190,7 @@ const Feedback = () => {
               <label className="form-label">How would you rate your experience?</label>
               <div className="rating-container">
                 {[1, 2, 3, 4, 5].map((star) => (
-                  <motion.button
+                  <button
                     key={star}
                     type="button"
                     className={`star-button ${
@@ -227,14 +199,12 @@ const Feedback = () => {
                     onClick={() => handleRating(star)}
                     onMouseEnter={() => setHoveredRating(star)}
                     onMouseLeave={() => setHoveredRating(0)}
-                    whileHover={{ scale: 1.2 }}
-                    whileTap={{ scale: 0.95 }}
                   >
                     <Star
                       size={32}
                       fill={star <= (hoveredRating || formData.rating) ? "currentColor" : "none"}
                     />
-                  </motion.button>
+                  </button>
                 ))}
               </div>
               {formData.rating > 0 && (
@@ -246,44 +216,33 @@ const Feedback = () => {
 
             {/* Messages */}
             {errorMessage && (
-              <motion.div
-                className="error-message"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
+              <div className="error-message">
                 {errorMessage}
-              </motion.div>
+              </div>
             )}
 
             {successMessage && (
-              <motion.div
-                className="success-message"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
+              <div className="success-message">
                 {successMessage}
-              </motion.div>
+              </div>
             )}
 
             {/* Submit Button */}
-            <motion.button
+            <button
               type="submit"
               className="submit-button"
               disabled={loading}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              variants={itemVariants}
             >
               <Send size={20} />
               {loading ? "Sending..." : "Submit Feedback"}
-            </motion.button>
-          </motion.form>
+            </button>
+          </form>
 
           {/* Optional Message */}
-          <motion.p className="optional-message" variants={itemVariants}>
+          <p className="optional-message">
             Thank you for helping us improve Connect It! 💙
-          </motion.p>
-        </motion.div>
+          </p>
+        </div>
       </div>
     </div>
   );
