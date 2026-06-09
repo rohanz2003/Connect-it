@@ -43,6 +43,7 @@ import { auth } from "../firebase";
 import useSocket from "../hooks/useSocket";
 import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
 import { validateImageFile, compressImage } from "../utils/imageUtils";
+import { subscribeToPush } from "../utils/pushHelper";
 import { fetchMessages, fetchRecentChats } from "../services/messageService";
 import { useNavigate } from "react-router-dom";
 import "./Chat.css";
@@ -573,6 +574,9 @@ function Chat({ user: currentUser }) {
     // Join immediately and on every reconnection
     handleJoin();
     socket.on("connect", handleJoin);
+
+    // Subscribe to push notifications
+    subscribeToPush(user.email.toLowerCase());
 
     // Restore unread counts
     const storedUnread = localStorage.getItem(`unread_${user.email.toLowerCase()}`);
@@ -1129,7 +1133,9 @@ function Chat({ user: currentUser }) {
       text: msgText,
       type: "text",
       tempId: tempId,
-      timestamp: new Date().toISOString() // Ensure current time is captured precisely
+      timestamp: new Date().toISOString(),
+      senderDisplayName: getDisplayName(user.email),
+      textPreview: msgText.substring(0, 100),
     };
 
     // Add reply metadata if replying
@@ -1903,7 +1909,13 @@ function Chat({ user: currentUser }) {
                   <p>Send the first message to start the conversation.</p>
                 </div>
               ) : (
-                messages.map((msg, i) => {
+                <>
+                {messages.filter(m => m.status === "sent" && m.sender !== user.email).length > 0 && (
+                  <div className="unread-banner">
+                    🔴 {messages.filter(m => m.status === "sent" && m.sender !== user.email).length} unread message{messages.filter(m => m.status === "sent" && m.sender !== user.email).length > 1 ? 's' : ''}
+                  </div>
+                )}
+                {messages.map((msg, i) => {
                   const previousMsg = messages[i - 1];
                   const showDay = !previousMsg || new Date(msg.timestamp || msg.createdAt).toDateString() !== new Date(previousMsg.timestamp || previousMsg.createdAt).toDateString();
                   return (
@@ -2001,6 +2013,8 @@ function Chat({ user: currentUser }) {
                     </React.Fragment>
                   );
                 })
+              }
+              </>
               )}
 
               <AnimatePresence>

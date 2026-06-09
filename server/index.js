@@ -28,12 +28,16 @@ const feedbackRoutes = require("./routes/feedbackRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 
 const initSocket = require("./socket/socket");
+const { initPush } = require("./services/pushService");
+const PushSubscription = require("./models/PushSubscription");
 
 const app = express();
 const server = http.createServer(app);
 
 const io = initSocket(server);
 console.log("Socket.IO Started ✅");
+
+initPush();
 
 app.use(
   cors({
@@ -48,6 +52,25 @@ app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/admin", adminRoutes);
+
+// Push notification subscription endpoint
+app.post("/api/save-subscription", async (req, res) => {
+  try {
+    const { userId, subscription, deviceInfo } = req.body;
+    if (!userId || !subscription) {
+      return res.status(400).json({ error: "userId and subscription required" });
+    }
+    await PushSubscription.findOneAndUpdate(
+      { userId: userId.toLowerCase().trim() },
+      { subscription, deviceInfo: deviceInfo || "", updatedAt: new Date() },
+      { upsert: true }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("save-subscription error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 console.log("Routes Loaded ✅");
 

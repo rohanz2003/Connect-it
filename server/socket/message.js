@@ -3,6 +3,7 @@ const ClearedChat = require("../models/ClearedChat");
 const { encryptPayload, decryptMessageDoc } = require("../utils/messageCrypto");
 const { normalizeEmail, getAuthenticatedEmail, getRoomId } = require("../utils/socketAuth");
 const { isDatabaseConnected } = require("../config/database");
+const { sendPushNotification } = require("../services/pushService");
 
 const roomUsers = {};
 const unreadMessages = {};
@@ -186,6 +187,22 @@ module.exports = (io, socket, users) => {
             messageId: saved._id,
             tempId: tempId || null,
             status: "delivered",
+          });
+        } else {
+          // Receiver offline → send push notification
+          const senderName = data?.senderDisplayName || normalizedSender;
+          sendPushNotification(normalizedReceiver, {
+            title: senderName,
+            body: data?.textPreview || (typeof data?.text === "string" ? data.text.substring(0, 100) : "New message"),
+            icon: "/logo192.png",
+            badge: "/favicon.ico",
+            data: {
+              senderId: normalizedSender,
+              senderName,
+              messageId: saved._id,
+              text: (typeof data?.text === "string" ? data.text.substring(0, 100) : "Media"),
+              url: "/",
+            },
           });
         }
 
