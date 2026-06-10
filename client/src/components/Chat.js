@@ -41,6 +41,7 @@ import {
   EyeOff,
   PanelLeftClose,
   PanelLeftOpen,
+  BarChart3,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
@@ -1843,12 +1844,67 @@ function Chat({ user: currentUser }) {
     return null;
   };
 
+  const totalMessagesSent = messages.length;
+  const uniqueConversations = new Set(messages.map(m => m.sender === user?.email?.toLowerCase() ? m.receiver : m.sender)).size;
+  const totalMediaShared = messages.filter(m => m.fileUrl).length;
+
+  const renderAnalytics = () => (
+    <div className="analytics-panel">
+      <div className="analytics-section">
+        <div className="analytics-card">
+          <MessageCircle size={20} />
+          <div className="analytics-card-data">
+            <span className="analytics-value">{totalMessagesSent}</span>
+            <span className="analytics-label">Messages Sent</span>
+          </div>
+        </div>
+        <div className="analytics-card">
+          <Users size={20} />
+          <div className="analytics-card-data">
+            <span className="analytics-value">{uniqueConversations}</span>
+            <span className="analytics-label">Conversations</span>
+          </div>
+        </div>
+        <div className="analytics-card">
+          <Layers size={20} />
+          <div className="analytics-card-data">
+            <span className="analytics-value">{totalMediaShared}</span>
+            <span className="analytics-label">Media Shared</span>
+          </div>
+        </div>
+      </div>
+      <div className="analytics-section">
+        <div className="analytics-card">
+          <Users size={20} />
+          <div className="analytics-card-data">
+            <span className="analytics-value">{onlineUsers.length}</span>
+            <span className="analytics-label">Online Now</span>
+          </div>
+        </div>
+        <div className="analytics-card">
+          <MessageCircle size={20} />
+          <div className="analytics-card-data">
+            <span className="analytics-value">{filteredRecentChats.length}</span>
+            <span className="analytics-label">Active Chats</span>
+          </div>
+        </div>
+        <div className="analytics-card">
+          <Archive size={20} />
+          <div className="analytics-card-data">
+            <span className="analytics-value">{archivedChatsList.length}</span>
+            <span className="analytics-label">Archived</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   if (!user) return <h2>Loading...</h2>;
 
   return (
     <div className={`chat-layout ${isDarkMode ? "dark" : ""} w-full h-screen max-w-screen overflow-hidden md:grid md:grid-cols-[280px_1fr]`}>
       <div className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`} onClick={() => setSidebarOpen(false)} />
-      <aside className={`sidebar ${sidebarOpen ? "open" : ""} ${sidebarCollapsed ? "minimized" : ""} ${activeTab === "online" || activeTab === "archive" ? "fullscreen" : ""}`}>
+      <aside className={`sidebar ${sidebarOpen ? "open" : ""} ${sidebarCollapsed ? "minimized" : ""} ${activeTab === "online" || activeTab === "archive" || activeTab === "analytics" ? "fullscreen" : ""}`}>
         <div className="sidebar-top">
           <div className="brand-head">
             <div className="brand-mark">C</div>
@@ -2099,9 +2155,9 @@ function Chat({ user: currentUser }) {
           <button className="mobile-page-back" onClick={() => setActiveTab("recent")}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <h3>{activeTab === "online" ? "Contacts" : "Archived"}</h3>
+          <h3>{activeTab === "online" ? "Contacts" : activeTab === "analytics" ? "Analytics" : "Archived"}</h3>
         </div>
-        <div className="sidebar-search">
+        <div className={`sidebar-search ${activeTab === "analytics" ? "mobile-hidden" : ""}`}>
           <Search size={16} />
           <input type="search" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
             placeholder={activeTab === "online" ? "Search contacts" : "Search archived chats"} />
@@ -2109,6 +2165,7 @@ function Chat({ user: currentUser }) {
         <div className="mobile-page-body">
           {activeTab === "online" && renderTabContent("mobile-contacts")}
           {activeTab === "archive" && renderTabContent("mobile-archive")}
+          {activeTab === "analytics" && renderAnalytics()}
         </div>
       </div>
 
@@ -2734,6 +2791,7 @@ function Chat({ user: currentUser }) {
         <button className={`bottom-nav-btn ${activeTab === "recent" ? "active" : ""}`} onClick={() => { setActiveTab("recent"); setSidebarOpen(true); }}><MessageCircle size={18} /><span>Chat</span></button>
         <button className={`bottom-nav-btn ${activeTab === "online" ? "active" : ""}`} onClick={() => { setActiveTab("online"); setSidebarOpen(true); }}><Users size={18} /><span>Contacts</span></button>
         <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={() => { setActiveTab("archive"); setSidebarOpen(true); }}><Archive size={18} /><span>Archive</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "analytics" ? "active" : ""}`} onClick={() => { setActiveTab("analytics"); setSidebarOpen(true); }}><BarChart3 size={18} /><span>Analytics</span></button>
       </nav>
 
       {showSettings && (
