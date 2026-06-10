@@ -27,6 +27,13 @@
 .login-back-home:hover {
   background: rgba(255, 255, 255, 0.2);
   color: white;
+  text-decoration: none;
+}
+
+@media (max-width: 768px) {
+  .login-back-home {
+    text-decoration: none;
+  }
 }
 
 /* ─── Left Panel ─────────────────────────────────────── */
@@ -437,46 +444,40 @@
   }
 }
 
-/* Tablets & portrait */
+/* Tablets & portrait - hide left panel, show form only */
 @media (max-width: 768px) {
   .login-split {
     flex-direction: column;
   }
   .login-left-panel {
-    min-height: auto;
-    padding: 36px 28px;
-    flex: none;
-  }
-  .login-left-panel h1 {
-    font-size: 26px;
-  }
-  .login-left-subtitle {
-    font-size: 14px;
-    margin-bottom: 24px;
+    display: none;
   }
   .login-right-panel {
-    min-height: auto;
-    padding: 28px 20px;
+    min-height: 100vh;
+    padding: 24px 20px;
     flex: 1;
-  }
-  .login-features li {
-    font-size: 14px;
+    background: #f8f9fc;
   }
   .login-back-home {
-    top: 12px;
-    left: 12px;
-    font-size: 12px;
-    padding: 6px 10px;
+    top: 14px;
+    left: 14px;
+    font-size: 13px;
+    padding: 8px 14px;
+    color: #4f46e5;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #e5e7eb;
+    backdrop-filter: blur(10px);
+  }
+  .login-back-home:hover {
+    background: #ffffff;
+    color: #4338ca;
   }
 }
 
 /* Large phones */
 @media (max-width: 640px) {
   .login-left-panel {
-    padding: 30px 24px;
-  }
-  .login-left-panel h1 {
-    font-size: 24px;
+    display: none;
   }
   .login-form-wrap h2 {
     font-size: 22px;
@@ -487,18 +488,18 @@
     width: 80px;
     height: 80px;
   }
+  .login-back-home {
+    top: 12px;
+    left: 12px;
+    font-size: 12px;
+    padding: 6px 12px;
+  }
 }
 
 /* Medium-small phones */
 @media (max-width: 480px) {
-  .login-left-panel {
-    padding: 28px 18px;
-  }
-  .login-left-panel h1 {
-    font-size: 22px;
-  }
   .login-right-panel {
-    padding: 20px 12px;
+    padding: 20px 16px;
   }
   .login-form-wrap {
     padding: 0;
@@ -558,31 +559,14 @@
     top: 10px;
     left: 10px;
     font-size: 11px;
-    padding: 5px 8px;
-    background: rgba(255,255,255,0.15);
+    padding: 5px 10px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #e5e7eb;
   }
 }
 
 /* Small phones (iPhone SE) */
 @media (max-width: 375px) {
-  .login-left-panel {
-    padding: 24px 16px;
-  }
-  .login-left-panel h1 {
-    font-size: 20px;
-  }
-  .login-left-subtitle {
-    font-size: 13px;
-    margin-bottom: 18px;
-  }
-  .login-features li {
-    font-size: 13px;
-    gap: 8px;
-  }
-  .login-features li svg {
-    width: 16px;
-    height: 16px;
-  }
   .login-form-wrap h2 {
     font-size: 18px;
   }
@@ -618,18 +602,18 @@
   .login-forgot span {
     font-size: 12px;
   }
+  .login-back-home {
+    top: 8px;
+    left: 8px;
+    font-size: 10px;
+    padding: 4px 8px;
+  }
 }
 
 /* Ultra-small (Galaxy Fold folded) */
 @media (max-width: 320px) {
-  .login-left-panel {
-    padding: 20px 12px;
-  }
-  .login-left-panel h1 {
-    font-size: 18px;
-  }
   .login-right-panel {
-    padding: 16px 8px;
+    padding: 16px 12px;
   }
   .login-profile-circle,
   .login-profile-img,

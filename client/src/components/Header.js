@@ -42,19 +42,17 @@ const Header = ({ isLanding = false }) => {
         </button>
 
         {/* Mobile Navigation */}
-        {isMenuOpen && (
-          <nav className="header-nav mobile-nav">
-            <a href="#about" className="nav-link" onClick={handleLinkClick}>
-              About
-            </a>
-            <Link to="/login" className="nav-link" onClick={handleLinkClick}>
-              Login
-            </Link>
-            <Link to="/login" className="nav-button" onClick={handleLinkClick}>
-              Get Started
-            </Link>
-          </nav>
-        )}
+        <nav className={`header-nav mobile-nav ${isMenuOpen ? "open" : ""}`}>
+          <a href="#about" className="nav-link" onClick={handleLinkClick}>
+            About
+          </a>
+          <Link to="/login" className="nav-link" onClick={handleLinkClick}>
+            Login
+          </Link>
+          <Link to="/login" className="nav-button" onClick={handleLinkClick}>
+            Get Started
+          </Link>
+        </nav>
       </div>
     </header>
   );

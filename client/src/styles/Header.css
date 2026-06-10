@@ -7,6 +7,7 @@
   z-index: 100;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
+  position: relative;
 }
 
 .header-container {
@@ -118,7 +119,6 @@
 }
 
 .mobile-nav {
-  display: none;
   position: absolute;
   top: 100%;
   left: 0;
@@ -128,11 +128,19 @@
   gap: 1rem;
   padding: 1.5rem;
   border-bottom: 1px solid #e5e7eb;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: all 0.25s ease;
+  pointer-events: none;
 }
 
-.mobile-nav.active {
-  display: flex;
+.mobile-nav.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 /* ============================================================

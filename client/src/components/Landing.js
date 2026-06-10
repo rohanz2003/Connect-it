@@ -87,12 +87,39 @@ const Landing = () => {
 
         <motion.div
           className="hero-illustration"
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 3, repeat: Infinity }}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
         >
-          <div className="chat-bubble bubble-1">Hi there! 👋</div>
-          <div className="chat-bubble bubble-2">Let's chat! 💬</div>
-          <div className="chat-bubble bubble-3">Awesome! 🎉</div>
+          <div className="chat-mockup">
+            <div className="chat-mockup-header">
+              <div className="mockup-avatar">A</div>
+              <div className="mockup-header-info">
+                <span className="mockup-name">Alex</span>
+                <span className="mockup-status">Online</span>
+              </div>
+              <div className="mockup-dots">
+                <span /><span /><span />
+              </div>
+            </div>
+            <div className="chat-mockup-body">
+              <div className="mockup-msg received">
+                <div className="mockup-msg-text">Hey! How's it going? 👋</div>
+                <span className="mockup-time">12:30</span>
+              </div>
+              <div className="mockup-msg sent">
+                <div className="mockup-msg-text">Hi! I'm doing great! Ready to chat?</div>
+                <span className="mockup-time">12:31</span>
+              </div>
+              <div className="mockup-msg received">
+                <div className="mockup-msg-text">Awesome! Let's talk about the project 🚀</div>
+                <span className="mockup-time">12:32</span>
+              </div>
+              <div className="mockup-typing">
+                <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+              </div>
+            </div>
+          </div>
         </motion.div>
       </section>
 
