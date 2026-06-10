@@ -169,6 +169,7 @@ function Chat({ user: currentUser }) {
   const [deleteError, setDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const attachMenuRef = useRef(null);
   const [userNames, setUserNames] = useState(() => {
@@ -1758,7 +1759,8 @@ function Chat({ user: currentUser }) {
 
   return (
     <div className={`chat-layout ${isDarkMode ? "dark" : ""}`}>
-      <aside className="sidebar">
+      <div className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`} onClick={() => setSidebarOpen(false)} />
+      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-top">
           <div className="brand-head">
             <div className="brand-mark">C</div>
@@ -1977,6 +1979,9 @@ function Chat({ user: currentUser }) {
 
       <main className="chat-panel">
         <div className="chat-panel-header">
+          <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
           <div className="chat-panel-title">
             <div className="header-avatar-wrap">
               <Avatar
