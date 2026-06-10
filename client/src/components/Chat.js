@@ -1759,6 +1759,90 @@ function Chat({ user: currentUser }) {
 
   const totalUnread = filteredRecentChats.reduce((sum, u) => sum + getUnreadCount(u), 0);
 
+  const renderTabContent = (type) => {
+    if (type === "mobile-contacts") {
+      return (
+        <>
+          <div className="sidebar-section">
+            <div className="sidebar-section-title">Recent Chats</div>
+            <div className="sidebar-list">
+              {filteredRecentChats.length > 0 ? filteredRecentChats.map((u, i) => {
+                const unreadCount = getUnreadCount(u);
+                return (
+                  <div key={`mc-recent-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("recent"); }}>
+                    <div className="avatar-wrap">
+                      <Avatar src={userProfiles[u]} email={u} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u, false)} />
+                      {isUserOnline(u) && <span className="status-dot online" />}
+                    </div>
+                    <div className="user-item-copy">
+                      <span className="user-name">{getDisplayName(u)}</span>
+                      <span className="user-last">{isUserOnline(u) ? "Online" : formatLastSeen(lastSeen[u])}</span>
+                    </div>
+                    <div className="user-item-actions">
+                      {unreadCount > 0 && <span className="unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="empty-list">No recent conversations.</div>
+              )}
+            </div>
+          </div>
+          <div className="sidebar-section">
+            <div className="sidebar-section-title">Online Users</div>
+            <div className="sidebar-list">
+              {filteredOnlineUsers.length > 0 ? filteredOnlineUsers.map((u, i) => (
+                <div key={`mc-online-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("recent"); }}>
+                  <div className="avatar-wrap">
+                    <Avatar src={userProfiles[u]} email={u} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u, false)} />
+                    <span className="status-dot online" />
+                  </div>
+                  <div className="user-item-copy">
+                    <span className="user-name">{getDisplayName(u)}</span>
+                    <span className="user-last">Available now</span>
+                  </div>
+                </div>
+              )) : (
+                <div className="empty-list">No contacts are available right now.</div>
+              )}
+            </div>
+          </div>
+        </>
+      );
+    }
+    if (type === "mobile-archive") {
+      return (
+        <div className="sidebar-section">
+          <div className="sidebar-list">
+            {archivedChatsList.length > 0 ? archivedChatsList.map((u, i) => {
+              const unreadCount = getUnreadCount(u);
+              return (
+                <div key={`ma-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("recent"); }}>
+                  <div className="avatar-wrap">
+                    <Avatar src={userProfiles[u]} email={u} size={40} className="user-avatar" />
+                  </div>
+                  <div className="user-item-copy">
+                    <span className="user-name">{getDisplayName(u)}</span>
+                    <span className="user-last">Archived</span>
+                  </div>
+                  <div className="user-item-actions">
+                    {unreadCount > 0 && <span className="unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+                    <button className="remove-recent-btn" onClick={(e) => { e.stopPropagation(); handleUnarchiveChat(e, u); }} title="Unarchive chat">
+                      <ArchiveRestore size={14} />
+                    </button>
+                  </div>
+                </div>
+              );
+            }) : (
+              <div className="empty-list">No archived chats.</div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   if (!user) return <h2>Loading...</h2>;
 
   return (
@@ -2009,7 +2093,26 @@ function Chat({ user: currentUser }) {
         </div>
       </aside>
 
-      <main className="chat-panel">
+      {/* Mobile page - full screen for Contacts & Archive on mobile */}
+      <div className={`mobile-page ${activeTab === "recent" ? "mobile-hidden" : ""}`}>
+        <div className="mobile-page-header">
+          <button className="mobile-page-back" onClick={() => setActiveTab("recent")}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <h3>{activeTab === "online" ? "Contacts" : "Archived"}</h3>
+        </div>
+        <div className="sidebar-search">
+          <Search size={16} />
+          <input type="search" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder={activeTab === "online" ? "Search contacts" : "Search archived chats"} />
+        </div>
+        <div className="mobile-page-body">
+          {activeTab === "online" && renderTabContent("mobile-contacts")}
+          {activeTab === "archive" && renderTabContent("mobile-archive")}
+        </div>
+      </div>
+
+      <main className={`chat-panel ${activeTab !== "recent" ? "mobile-hidden" : ""}`}>
         <div className="chat-panel-header">
           <button className="mobile-menu-btn" onClick={() => { if (selectedUser) { setSelectedUser(null); setSidebarOpen(true); } else { setSidebarOpen(!sidebarOpen); } }} aria-label={selectedUser ? "Back" : "Open menu"}>
             {selectedUser ? (
