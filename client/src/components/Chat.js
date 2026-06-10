@@ -1371,6 +1371,18 @@ function Chat({ user: currentUser }) {
         } catch (e) {}
         return next;
       });
+
+      if (socket?.connected) {
+        socket.emit(
+          "clear-chat",
+          { user1: normalizeEmail(user.email), user2: partner },
+          (ack) => {
+            if (!ack?.ok) {
+              console.warn("Failed to sync chat removal with server");
+            }
+          }
+        );
+      }
     }
   };
 
