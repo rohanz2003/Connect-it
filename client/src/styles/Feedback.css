@@ -251,7 +251,13 @@
   font-weight: 500;
 }
 
-/* Responsive Design */
+/* Responsive Design - Enhanced */
+@media (max-width: 1024px) {
+  .feedback-form-wrapper {
+    padding: 2.5rem;
+  }
+}
+
 @media (max-width: 768px) {
   .feedback-page {
     padding: 1.5rem 1rem;
@@ -301,6 +307,22 @@
   }
 }
 
+@media (max-width: 640px) {
+  .feedback-page-title {
+    font-size: 1.3rem;
+  }
+  
+  .feedback-badge {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.9rem;
+  }
+  
+  .form-input,
+  .form-textarea {
+    padding: 0.8rem 0.95rem;
+  }
+}
+
 @media (max-width: 480px) {
   .feedback-page {
     padding: 1rem;
@@ -327,7 +349,7 @@
 
   .form-input,
   .form-textarea {
-    font-size: 16px;
+    font-size: 16px; /* Prevent iOS zoom */
   }
 
   .star-button svg {
@@ -337,5 +359,62 @@
 
   .rating-container {
     gap: 0.5rem;
+  }
+  
+  .submit-button {
+    padding: 0.95rem 1.3rem;
+    font-size: 0.95rem;
+  }
+  
+  .form-textarea {
+    min-height: 110px;
+  }
+}
+
+@media (max-width: 375px) {
+  .feedback-main-title {
+    font-size: 1.2rem;
+  }
+  
+  .star-button svg {
+    width: 22px;
+    height: 22px;
+  }
+  
+  .home-button {
+    width: 42px;
+    height: 42px;
+  }
+}
+
+/* Landscape mode adjustments */
+@media (max-height: 600px) and (orientation: landscape) {
+  .feedback-page {
+    padding: 1rem;
+  }
+  
+  .feedback-header {
+    margin-bottom: 1rem;
+  }
+  
+  .feedback-form-wrapper {
+    padding: 1.5rem;
+  }
+  
+  .form-textarea {
+    min-height: 100px;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .home-button,
+  .submit-button {
+    min-height: 48px;
+  }
+  
+  .star-button {
+    min-width: 44px;
+    min-height: 44px;
   }
 }

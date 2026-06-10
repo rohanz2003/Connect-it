@@ -427,7 +427,14 @@
   font-size: 14px;
 }
 
-/* ─── Responsive ─────────────────────────────────────── */
+/* ─── Responsive - Enhanced ─────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .login-left-panel,
+  .login-right-panel {
+    padding: 50px;
+  }
+}
+
 @media (max-width: 768px) {
   .login-split {
     flex-direction: column;
@@ -453,6 +460,35 @@
     padding: 30px 20px;
     flex: 1;
   }
+  
+  .login-features li {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .login-left-panel h1 {
+    font-size: 26px;
+  }
+  
+  .login-form-wrap h2 {
+    font-size: 22px;
+  }
+  
+  .login-profile-circle {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .login-profile-img {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .login-profile-placeholder {
+    width: 80px;
+    height: 80px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -466,5 +502,96 @@
 
   .login-right-panel {
     padding: 24px 16px;
+  }
+  
+  .login-form-wrap {
+    padding: 2.5rem 1.5rem;
+  }
+  
+  .login-logo-icon {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .login-logo-icon span {
+    font-size: 22px;
+  }
+  
+  .login-form-wrap h2 {
+    font-size: 20px;
+  }
+  
+  .login-form-subtitle {
+    font-size: 13px;
+  }
+  
+  .login-input-group input {
+    padding: 12px 12px 12px 40px;
+    font-size: 16px; /* Prevent iOS zoom */
+  }
+  
+  .pwd-strength-checks {
+    gap: 4px 8px;
+  }
+  
+  .submit-button {
+    padding: 13px 16px;
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 375px) {
+  .login-left-panel h1 {
+    font-size: 22px;
+  }
+  
+  .login-form-wrap {
+    padding: 2rem 1.2rem;
+  }
+  
+  .login-profile-circle {
+    width: 76px;
+    height: 76px;
+  }
+  
+  .login-profile-img,
+  .login-profile-placeholder {
+    width: 76px;
+    height: 76px;
+  }
+  
+  .pwd-strength-check {
+    font-size: 10px;
+  }
+}
+
+/* Landscape mode adjustments */
+@media (max-height: 600px) and (orientation: landscape) {
+  .login-split {
+    flex-direction: row;
+  }
+  
+  .login-left-panel {
+    padding: 30px 25px;
+  }
+  
+  .login-right-panel {
+    padding: 25px 20px;
+  }
+  
+  .login-form-wrap {
+    padding: 2rem 1.5rem;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .login-submit-btn,
+  .login-pwd-toggle {
+    min-height: 44px;
+  }
+  
+  .login-input-group input {
+    min-height: 48px;
   }
 }

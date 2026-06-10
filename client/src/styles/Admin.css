@@ -827,8 +827,14 @@
 }
 
 /* ========================
-   RESPONSIVE
+   RESPONSIVE ENHANCEMENTS
    ======================== */
+
+@media (max-width: 1024px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
 
 @media (max-width: 768px) {
   .admin-header-content {
@@ -892,6 +898,35 @@
     gap: 12px;
     align-items: center;
   }
+  
+  .admin-header {
+    padding: 20px 24px;
+  }
+  
+  .admin-title h1 {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 640px) {
+  .stat-card {
+    padding: 16px;
+  }
+  
+  .stat-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 24px;
+  }
+  
+  .stat-value {
+    font-size: 24px;
+  }
+  
+  .tab-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -934,5 +969,67 @@
     height: 46px;
     font-size: 18px;
     border-radius: 8px;
+  }
+  
+  .admin-content {
+    padding: 12px;
+  }
+  
+  .admin-tabs {
+    padding: 8px 12px;
+  }
+  
+  .message-text {
+    max-width: 150px;
+  }
+  
+  .feedback-card {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 375px) {
+  .otp-input {
+    width: 36px;
+    height: 44px;
+    font-size: 16px;
+  }
+  
+  .admin-login-header h1 {
+    font-size: 22px;
+  }
+  
+  .stat-card {
+    padding: 14px;
+  }
+  
+  .stat-value {
+    font-size: 22px;
+  }
+}
+
+/* Tablet Landscape */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: landscape) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .admin-header {
+    padding: 16px 28px;
+  }
+}
+
+/* Touch Optimization for Admin */
+@media (hover: none) and (pointer: coarse) {
+  .admin-login-btn,
+  .resend-btn,
+  .back-btn,
+  .logout-btn,
+  .tab-btn {
+    min-height: 44px;
+  }
+  
+  .otp-input {
+    min-height: 48px;
   }
 }

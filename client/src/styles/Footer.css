@@ -97,7 +97,17 @@
   font-weight: 500;
 }
 
-/* Responsive Design */
+/* Responsive Design - Enhanced */
+@media (max-width: 1024px) {
+  .footer-container {
+    padding: 2.5rem 1.5rem;
+  }
+  
+  .footer-content {
+    gap: 1.8rem;
+  }
+}
+
 @media (max-width: 768px) {
   .footer-container {
     padding: 2rem 1.5rem;
@@ -121,6 +131,20 @@
   }
 }
 
+@media (max-width: 640px) {
+  .footer-container {
+    padding: 1.8rem 1.3rem;
+  }
+  
+  .footer-description {
+    font-size: 0.9rem;
+  }
+  
+  .footer-links li a {
+    font-size: 0.9rem;
+  }
+}
+
 @media (max-width: 480px) {
   .footer-container {
     padding: 1.5rem 1rem;
@@ -137,5 +161,33 @@
   .footer-copyright,
   .footer-tagline {
     font-size: 0.8rem;
+  }
+  
+  .footer-heading {
+    font-size: 0.95rem;
+  }
+  
+  .footer-description {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 375px) {
+  .footer-title {
+    font-size: 1rem;
+  }
+  
+  .footer-links li a {
+    font-size: 0.8rem;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .footer-links li a {
+    padding: 0.5rem 0;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
   }
 }
