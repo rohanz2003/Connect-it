@@ -169,7 +169,7 @@ function Chat({ user: currentUser }) {
   const [deleteError, setDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth < 768);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const attachMenuRef = useRef(null);
   const [userNames, setUserNames] = useState(() => {
@@ -1678,6 +1678,7 @@ function Chat({ user: currentUser }) {
 
   const handleUserSelect = (u) => {
     setSelectedUser(u);
+    setSidebarOpen(false);
     
     // Update messages when user is selected, ensuring chronological order
     if (chatHistory[u]) {
@@ -1979,8 +1980,12 @@ function Chat({ user: currentUser }) {
 
       <main className="chat-panel">
         <div className="chat-panel-header">
-          <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          <button className="mobile-menu-btn" onClick={() => { if (selectedUser) { setSelectedUser(null); setSidebarOpen(true); } else { setSidebarOpen(!sidebarOpen); } }} aria-label={selectedUser ? "Back" : "Open menu"}>
+            {selectedUser ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            ) : (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            )}
           </button>
           <div className="chat-panel-title">
             <div className="header-avatar-wrap">
