@@ -37,6 +37,8 @@ import {
   Save,
   Loader2,
   AlertTriangle,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
@@ -165,6 +167,7 @@ function Chat({ user: currentUser }) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
+  const [showDeletePwd, setShowDeletePwd] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -2108,14 +2111,35 @@ function Chat({ user: currentUser }) {
                 Enter your password to confirm deletion.
               </p>
               {deleteError && <div className="login-error" style={{ marginBottom: 10 }}>{deleteError}</div>}
-              <input
-                type="password"
-                placeholder="Enter your password"
-                value={deletePassword}
-                onChange={(e) => setDeletePassword(e.target.value)}
-                className="delete-password-input"
-                autoFocus
-              />
+              <div style={{ position: "relative" }}>
+                <input
+                  type={showDeletePwd ? "text" : "password"}
+                  placeholder="Enter your password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  className="delete-password-input"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowDeletePwd(!showDeletePwd)}
+                  style={{
+                    position: "absolute",
+                    right: 10,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--text-muted, #9ca3af)",
+                    padding: 4,
+                    display: "flex",
+                  }}
+                  tabIndex={-1}
+                >
+                  {showDeletePwd ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <div className="logout-modal-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="logout-cancel-btn" onClick={() => { setShowDeleteConfirm(false); setDeleteError(""); setDeletePassword(""); }}>
                   Cancel

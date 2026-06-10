@@ -918,11 +918,35 @@ body {
 }
 
 .delete-account-btn {
+  background: transparent !important;
+  color: #ef4444 !important;
+  box-shadow: none !important;
+  border: 1.5px solid #ef4444 !important;
+}
+
+.delete-account-btn * {
+  color: #ef4444 !important;
+}
+
+.dark .delete-account-btn {
+  background: transparent !important;
+  color: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+.dark .delete-account-btn * {
   color: #ef4444 !important;
 }
 
 .delete-account-btn:hover {
-  background: rgba(239, 68, 68, 0.15) !important;
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4) !important;
+}
+
+.delete-account-btn:hover * {
+  color: #ffffff !important;
 }
 
 .delete-password-input {
