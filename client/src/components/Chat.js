@@ -1758,10 +1758,9 @@ function Chat({ user: currentUser }) {
   if (!user) return <h2>Loading...</h2>;
 
   return (
-    <div className={`chat-layout ${isDarkMode ? "dark" : ""}`}>
+    <div className={`chat-layout ${isDarkMode ? "dark" : ""} w-full h-screen max-w-screen overflow-hidden md:grid md:grid-cols-[280px_1fr]`}>
       <div className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`} onClick={() => setSidebarOpen(false)} />
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
-        <div className="sidebar-top">
           <div className="brand-head">
             <div className="brand-mark">C</div>
             <div className="brand-copy">
