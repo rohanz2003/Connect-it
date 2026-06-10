@@ -26,8 +26,6 @@ const userRoutes = require("./routes/userRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const feedbackRoutes = require("./routes/feedbackRoutes");
 const adminRoutes = require("./routes/adminRoutes");
-const aiRoutes = require("./routes/aiRoutes");
-
 const initSocket = require("./socket/socket");
 const { initPush } = require("./services/pushService");
 const PushSubscription = require("./models/PushSubscription");
@@ -54,7 +52,6 @@ app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/ai", aiRoutes);
 
 // Push notification subscription endpoint
 app.post("/api/save-subscription", async (req, res) => {

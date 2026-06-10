@@ -2,8 +2,6 @@ const { Server } = require("socket.io");
 const handlePresence = require("./presence");
 const handleTyping = require("./typing");
 const handleMessages = require("./message");
-const handleAI = require("./aiSocket");
-
 const { getCorsOrigins } = require("../config/env");
 const { registerSocket, unregisterSocket } = require("../utils/socketAuth");
 const { updateLastSeen } = require("../controllers/userController");
@@ -59,7 +57,6 @@ const initSocket = (server) => {
     handlePresence(io, socket, users, userProfiles, socketToDevice, userDeviceSockets);
     handleTyping(io, socket, users);
     handleMessages(io, socket, users, socketToDevice, userDeviceSockets);
-    handleAI(io, socket);
 
     socket.on("heartbeat", (email) => {
       if (!email) return;

@@ -141,7 +141,6 @@ exports.deleteAccount = async (req, res) => {
     const Feedback = require("../models/Feedback");
     const PushSubscription = require("../models/PushSubscription");
     const DeviceModel = require("../models/Device");
-    const AIConversation = require("../models/AIConversation");
 
     await Promise.all([
       User.deleteOne({ email: normalizedEmail }),
@@ -154,7 +153,6 @@ exports.deleteAccount = async (req, res) => {
       Feedback.deleteMany({ email: normalizedEmail }),
       PushSubscription.deleteMany({ userId: normalizedEmail }),
       DeviceModel.deleteMany({ userId: normalizedEmail }),
-      AIConversation.deleteMany({ userId: normalizedEmail }),
     ]);
 
     res.json({ success: true, message: "Account data deleted" });

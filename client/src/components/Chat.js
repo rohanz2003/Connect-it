@@ -43,7 +43,6 @@ import {
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
 import ErrorBoundary from "./ErrorBoundary";
-import AIChat from "./AIChat";
 import { auth } from "../firebase";
 import { EmailAuthProvider, reauthenticateWithCredential, deleteUser } from "firebase/auth";
 import useSocket from "../hooks/useSocket";
@@ -143,7 +142,6 @@ function Chat({ user: currentUser }) {
   const [lastSeen, setLastSeen] = useState({});
   const [messages, setMessages] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [selectedAI, setSelectedAI] = useState(false); // Track if AI chat is selected
   const [unreadMessages, setUnreadMessages] = useState({}); // Track unread counts
   const [userProfiles, setUserProfiles] = useState(() => {
     try {
@@ -1685,7 +1683,6 @@ function Chat({ user: currentUser }) {
 
   const handleUserSelect = (u) => {
     setSelectedUser(u);
-    setSelectedAI(false); // Deselect AI when selecting a user
     
     // Update messages when user is selected, ensuring chronological order
     if (chatHistory[u]) {
@@ -1709,12 +1706,6 @@ function Chat({ user: currentUser }) {
         return next;
       });
     }
-  };
-
-  const handleAISelect = () => {
-    setSelectedUser(null); // Deselect any user
-    setSelectedAI(true); // Select AI
-    setMessages([]); // Clear regular messages
   };
 
   // Filter out current user from the user list
@@ -1851,27 +1842,6 @@ function Chat({ user: currentUser }) {
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search online users" : "Search archived chats"}
           />
-        </div>
-
-        {/* AI Assistant - Always visible at top */}
-        <div className="ai-assistant-item" onClick={handleAISelect}>
-          <div className={`user-item ai-user-item ${selectedAI ? "active" : ""}`}>
-            <div className="avatar-wrap">
-              <div className="ai-avatar">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="ai-icon-svg">
-                  <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <span className="status-dot ai-online" />
-            </div>
-            <div className="user-item-copy">
-              <span className="user-name ai-name">AI Assistant</span>
-              <span className="user-last ai-tagline">Ask me anything!</span>
-            </div>
-            <div className="ai-badge">✨</div>
-          </div>
         </div>
 
         {activeTab === "recent" && (
@@ -2012,10 +1982,6 @@ function Chat({ user: currentUser }) {
       </aside>
 
       <main className="chat-panel">
-        {selectedAI ? (
-          <AIChat socket={socket} user={user} onClose={() => setSelectedAI(false)} />
-        ) : (
-          <>
         <div className="chat-panel-header">
           <div className="chat-panel-title">
             <div className="header-avatar-wrap">
@@ -2449,8 +2415,6 @@ function Chat({ user: currentUser }) {
         <input id="attach-audio" type="file" accept="audio/*" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
         <input id="attach-document" type="file" accept=".pdf,.doc,.docx,.txt,.rtf" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
         <input id="attach-file" type="file" accept="*/*" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
-          </>
-        )}
       </main>
 
       <aside className="dashboard-panel">
