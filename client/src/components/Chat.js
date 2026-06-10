@@ -2084,6 +2084,7 @@ function Chat({ user: currentUser }) {
                   value={deletePassword}
                   onChange={(e) => setDeletePassword(e.target.value)}
                   className="delete-password-input"
+                  autoComplete="new-password"
                   autoFocus
                 />
                 <button

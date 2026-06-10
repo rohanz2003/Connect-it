@@ -952,10 +952,10 @@ body {
 .delete-password-input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid var(--border-color, #374151);
+  border: 1px solid var(--border-color, #d1d5db);
   border-radius: 8px;
-  background: var(--input-bg, #1f2937);
-  color: var(--text-primary, #f3f4f6);
+  background: #ffffff;
+  color: #111827;
   font-size: 14px;
   outline: none;
   box-sizing: border-box;
@@ -964,6 +964,20 @@ body {
 .delete-password-input:focus {
   border-color: #ef4444;
   box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+.dark .delete-password-input {
+  background: #1f2937;
+  color: #f3f4f6;
+  border-color: #374151;
+}
+
+.dark .delete-password-input:-webkit-autofill,
+.dark .delete-password-input:-webkit-autofill:hover,
+.dark .delete-password-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #f3f4f6;
+  -webkit-box-shadow: 0 0 0px 1000px #1f2937 inset;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 @media (max-width: 768px) {
