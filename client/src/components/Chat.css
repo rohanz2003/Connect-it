@@ -917,6 +917,31 @@ body {
   white-space: nowrap;
 }
 
+.delete-account-btn {
+  color: #ef4444 !important;
+}
+
+.delete-account-btn:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+}
+
+.delete-password-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #374151);
+  border-radius: 8px;
+  background: var(--input-bg, #1f2937);
+  color: var(--text-primary, #f3f4f6);
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.delete-password-input:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
 @media (max-width: 768px) {
   .chat-header-actions {
     flex-wrap: wrap;

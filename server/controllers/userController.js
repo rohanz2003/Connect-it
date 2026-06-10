@@ -129,6 +129,41 @@ exports.getLastSeen = async (req, res) => {
   }
 };
 
+exports.deleteAccount = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "email is required" });
+
+    const normalizedEmail = email.toLowerCase();
+
+    const Message = require("../models/Message");
+    const ClearedChat = require("../models/ClearedChat");
+    const Feedback = require("../models/Feedback");
+    const PushSubscription = require("../models/PushSubscription");
+    const DeviceModel = require("../models/Device");
+    const AIConversation = require("../models/AIConversation");
+
+    await Promise.all([
+      User.deleteOne({ email: normalizedEmail }),
+      Message.deleteMany({
+        $or: [{ sender: normalizedEmail }, { receiver: normalizedEmail }],
+      }),
+      ClearedChat.deleteMany({
+        $or: [{ user: normalizedEmail }, { partner: normalizedEmail }],
+      }),
+      Feedback.deleteMany({ email: normalizedEmail }),
+      PushSubscription.deleteMany({ userId: normalizedEmail }),
+      DeviceModel.deleteMany({ userId: normalizedEmail }),
+      AIConversation.deleteMany({ userId: normalizedEmail }),
+    ]);
+
+    res.json({ success: true, message: "Account data deleted" });
+  } catch (err) {
+    console.error("Error deleting account:", err.message);
+    res.status(500).json({ error: "Failed to delete account" });
+  }
+};
+
 exports.heartbeat = async (req, res) => {
   try {
     const { email } = req.body;

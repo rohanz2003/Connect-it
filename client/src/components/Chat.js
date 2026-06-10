@@ -36,12 +36,14 @@ import {
   Palette,
   Save,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
 import ErrorBoundary from "./ErrorBoundary";
 import AIChat from "./AIChat";
 import { auth } from "../firebase";
+import { EmailAuthProvider, reauthenticateWithCredential, deleteUser } from "firebase/auth";
 import useSocket from "../hooks/useSocket";
 import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
 import { validateImageFile, compressImage } from "../utils/imageUtils";
@@ -161,6 +163,10 @@ function Chat({ user: currentUser }) {
   const [replyTo, setReplyTo] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const attachMenuRef = useRef(null);
@@ -1635,6 +1641,45 @@ function Chat({ user: currentUser }) {
     });
   };
 
+  const handleDeleteAccount = async () => {
+    setDeleteError("");
+    if (!deletePassword) {
+      setDeleteError("Please enter your password to confirm.");
+      return;
+    }
+    setDeleting(true);
+    try {
+      const credential = EmailAuthProvider.credential(user.email, deletePassword);
+      await reauthenticateWithCredential(auth.currentUser, credential);
+
+      const res = await fetch(`${API_URL}/api/users/delete-account`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user.email }),
+      });
+      if (!res.ok) throw new Error("Failed to delete account data from server");
+
+      await deleteUser(auth.currentUser);
+
+      if (socket && user) {
+        socket.emit("leave", { email: normalizeEmail(user.email) });
+      }
+      localStorage.clear();
+      setShowDeleteConfirm(false);
+      navigate("/");
+    } catch (err) {
+      const errorMap = {
+        "auth/wrong-password": "Incorrect password.",
+        "auth/invalid-credential": "Incorrect password.",
+        "auth/too-many-requests": "Too many attempts. Try again later.",
+        "auth/requires-recent-login": "Please log out and log back in, then try again.",
+      };
+      setDeleteError(errorMap[err.code] || err.message.replace("Firebase: ", ""));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleUserSelect = (u) => {
     setSelectedUser(u);
     setSelectedAI(false); // Deselect AI when selecting a user
@@ -2024,6 +2069,14 @@ function Chat({ user: currentUser }) {
               <LogOut size={16} />
               <span>Logout</span>
             </button>
+            <button
+              className="logout-btn delete-account-btn"
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              <Trash2 size={16} />
+              <span>Delete</span>
+            </button>
           </div>
         </div>
 
@@ -2038,6 +2091,37 @@ function Chat({ user: currentUser }) {
                 </button>
                 <button type="button" className="logout-confirm-btn" onClick={performLogout}>
                   Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showDeleteConfirm && (
+          <div className="logout-modal-overlay" onClick={() => { setShowDeleteConfirm(false); setDeleteError(""); setDeletePassword(""); }}>
+            <div className="logout-modal" onClick={(e) => e.stopPropagation()}>
+              <h3><AlertTriangle size={18} style={{ verticalAlign: "middle", marginRight: 8, color: "#ef4444" }} />Delete Account</h3>
+              <p style={{ color: "#ef4444", fontWeight: 500, marginBottom: 8 }}>
+                This will permanently delete all your messages, chats, and account data. This action cannot be undone.
+              </p>
+              <p style={{ marginBottom: 12, fontSize: 13, opacity: 0.7 }}>
+                Enter your password to confirm deletion.
+              </p>
+              {deleteError && <div className="login-error" style={{ marginBottom: 10 }}>{deleteError}</div>}
+              <input
+                type="password"
+                placeholder="Enter your password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                className="delete-password-input"
+                autoFocus
+              />
+              <div className="logout-modal-actions" style={{ marginTop: 14 }}>
+                <button type="button" className="logout-cancel-btn" onClick={() => { setShowDeleteConfirm(false); setDeleteError(""); setDeletePassword(""); }}>
+                  Cancel
+                </button>
+                <button type="button" className="logout-confirm-btn" style={{ background: "#ef4444" }} onClick={handleDeleteAccount} disabled={deleting}>
+                  {deleting ? "Deleting..." : "Delete Forever"}
                 </button>
               </div>
             </div>
