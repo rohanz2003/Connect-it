@@ -97,12 +97,14 @@
   font-weight: 500;
 }
 
-/* Responsive Design - Enhanced */
+/* ============================================================
+   COMPREHENSIVE RESPONSIVE DESIGN
+   ============================================================ */
+
 @media (max-width: 1024px) {
   .footer-container {
     padding: 2.5rem 1.5rem;
   }
-  
   .footer-content {
     gap: 1.8rem;
   }
@@ -112,20 +114,20 @@
   .footer-container {
     padding: 2rem 1.5rem;
   }
-
   .footer-content {
     grid-template-columns: 1fr;
     gap: 1.5rem;
   }
-
+  .footer-section {
+    text-align: center;
+    align-items: center;
+  }
   .footer-bottom {
     gap: 0.5rem;
   }
-
   .footer-title {
     font-size: 1.25rem;
   }
-
   .footer-heading {
     font-size: 1rem;
   }
@@ -133,15 +135,16 @@
 
 @media (max-width: 640px) {
   .footer-container {
-    padding: 1.8rem 1.3rem;
+    padding: 1.8rem 1.2rem;
   }
-  
   .footer-description {
     font-size: 0.9rem;
   }
-  
   .footer-links li a {
     font-size: 0.9rem;
+  }
+  .footer-content {
+    gap: 1.2rem;
   }
 }
 
@@ -149,36 +152,61 @@
   .footer-container {
     padding: 1.5rem 1rem;
   }
-
   .footer-title {
     font-size: 1.1rem;
   }
-
   .footer-links li a {
-    font-size: 0.875rem;
+    font-size: 0.85rem;
   }
-
   .footer-copyright,
   .footer-tagline {
     font-size: 0.8rem;
   }
-  
   .footer-heading {
     font-size: 0.95rem;
   }
-  
   .footer-description {
     font-size: 0.85rem;
+  }
+  .footer-content {
+    gap: 1.5rem;
+  }
+  .footer-links {
+    gap: 0.5rem;
   }
 }
 
 @media (max-width: 375px) {
+  .footer-container {
+    padding: 1.2rem 0.9rem;
+  }
   .footer-title {
     font-size: 1rem;
   }
-  
   .footer-links li a {
     font-size: 0.8rem;
+  }
+  .footer-heading {
+    font-size: 0.9rem;
+  }
+  .footer-description {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 320px) {
+  .footer-container {
+    padding: 1rem 0.7rem;
+  }
+  .footer-title {
+    font-size: 0.9rem;
+  }
+  .footer-links li a {
+    font-size: 0.75rem;
+  }
+  .footer-copyright,
+  .footer-tagline {
+    font-size: 0.7rem;
   }
 }
 
@@ -190,4 +218,14 @@
     display: inline-flex;
     align-items: center;
   }
+}
+
+/* Prevent horizontal overflow */
+.footer {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.footer-container {
+  box-sizing: border-box;
 }

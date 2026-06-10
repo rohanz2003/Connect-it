@@ -39,6 +39,8 @@ import {
   AlertTriangle,
   Eye,
   EyeOff,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
@@ -1773,12 +1775,12 @@ function Chat({ user: currentUser }) {
           </div>
           <div className="sidebar-top-actions">
             <button
-              className="sidebar-collapse-btn"
+              className={`sidebar-collapse-btn ${sidebarCollapsed ? "collapsed" : ""}`}
               onClick={() => setSidebarCollapsed((prev) => !prev)}
               aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              <ChevronDown size={16} style={{ transform: sidebarCollapsed ? 'rotate(90deg)' : 'rotate(-90deg)' }} />
+              {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
             </button>
             <button
               className="theme-toggle"
