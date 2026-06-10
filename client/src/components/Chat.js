@@ -170,6 +170,7 @@ function Chat({ user: currentUser }) {
   const [deleting, setDeleting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth < 768);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const attachMenuRef = useRef(null);
   const [userNames, setUserNames] = useState(() => {
@@ -1761,34 +1762,44 @@ function Chat({ user: currentUser }) {
   return (
     <div className={`chat-layout ${isDarkMode ? "dark" : ""} w-full h-screen max-w-screen overflow-hidden md:grid md:grid-cols-[280px_1fr]`}>
       <div className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`} onClick={() => setSidebarOpen(false)} />
-      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
+      <aside className={`sidebar ${sidebarOpen ? "open" : ""} ${sidebarCollapsed ? "minimized" : ""}`}>
         <div className="sidebar-top">
           <div className="brand-head">
             <div className="brand-mark">C</div>
-            <div className="brand-copy">
+            <div className={`brand-copy ${sidebarCollapsed ? "collapsed-hidden" : ""}`}>
               <strong>Connect</strong>
               <span>Enterprise messenger</span>
             </div>
           </div>
-          <button
-            className="theme-toggle"
-            onClick={() => setIsDarkMode((prev) => !prev)}
-            aria-label="Toggle theme"
-          >
-            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
+          <div className="sidebar-top-actions">
+            <button
+              className="sidebar-collapse-btn"
+              onClick={() => setSidebarCollapsed((prev) => !prev)}
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <ChevronDown size={16} style={{ transform: sidebarCollapsed ? 'rotate(90deg)' : 'rotate(-90deg)' }} />
+            </button>
+            <button
+              className="theme-toggle"
+              onClick={() => setIsDarkMode((prev) => !prev)}
+              aria-label="Toggle theme"
+            >
+              {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+          </div>
         </div>
 
-        <div className="profile-card">
+        <div className={`profile-card ${sidebarCollapsed ? "minimized" : ""}`}>
           <div className="profile-card-main">
             <Avatar
               src={userProfiles[user.email.toLowerCase()] || user.profilePic}
               email={user.email}
-              size={40}
+              size={sidebarCollapsed ? 32 : 40}
               className="profile-card-avatar"
               onClick={(e) => handleAvatarClick(e, user.email, true)}
             />
-            <div>
+            <div className={sidebarCollapsed ? "collapsed-hidden" : ""}>
               <span className="profile-name">{getDisplayName(user.email)}</span>
               <span className="profile-meta">
                 {isUserOnline(user.email) ? "Online" : "Offline"}
@@ -1796,20 +1807,20 @@ function Chat({ user: currentUser }) {
             </div>
           </div>
           <button
-            className="primary-btn"
+            className={`primary-btn ${sidebarCollapsed ? "collapsed-hidden" : ""}`}
             onClick={() => setSelectedUser(null)}
           >
             <PlusCircle size={16} /> New Message
           </button>
         </div>
 
-        <div className="sidebar-tabs">
+        <div className={`sidebar-tabs ${sidebarCollapsed ? "minimized" : ""}`}>
           <button
             className={`tab ${activeTab === "recent" ? "active" : ""}`}
             onClick={() => setActiveTab("recent")}
           >
             <MessageCircle size={14} />
-            Recent
+            <span className={sidebarCollapsed ? "collapsed-hidden" : ""}>Recent</span>
             {totalUnread > 0 && <span className="tab-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
             
           </button>
@@ -1818,7 +1829,7 @@ function Chat({ user: currentUser }) {
             onClick={() => setActiveTab("online")}
           >
             <span className="tab-online-dot" />
-            Online
+            <span className={sidebarCollapsed ? "collapsed-hidden" : ""}>Online</span>
             <span className="tab-count">{filteredOnlineUsers.length}</span>
           </button>
           <button
@@ -1826,7 +1837,7 @@ function Chat({ user: currentUser }) {
             onClick={() => setActiveTab("archive")}
           >
             <Archive size={14} />
-            Archive
+            <span className={sidebarCollapsed ? "collapsed-hidden" : ""}>Archive</span>
             {archivedChatsList.length > 0 && <span className="tab-count">{archivedChatsList.length}</span>}
           </button>
         </div>
@@ -1971,9 +1982,18 @@ function Chat({ user: currentUser }) {
           </div>
         )}
 
-        <div className="sidebar-actions">
-          <button className="secondary-btn" onClick={() => setShowSettings(true)}>
-            <Settings size={16} /> Settings
+        <div className="sidebar-footer">
+          <button className="sidebar-footer-btn" onClick={() => setShowSettings(true)} title="Settings">
+            <Settings size={16} />
+            <span className={sidebarCollapsed ? "collapsed-hidden" : ""}>Settings</span>
+          </button>
+          <button className="sidebar-footer-btn sidebar-footer-logout" onClick={() => setShowLogoutConfirm(true)} title="Logout">
+            <LogOut size={16} />
+            <span className={sidebarCollapsed ? "collapsed-hidden" : ""}>Logout</span>
+          </button>
+          <button className="sidebar-footer-btn sidebar-footer-delete" onClick={() => setShowDeleteConfirm(true)} title="Delete account">
+            <Trash2 size={16} />
+            <span className={sidebarCollapsed ? "collapsed-hidden" : ""}>Delete</span>
           </button>
         </div>
       </aside>
@@ -2033,22 +2053,6 @@ function Chat({ user: currentUser }) {
             )}
             <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
               <Settings size={18} />
-            </button>
-            <button
-              className="logout-btn"
-              type="button"
-              onClick={() => setShowLogoutConfirm(true)}
-            >
-              <LogOut size={16} />
-              <span>Logout</span>
-            </button>
-            <button
-              className="logout-btn delete-account-btn"
-              type="button"
-              onClick={() => setShowDeleteConfirm(true)}
-            >
-              <Trash2 size={16} />
-              <span>Delete</span>
             </button>
           </div>
         </div>
@@ -2612,15 +2616,6 @@ function Chat({ user: currentUser }) {
         />
       )}
 
-      <button
-        className="mobile-logout-fab"
-        type="button"
-        aria-label="Logout"
-        onClick={() => setShowLogoutConfirm(true)}
-      >
-        <LogOut size={22} />
-      </button>
-
       <nav className="bottom-nav">
         <button className={`bottom-nav-btn ${activeTab === "recent" ? "active" : ""}`} onClick={() => setActiveTab("recent")}><MessageCircle size={18} /><span>Chat</span></button>
         <button className={`bottom-nav-btn ${activeTab === "online" ? "active" : ""}`} onClick={() => setActiveTab("online")}><Users size={18} /><span>Contacts</span></button>
@@ -2732,6 +2727,12 @@ function Chat({ user: currentUser }) {
               </div>
             </div>
             <div className="settings-footer">
+              <button className="settings-btn danger" onClick={() => { setShowSettings(false); setShowLogoutConfirm(true); }}>
+                <LogOut size={16} /> Logout
+              </button>
+              <button className="settings-btn delete" onClick={() => { setShowSettings(false); setShowDeleteConfirm(true); }}>
+                <Trash2 size={16} /> Delete
+              </button>
               <button className="settings-btn secondary" onClick={() => setShowSettings(false)} disabled={isSaving}>
                 Cancel
               </button>
