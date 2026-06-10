@@ -129,6 +129,20 @@ body {
     display: block;
   }
 
+  .sidebar.fullscreen {
+    width: 100vw;
+    max-width: 100vw;
+  }
+
+  .sidebar.fullscreen .sidebar-tabs,
+  .sidebar.fullscreen .sidebar-search {
+    display: none;
+  }
+
+  .sidebar.fullscreen .profile-card .primary-btn {
+    display: none;
+  }
+
   .chat-panel {
     grid-column: unset;
     grid-row: unset;
