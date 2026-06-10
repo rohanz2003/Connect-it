@@ -1985,6 +1985,15 @@ function Chat({ user: currentUser }) {
         )}
 
         <div className="sidebar-footer">
+          <button
+            className={`sidebar-footer-btn sidebar-footer-collapse`}
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            <span className={sidebarCollapsed ? "collapsed-hidden" : ""}>{sidebarCollapsed ? "Expand" : "Collapse"}</span>
+          </button>
+          <div className="sidebar-footer-divider" />
           <button className="sidebar-footer-btn" onClick={() => setShowSettings(true)} title="Settings">
             <Settings size={16} />
             <span className={sidebarCollapsed ? "collapsed-hidden" : ""}>Settings</span>
