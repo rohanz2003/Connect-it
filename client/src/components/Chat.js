@@ -171,7 +171,7 @@ function Chat({ user: currentUser }) {
   const [deleteError, setDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth < 768);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const attachMenuRef = useRef(null);
@@ -2628,10 +2628,9 @@ function Chat({ user: currentUser }) {
       )}
 
       <nav className="bottom-nav">
-        <button className={`bottom-nav-btn ${activeTab === "recent" ? "active" : ""}`} onClick={() => setActiveTab("recent")}><MessageCircle size={18} /><span>Chat</span></button>
-        <button className={`bottom-nav-btn ${activeTab === "online" ? "active" : ""}`} onClick={() => setActiveTab("online")}><Users size={18} /><span>Contacts</span></button>
-        <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={() => setActiveTab("archive")}><Archive size={18} /><span>Archive</span></button>
-        <button className="bottom-nav-btn" onClick={() => setShowSettings(true)}><Settings size={18} /><span>More</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "recent" ? "active" : ""}`} onClick={() => { setActiveTab("recent"); setSidebarOpen(true); }}><MessageCircle size={18} /><span>Chat</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "online" ? "active" : ""}`} onClick={() => { setActiveTab("online"); setSidebarOpen(true); }}><Users size={18} /><span>Contacts</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={() => { setActiveTab("archive"); setSidebarOpen(true); }}><Archive size={18} /><span>Archive</span></button>
       </nav>
 
       {showSettings && (
