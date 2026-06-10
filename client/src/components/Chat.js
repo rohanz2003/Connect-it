@@ -356,7 +356,6 @@ function Chat({ user: currentUser }) {
   };
 
   const chatHistoryRef = useRef({});
-  const skipChatClearedRef = useRef(false);
   useEffect(() => {
     chatHistoryRef.current = chatHistory;
   }, [chatHistory]);
@@ -688,11 +687,6 @@ function Chat({ user: currentUser }) {
       const clearedFor = normalizeEmail(user1);
       const partner = normalizeEmail(user2);
       if (clearedFor !== normalizeEmail(user.email)) return;
-
-      if (skipChatClearedRef.current) {
-        skipChatClearedRef.current = false;
-        return;
-      }
 
       setChatHistory((prev) => {
         const updated = { ...prev };
@@ -1385,19 +1379,11 @@ function Chat({ user: currentUser }) {
         return next;
       });
 
-      if (socket?.connected) {
-        skipChatClearedRef.current = true;
-        socket.emit(
-          "clear-chat",
-          { user1: normalizeEmail(user.email), user2: partner },
-          (ack) => {
-            if (!ack?.ok) {
-              skipChatClearedRef.current = false;
-              console.warn("Failed to sync chat removal with server");
-            }
-          }
-        );
-      }
+      fetch(`${API_URL}/api/messages/clear`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: user.email, partner }),
+      }).catch(() => {});
     }
   };
 

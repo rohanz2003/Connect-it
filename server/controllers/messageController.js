@@ -45,6 +45,24 @@ exports.getMessages = async (req, res) => {
   }
 };
 
+exports.clearChat = async (req, res) => {
+  try {
+    const { user, partner } = req.body;
+    if (!user || !partner) {
+      return res.status(400).json({ error: "user and partner are required" });
+    }
+    await ClearedChat.findOneAndUpdate(
+      { user: normalizeEmail(user), partner: normalizeEmail(partner) },
+      { clearedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error clearing chat:", error);
+    res.status(500).json({ error: "Failed to clear chat" });
+  }
+};
+
 exports.getRecentChats = async (req, res) => {
   try {
     const { userEmail } = req.query;
