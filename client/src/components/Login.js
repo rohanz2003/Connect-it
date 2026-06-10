@@ -5,6 +5,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
@@ -168,8 +169,8 @@ function Login() {
           localStorage.setItem("user", JSON.stringify({ ...stored, displayName: displayName.trim() }));
         } catch (e) {}
 
-        await sendPasswordResetEmail(auth, email).catch(() => {});
-        setMessage("Account created! Please sign in to continue.");
+        await sendEmailVerification(userCredential.user);
+        setMessage("Account created! Check your Gmail inbox and verify your email before signing in.");
         setIsRegistering(false);
         setProfilePic(null);
         setProfilePreview(null);
