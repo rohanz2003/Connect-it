@@ -378,86 +378,7 @@ body {
   z-index: 100;
 }
 
-.sidebar.minimized {
-  width: 70px !important;
-}
 
-.sidebar.minimized .sidebar-search input,
-.sidebar.minimized .sidebar-search input::placeholder {
-  width: 0;
-  padding: 0;
-  border: none;
-  font-size: 0;
-}
-
-.sidebar.minimized .sidebar-search svg {
-  margin: 0 auto;
-}
-
-.sidebar.minimized .tab span:not(.tab-badge):not(.tab-count):not(.tab-online-dot) {
-  display: none;
-}
-
-.sidebar.minimized .tab {
-  justify-content: center;
-  padding: 10px 8px;
-  gap: 0;
-}
-
-.sidebar.minimized .profile-card {
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 8px;
-}
-
-.sidebar.minimized .profile-card-main {
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.sidebar.minimized .sidebar-actions,
-.sidebar.minimized .sidebar-section-title {
-  display: none;
-}
-
-.sidebar.minimized .sidebar-footer-btn {
-  justify-content: center;
-  padding: 10px 0;
-}
-
-.sidebar.minimized .sidebar-footer-btn span {
-  display: none;
-}
-
-.sidebar.minimized .sidebar-footer-collapse {
-  border-style: solid !important;
-  border-color: var(--primary-color) !important;
-  color: var(--primary-color) !important;
-  background: var(--primary-light) !important;
-}
-
-.sidebar.minimized .sidebar-footer-divider {
-  margin: 2px 8px;
-}
-
-.sidebar.minimized .user-item {
-  justify-content: center;
-  padding: 10px 4px;
-}
-
-.sidebar.minimized .user-item-copy {
-  display: none;
-}
-
-.sidebar.minimized .user-item-actions {
-  display: none;
-}
-
-.collapsed-hidden {
-  display: none !important;
-}
 
 .sidebar-top {
   padding: 16px;
@@ -474,57 +395,7 @@ body {
   flex-shrink: 0;
 }
 
-.sidebar-collapse-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border-color);
-  background: var(--background-white);
-  color: var(--text-light);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-  opacity: 0.6;
-}
 
-.sidebar-collapse-btn:hover {
-  opacity: 1;
-  background: var(--border-light);
-  color: var(--text-primary);
-  border-color: var(--text-light);
-  transform: scale(1.08);
-}
-
-.sidebar-collapse-btn.collapsed {
-  opacity: 1;
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-  background: var(--primary-light);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
-}
-
-.sidebar-collapse-btn.collapsed:hover {
-  background: var(--primary-lighter, #dbeafe);
-  transform: scale(1.08);
-}
-
-.sidebar.minimized .sidebar-top {
-  justify-content: center;
-  padding: 16px 8px;
-}
-
-.sidebar.minimized .sidebar-top-actions {
-  display: none;
-}
-
-@media (max-width: 767px) {
-  .sidebar-collapse-btn {
-    display: none;
-  }
-}
 
 .brand-head {
   display: flex;
@@ -1002,19 +873,6 @@ body {
 
 .sidebar-footer-btn svg {
   flex-shrink: 0;
-}
-
-.sidebar-footer-collapse {
-  border: 1px dashed var(--border-color) !important;
-  color: var(--text-light) !important;
-  font-size: 12px;
-}
-
-.sidebar-footer-collapse:hover {
-  border-style: solid !important;
-  border-color: var(--text-light) !important;
-  background: var(--border-light) !important;
-  color: var(--text-primary) !important;
 }
 
 .sidebar-footer-divider {
@@ -2400,6 +2258,7 @@ body {
   font-weight: 600;
   transition: var(--transition);
   font-family: inherit;
+  position: relative;
 }
 
 .bottom-nav-btn:hover,
@@ -2410,6 +2269,42 @@ body {
 .bottom-nav-btn svg {
   width: 18px;
   height: 18px;
+}
+
+.bottom-nav-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bottom-nav-badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  background: #ef4444;
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.bottom-nav-green-dot {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 2px solid var(--background-white, #ffffff);
 }
 
 .image-zoom-overlay {
