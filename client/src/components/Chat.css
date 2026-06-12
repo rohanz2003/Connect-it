@@ -2185,46 +2185,46 @@ body {
    ============================================================================ */
 
 .analytics-panel {
-  padding: 16px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.analytics-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.analytics-panel .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
 }
 
-.analytics-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  background: var(--background-white, #ffffff);
-  border-radius: 12px;
-  border: 1px solid var(--border-color, #e5e7eb);
-  color: var(--primary-color, #6366f1);
+.analytics-panel .stat-item {
+  background: var(--background-white);
+  border-radius: 16px;
+  padding: 20px 12px;
+  text-align: center;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.analytics-card-data {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.analytics-panel .stat-item:active {
+  transform: scale(0.97);
 }
 
-.analytics-value {
-  font-size: 22px;
+.analytics-panel .stat-item span {
+  display: block;
   font-weight: 800;
-  color: var(--text-primary, #1f2937);
+  font-size: 26px;
+  color: var(--primary-color);
   line-height: 1.1;
+  margin-bottom: 4px;
 }
 
-.analytics-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-light, #9ca3af);
+.analytics-panel .stat-item small {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-light);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -2588,13 +2588,13 @@ body {
 .settings-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(8px);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   z-index: 9999;
-  padding: 20px;
+  padding: 0;
   animation: fadeIn 0.2s ease;
 }
 
@@ -2610,16 +2610,16 @@ body {
 
 .settings-modal {
   background: var(--background-white);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   width: 100%;
-  max-width: 480px;
-  max-height: 85vh;
+  max-width: 100%;
+  max-height: 90vh;
   overflow: hidden;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.15);
   animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border-color);
+  border: none;
 }
 
 .settings-header {
@@ -3011,15 +3011,6 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
     bottom: 80px;
   }
 
-  .settings-modal {
-    max-width: 100%;
-    max-height: 90vh;
-    margin: 10px;
-  }
-
-  .settings-modal-overlay {
-    padding: 10px;
-  }
 }
 
 /* ============================================================================
@@ -3444,14 +3435,6 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   }
 }
 
-/* ============================================================================
-   REDESIGNED SETTINGS MODAL
-   ============================================================================ */
-
-.settings-modal {
-  max-width: 520px;
-}
-
 .settings-close-btn {
   width: 36px;
   height: 36px;
@@ -3832,24 +3815,7 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   background: rgba(0, 0, 0, 0.6);
 }
 
-/* Mobile responsive */
 @media (max-width: 480px) {
-  .settings-modal {
-    max-width: 100%;
-    max-height: 95vh;
-    border-radius: 0;
-    border: none;
-  }
-  
-  .settings-modal-overlay {
-    padding: 0;
-    align-items: flex-end;
-  }
-  
-  .settings-modal {
-    animation: slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  
   .avatar-actions {
     flex-direction: column;
     width: 100%;
@@ -3868,16 +3834,6 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   .settings-btn {
     width: 100%;
   }
-}
-
-@keyframes slideInUp {
-  from { opacity: 0; transform: translateY(24px) scale(0.97); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
 }
 
 /* ============================================================================
