@@ -39,6 +39,13 @@ import {
   AlertTriangle,
   Eye,
   EyeOff,
+  Phone,
+  PhoneOff,
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
+  Volume2,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
@@ -201,6 +208,23 @@ function Chat({ user: currentUser }) {
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
   const [, setLastSeenTick] = useState(0);
+
+  // Call state
+  const [callStatus, setCallStatus] = useState("idle");
+  const callStatusRef = useRef("idle");
+  useEffect(() => { callStatusRef.current = callStatus; }, [callStatus]);
+  const [incomingCall, setIncomingCall] = useState(null);
+  const [callType, setCallType] = useState("audio");
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(false);
+  const [isCameraOn, setIsCameraOn] = useState(true);
+  const [callError, setCallError] = useState(null);
+  const peerConnectionRef = useRef(null);
+  const localStreamRef = useRef(null);
+  const remoteStreamRef = useRef(null);
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+  const callPartnerRef = useRef(null);
 
   // Auto-refresh last seen display every 1 second
   useEffect(() => {
@@ -890,6 +914,39 @@ function Chat({ user: currentUser }) {
       }
     });
 
+    socket.on("incoming-call", ({ from, signalData, callType }) => {
+      if (callStatusRef.current !== "idle" && callStatusRef.current !== "calling") return;
+      setIncomingCall({ from, signalData, callType });
+      setCallStatus("ringing");
+    });
+
+    socket.on("call-accepted", ({ signalData }) => {
+      if (!peerConnectionRef.current) return;
+      peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(signalData)).catch(() => {});
+      setCallStatus("connected");
+    });
+
+    socket.on("call-rejected", () => {
+      setCallError("Call was rejected");
+      cleanupMedia();
+      setCallStatus("idle");
+      callPartnerRef.current = null;
+    });
+
+    socket.on("call-ended", () => {
+      cleanupMedia();
+      setCallStatus("idle");
+      setIncomingCall(null);
+      setCallError(null);
+      callPartnerRef.current = null;
+    });
+
+    socket.on("ice-candidate", ({ candidate }) => {
+      if (peerConnectionRef.current && candidate) {
+        peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+      }
+    });
+
     return () => {
       socket.off("connect", handleJoin);
       socket.off("online-users", handleOnlineUsers);
@@ -906,6 +963,11 @@ function Chat({ user: currentUser }) {
       socket.off("undelivered-messages");
       socket.off("message-status-update");
       socket.off("messages-read");
+      socket.off("incoming-call");
+      socket.off("call-accepted");
+      socket.off("call-rejected");
+      socket.off("call-ended");
+      socket.off("ice-candidate");
     };
   }, [socket, user]);
 
@@ -1754,6 +1816,119 @@ function Chat({ user: currentUser }) {
 
   const totalUnread = filteredRecentChats.reduce((sum, u) => sum + getUnreadCount(u), 0);
 
+  // --- WebRTC Calling ---
+  const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] };
+
+  const cleanupMedia = () => {
+    if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); localStreamRef.current = null; }
+    if (peerConnectionRef.current) { peerConnectionRef.current.close(); peerConnectionRef.current = null; }
+    remoteStreamRef.current = null;
+  };
+
+  const createPeerConnection = (stream) => {
+    const pc = new RTCPeerConnection(rtcConfig);
+    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+    pc.onicecandidate = (e) => {
+      if (e.candidate && callPartnerRef.current) {
+        socket.emit("ice-candidate", { targetUserEmail: callPartnerRef.current, candidate: e.candidate });
+      }
+    };
+    pc.ontrack = (e) => { remoteStreamRef.current = e.streams[0]; if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0]; };
+    pc.oniceconnectionstatechange = () => { if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") { endCall(); } };
+    peerConnectionRef.current = pc;
+    return pc;
+  };
+
+  const startCall = async (type) => {
+    if (!selectedUser || !socket) return;
+    try {
+      setCallError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === "video" });
+      localStreamRef.current = stream;
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      callPartnerRef.current = selectedUser;
+      setCallType(type);
+      setIsCameraOn(type === "video");
+      setIsMuted(false);
+      setIsSpeakerOn(false);
+      setCallStatus("calling");
+
+      const pc = createPeerConnection(stream);
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit("call-user", { targetUserEmail: selectedUser, signalData: offer, callType: type });
+    } catch (err) {
+      setCallError(err.message);
+      cleanupMedia();
+      setCallStatus("idle");
+    }
+  };
+
+  const acceptCall = async () => {
+    if (!incomingCall || !socket) return;
+    try {
+      setCallError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: incomingCall.callType === "video" });
+      localStreamRef.current = stream;
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      callPartnerRef.current = incomingCall.from;
+      setCallType(incomingCall.callType);
+      setIsCameraOn(incomingCall.callType === "video");
+      setIsMuted(false);
+      setIsSpeakerOn(false);
+      setCallStatus("connected");
+      setIncomingCall(null);
+
+      const pc = createPeerConnection(stream);
+      await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.signalData));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit("accept-call", { targetUserEmail: incomingCall.from, signalData: answer });
+    } catch (err) {
+      setCallError(err.message);
+      cleanupMedia();
+      setCallStatus("idle");
+    }
+  };
+
+  const rejectCall = () => {
+    if (!incomingCall || !socket) return;
+    socket.emit("reject-call", { targetUserEmail: incomingCall.from });
+    setIncomingCall(null);
+    setCallStatus("idle");
+  };
+
+  const endCall = () => {
+    if (callPartnerRef.current && socket) {
+      socket.emit("end-call", { targetUserEmail: callPartnerRef.current });
+    }
+    cleanupMedia();
+    setCallStatus("idle");
+    setIncomingCall(null);
+    setCallError(null);
+    callPartnerRef.current = null;
+  };
+
+  const toggleMute = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = isMuted; });
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const toggleSpeaker = () => {
+    setIsSpeakerOn(!isSpeakerOn);
+  };
+
+  const toggleCamera = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getVideoTracks().forEach(t => { t.enabled = !isCameraOn; });
+      setIsCameraOn(!isCameraOn);
+    }
+  };
+
+  // --- End WebRTC Calling ---
+
   if (!user) return <h2>Loading...</h2>;
 
   return (
@@ -2002,6 +2177,8 @@ function Chat({ user: currentUser }) {
                 >
                   <Trash2 size={16} /> Clear Chat
                 </button>
+                <button className="icon-btn call-btn" title="Audio call" onClick={() => startCall("audio")} disabled={callStatus !== "idle"}><Phone size={18} /></button>
+                <button className="icon-btn call-btn" title="Video call" onClick={() => startCall("video")} disabled={callStatus !== "idle"}><Video size={18} /></button>
                 <button 
                   className="icon-btn minimize-btn" 
                   title={isChatMinimized ? "Expand chat" : "Minimize chat"}
@@ -2600,6 +2777,70 @@ function Chat({ user: currentUser }) {
           onCrop={handleCropSave}
           onCancel={() => setCropState({ open: false, src: null, file: null })}
         />
+      )}
+
+      {/* Incoming Call Modal */}
+      {callStatus === "ringing" && incomingCall && (
+        <div className="call-overlay">
+          <div className="call-modal">
+            <div className="call-avatar">
+              <Avatar src={userProfiles[incomingCall.from]} email={incomingCall.from} size={64} className="call-avatar-img" />
+            </div>
+            <div className="call-info">
+              <h3>{getDisplayName(incomingCall.from)}</h3>
+              <p>{incomingCall.callType === "video" ? "Incoming video call..." : "Incoming audio call..."}</p>
+            </div>
+            <div className="call-actions">
+              <button className="call-btn reject" onClick={rejectCall}><PhoneOff size={24} /></button>
+              <button className="call-btn accept" onClick={acceptCall}><Phone size={24} /></button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active Call Overlay */}
+      {callStatus === "calling" && (
+        <div className="call-overlay">
+          <div className="call-modal">
+            <div className="call-avatar">
+              <Avatar src={selectedUser ? userProfiles[selectedUser] : null} email={selectedUser || ""} size={64} className="call-avatar-img" />
+            </div>
+            <div className="call-info">
+              <h3>{selectedUser ? getDisplayName(selectedUser) : "Connecting..."}</h3>
+              <p>{callError || "Calling..."}</p>
+            </div>
+            <div className="call-actions">
+              <button className="call-btn end" onClick={endCall}><PhoneOff size={24} /></button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {callStatus === "connected" && (
+        <div className="call-overlay active-call">
+          <div className="call-video-container">
+            <video ref={remoteVideoRef} autoPlay playsInline className="remote-video" />
+            <video ref={localVideoRef} autoPlay playsInline muted className="local-video" />
+          </div>
+          {!callType || callType === "audio" || !isCameraOn ? (
+            <div className="call-avatar-container">
+              <Avatar src={callPartnerRef.current ? userProfiles[callPartnerRef.current] : null} email={callPartnerRef.current || ""} size={80} className="call-avatar-img" />
+            </div>
+          ) : null}
+          <div className="call-controls">
+            <button className={`call-ctrl-btn ${isMuted ? "active" : ""}`} onClick={toggleMute} title={isMuted ? "Unmute" : "Mute"}>{isMuted ? <MicOff size={22} /> : <Mic size={22} />}</button>
+            <button className={`call-ctrl-btn ${isSpeakerOn ? "active" : ""}`} onClick={toggleSpeaker} title={isSpeakerOn ? "Speaker off" : "Speaker on"}><Volume2 size={22} /></button>
+            {callType === "video" && (
+              <button className={`call-ctrl-btn ${!isCameraOn ? "active" : ""}`} onClick={toggleCamera} title={isCameraOn ? "Camera off" : "Camera on"}>{isCameraOn ? <Video size={22} /> : <VideoOff size={22} />}</button>
+            )}
+            <button className="call-ctrl-btn end" onClick={endCall} title="End call"><PhoneOff size={22} /></button>
+          </div>
+          {callError && <div className="call-error">{callError}</div>}
+        </div>
+      )}
+
+      {callError && callStatus === "idle" && (
+        <div className="call-toast" onClick={() => setCallError(null)}>{callError}</div>
       )}
 
       <button
