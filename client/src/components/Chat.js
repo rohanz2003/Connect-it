@@ -42,7 +42,6 @@ import {
   BarChart3,
   History,
   UserPlus,
-  Activity,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
@@ -2042,26 +2041,7 @@ function Chat({ user: currentUser }) {
           />
         </div>
 
-          <div className="sidebar-section sidebar-quick-actions">
-            <div className="quick-actions-header">
-              <span className="quick-actions-title">Quick Actions</span>
-              <span className="quick-actions-subtitle">Faster workflow</span>
-            </div>
-            <div className="quick-actions-grid">
-              <button className="quick-action-item" onClick={() => { setSelectedUser(null); setActiveTab("recent"); }}>
-                <MessageCircle size={16} />
-                <span>Start new chat</span>
-              </button>
-              <button className="quick-action-item">
-                <UserPlus size={16} />
-                <span>Invite team member</span>
-              </button>
-              <button className="quick-action-item" onClick={() => setActiveTab("analytics")}>
-                <Activity size={16} />
-                <span>View activity</span>
-              </button>
-            </div>
-          </div>
+
 
           <div className="sidebar-section sidebar-live-insights">
             <div className="quick-actions-header">
@@ -2215,6 +2195,10 @@ function Chat({ user: currentUser }) {
         )}
 
         <div className="sidebar-footer">
+          <button className="sidebar-footer-btn" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }} title="Invite team member">
+            <UserPlus size={16} />
+            <span>Invite</span>
+          </button>
           <button className="sidebar-footer-btn" onClick={() => setShowSettings(true)} title="Settings">
             <Settings size={16} />
             <span>Settings</span>
