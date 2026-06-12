@@ -211,23 +211,6 @@ function Chat({ user: currentUser }) {
   const [callStatus, setCallStatus] = useState("idle");
   const callStatusRef = useRef("idle");
   useEffect(() => { callStatusRef.current = callStatus; }, [callStatus]);
-
-  // Assign remote audio stream element when call connects
-  useEffect(() => {
-    if (callStatus === "connected") {
-      const assign = () => {
-        if (remoteVideoRef.current && remoteStreamRef.current) {
-          if (remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
-            remoteVideoRef.current.srcObject = remoteStreamRef.current;
-          }
-          remoteVideoRef.current.play().catch(() => {});
-        }
-      };
-      assign();
-      const timer = setTimeout(assign, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [callStatus]);
   const [incomingCall, setIncomingCall] = useState(null);
   const [callType, setCallType] = useState("audio");
   const [isMuted, setIsMuted] = useState(false);
@@ -236,7 +219,7 @@ function Chat({ user: currentUser }) {
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
-  const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
   const callPartnerRef = useRef(null);
 
   // Auto-refresh last seen display every 1 second
@@ -1848,7 +1831,7 @@ function Chat({ user: currentUser }) {
     if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); localStreamRef.current = null; }
     if (peerConnectionRef.current) { peerConnectionRef.current.close(); peerConnectionRef.current = null; }
     remoteStreamRef.current = null;
-    remoteVideoRef.current = null;
+    if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = null; }
   };
 
   const createPeerConnection = (stream) => {
@@ -1861,14 +1844,9 @@ function Chat({ user: currentUser }) {
     };
     pc.ontrack = (e) => {
       remoteStreamRef.current = e.streams[0];
-      const el = remoteVideoRef.current;
-      if (el) {
-        el.srcObject = e.streams[0];
-        el.play().catch(() => {});
-      } else {
-        const audio = new Audio();
-        audio.srcObject = e.streams[0];
-        audio.play().catch(() => {});
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = e.streams[0];
+        remoteAudioRef.current.play().catch(() => {});
       }
     };
     pc.oniceconnectionstatechange = () => {
@@ -2811,6 +2789,9 @@ function Chat({ user: currentUser }) {
         />
       )}
 
+      {/* Permanent hidden audio element for remote call audio */}
+      <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
+
       {/* Incoming Call */}
       {callStatus === "ringing" && incomingCall && (
         <div className="call-overlay">
@@ -2851,7 +2832,6 @@ function Chat({ user: currentUser }) {
       {/* Active Audio Call */}
       {callStatus === "connected" && (
         <div className="call-overlay audio-active">
-          <audio ref={remoteVideoRef} autoPlay />
           <div className="call-avatar-container">
             <div className="call-avatar-pulse-ring">
               <Avatar src={callPartnerRef.current ? userProfiles[callPartnerRef.current] : null} email={callPartnerRef.current || ""} size={96} className="call-avatar-img" />
