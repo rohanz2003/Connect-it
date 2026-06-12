@@ -1983,12 +1983,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 32px 24px;
+  background: radial-gradient(ellipse at 50% 0%, var(--primary-lighter, #f0f5ff) 0%, transparent 60%);
 }
 
 .welcome-panel {
   text-align: center;
-  max-width: 400px;
+  max-width: 420px;
   width: 100%;
 }
 
@@ -1996,95 +1997,106 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 14px;
+  margin-bottom: 32px;
 }
 
 .welcome-logo {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, var(--primary-color), #1a73e8);
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   color: white;
-  border-radius: 14px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 24px;
-  box-shadow: 0 4px 12px rgba(21, 101, 216, 0.3);
+  font-size: 28px;
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
   flex-shrink: 0;
 }
 
 .welcome-brand h1 {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 800;
-  color: var(--text-primary);
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin: 0;
+  letter-spacing: -0.5px;
 }
 
 .welcome-greeting {
-  margin-bottom: 28px;
+  margin-bottom: 32px;
 }
 
 .welcome-greeting h2 {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 800;
   color: var(--text-primary);
-  margin: 0 0 8px;
+  margin: 0 0 10px;
+  letter-spacing: -0.3px;
 }
 
 .welcome-subtitle {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-light);
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.6;
+  max-width: 320px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .welcome-features {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 28px;
+  margin-bottom: 32px;
 }
 
 .welcome-feature {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--background-light);
-  border-radius: 12px;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--background-white);
+  border-radius: 14px;
   border: 1px solid var(--border-color);
   text-align: left;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .welcome-feature:hover {
-  transform: translateX(4px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transform: translateX(6px);
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.12);
 }
 
 .welcome-feature svg {
   color: var(--primary-color);
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .welcome-feature span {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-secondary);
   font-weight: 500;
   line-height: 1.4;
 }
 
 .welcome-tip {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-light);
   margin: 0;
   font-weight: 500;
   border-top: 1px solid var(--border-color);
   padding-top: 20px;
+  letter-spacing: 0.2px;
 }
 
 /* Dashboard Cards */
