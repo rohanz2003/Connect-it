@@ -846,44 +846,74 @@ body {
   font-size: 12px;
 }
 
-.sidebar-actions {
-  padding: 8px 12px;
-  display: flex;
-  gap: 6px;
+.sidebar-quick-actions {
+  padding: 12px 12px 8px;
   border-bottom: 1px solid var(--border-color);
 }
 
-.quick-action-btn {
-  flex: 1;
+.quick-actions-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 10px;
+}
+
+.quick-actions-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.quick-actions-subtitle {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-light);
+  opacity: 0.7;
+}
+
+.quick-actions-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quick-action-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 7px 10px;
-  border: 1px solid var(--border-color);
-  background: var(--background-white);
+  gap: 10px;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
   color: var(--text-secondary);
   border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   font-family: inherit;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
+  text-align: left;
+  width: 100%;
 }
 
-.quick-action-btn:hover {
-  background: var(--primary-color);
-  border-color: var(--primary-color);
-  color: white;
-  box-shadow: 0 2px 8px rgba(21, 101, 216, 0.2);
+.quick-action-item:hover {
+  background: var(--border-light);
+  color: var(--primary-color);
 }
 
-.quick-action-btn:active {
-  transform: scale(0.97);
+.quick-action-item:active {
+  transform: scale(0.98);
 }
 
-.quick-action-btn svg {
+.quick-action-item svg {
   flex-shrink: 0;
+  color: var(--text-light);
+  transition: color 0.15s ease;
+}
+
+.quick-action-item:hover svg {
+  color: var(--primary-color);
 }
 
 /* Sidebar Footer - Account Actions */

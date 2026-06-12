@@ -41,6 +41,8 @@ import {
   EyeOff,
   BarChart3,
   History,
+  UserPlus,
+  Activity,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
@@ -2047,21 +2049,25 @@ function Chat({ user: currentUser }) {
           />
         </div>
 
-          <div className="sidebar-actions">
-            <button className="quick-action-btn" onClick={() => { setSelectedUser(null); setActiveTab("recent"); }} title="New Message">
-              <PlusCircle size={16} />
-              <span>New</span>
-            </button>
-            <button className="quick-action-btn" onClick={handleMarkAllRead} title="Mark all as read">
-              <MessageCircle size={16} />
-              <span>Mark Read</span>
-            </button>
-            {selectedUser && (
-              <button className="quick-action-btn" onClick={handleClearCurrentChat} title="Clear current chat">
-                <Trash2 size={16} />
-                <span>Clear</span>
+          <div className="sidebar-section sidebar-quick-actions">
+            <div className="quick-actions-header">
+              <span className="quick-actions-title">Quick Actions</span>
+              <span className="quick-actions-subtitle">Faster workflow</span>
+            </div>
+            <div className="quick-actions-grid">
+              <button className="quick-action-item" onClick={() => { setSelectedUser(null); setActiveTab("recent"); }}>
+                <MessageCircle size={16} />
+                <span>Start new chat</span>
               </button>
-            )}
+              <button className="quick-action-item">
+                <UserPlus size={16} />
+                <span>Invite team member</span>
+              </button>
+              <button className="quick-action-item" onClick={() => setActiveTab("analytics")}>
+                <Activity size={16} />
+                <span>View activity</span>
+              </button>
+            </div>
           </div>
 
           {activeTab === "recent" && (
