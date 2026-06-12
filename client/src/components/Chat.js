@@ -1853,22 +1853,92 @@ function Chat({ user: currentUser }) {
   const uniqueConversations = new Set(messages.map(m => m.sender === user?.email?.toLowerCase() ? m.receiver : m.sender)).size;
   const totalMediaShared = messages.filter(m => m.fileUrl).length;
 
+  const allMessages = Object.values(chatHistory).flat();
+  const totalChatMessages = allMessages.length;
+  const totalChatMedia = allMessages.filter(m => m.fileUrl).length;
+  const conversationsWithReplies = Object.values(chatHistory).filter(msgs => {
+    const senders = [...new Set(msgs.map(m => m.sender?.toLowerCase()))];
+    return senders.length > 1;
+  }).length;
+  const totalConversations = Object.keys(chatHistory).length;
+  const responseRate = totalConversations > 0 ? Math.round((conversationsWithReplies / totalConversations) * 100) : 0;
+
+  let mostActiveContact = "";
+  let maxMsgs = 0;
+  Object.entries(chatHistory).forEach(([email, msgs]) => {
+    if (msgs.length > maxMsgs) {
+      maxMsgs = msgs.length;
+      mostActiveContact = email;
+    }
+  });
+
   const renderAnalytics = () => (
     <div className="analytics-panel">
-      <div className="stats-grid">
-        <div className="stat-item">
-          <span>{filteredRecentChats.length}</span>
-          <small>Active chats</small>
+      <div className="analytics-grid">
+        <div className="analytics-stat-card">
+          <div className="analytics-stat-icon active-chat"><MessageCircle size={20} /></div>
+          <div className="analytics-stat-body">
+            <span className="analytics-stat-value">{filteredRecentChats.length}</span>
+            <span className="analytics-stat-label">Active Chats</span>
+          </div>
         </div>
-        <div className="stat-item">
-          <span>{totalUnread}</span>
-          <small>Unread</small>
+        <div className="analytics-stat-card">
+          <div className="analytics-stat-icon unread"><BellRing size={20} /></div>
+          <div className="analytics-stat-body">
+            <span className="analytics-stat-value">{totalUnread}</span>
+            <span className="analytics-stat-label">Unread</span>
+          </div>
         </div>
-        <div className="stat-item">
-          <span>{otherOnlineUsers.length}</span>
-          <small>Online users</small>
+        <div className="analytics-stat-card">
+          <div className="analytics-stat-icon online"><Users size={20} /></div>
+          <div className="analytics-stat-body">
+            <span className="analytics-stat-value">{otherOnlineUsers.length}</span>
+            <span className="analytics-stat-label">Online</span>
+          </div>
+        </div>
+        <div className="analytics-stat-card">
+          <div className="analytics-stat-icon messages"><Send size={20} /></div>
+          <div className="analytics-stat-body">
+            <span className="analytics-stat-value">{totalChatMessages}</span>
+            <span className="analytics-stat-label">Total Messages</span>
+          </div>
+        </div>
+        <div className="analytics-stat-card">
+          <div className="analytics-stat-icon media"><Image size={20} /></div>
+          <div className="analytics-stat-body">
+            <span className="analytics-stat-value">{totalChatMedia}</span>
+            <span className="analytics-stat-label">Media Shared</span>
+          </div>
+        </div>
+        <div className="analytics-stat-card">
+          <div className="analytics-stat-icon response"><MessageCircle size={20} /></div>
+          <div className="analytics-stat-body">
+            <span className="analytics-stat-value">{responseRate}%</span>
+            <span className="analytics-stat-label">Response Rate</span>
+          </div>
+        </div>
+        <div className="analytics-stat-card">
+          <div className="analytics-stat-icon archive"><Archive size={20} /></div>
+          <div className="analytics-stat-body">
+            <span className="analytics-stat-value">{archivedChatsList.length}</span>
+            <span className="analytics-stat-label">Archived</span>
+          </div>
+        </div>
+        <div className="analytics-stat-card">
+          <div className="analytics-stat-icon top-chat"><MessageCircle size={20} /></div>
+          <div className="analytics-stat-body">
+            <span className="analytics-stat-value">{totalConversations}</span>
+            <span className="analytics-stat-label">Conversations</span>
+          </div>
         </div>
       </div>
+      {mostActiveContact ? (
+        <div className="analytics-active-badge">
+          <span className="analytics-active-label">Most active</span>
+          <span className="analytics-active-name">{getDisplayName(mostActiveContact)}</span>
+          <span className="analytics-active-count">{maxMsgs} msgs</span>
+        </div>
+      ) : null}
     </div>
   );
 
@@ -2745,24 +2815,24 @@ function Chat({ user: currentUser }) {
       )}
 
       <nav className="bottom-nav">
-        <button className={`bottom-nav-btn ${activeTab === "chat" ? "active" : ""}`} onClick={() => { setActiveTab("chat"); setSidebarOpen(false); }}><MessageCircle size={18} /><span>Chat</span></button>
-        <button className={`bottom-nav-btn ${activeTab === "recent" ? "active" : ""}`} onClick={() => { setActiveTab("recent"); setSidebarOpen(false); }}>
+        <button className={`bottom-nav-btn ${activeTab === "chat" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("chat"); setSidebarOpen(false); }}><MessageCircle size={18} /><span>Chat</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "recent" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("recent"); setSidebarOpen(false); }}>
           <span className="bottom-nav-icon-wrap">
             <History size={18} />
             {totalUnread > 0 && <span className="bottom-nav-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
           </span>
           <span>Recent</span>
         </button>
-        <button className={`bottom-nav-btn ${activeTab === "online" ? "active" : ""}`} onClick={() => { setActiveTab("online"); setSidebarOpen(false); }}>
+        <button className={`bottom-nav-btn ${activeTab === "online" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("online"); setSidebarOpen(false); }}>
           <span className="bottom-nav-icon-wrap">
             <Users size={18} />
             {filteredOnlineUsers.length > 0 && <span className="bottom-nav-green-dot" />}
           </span>
           <span>Online</span>
         </button>
-        <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={() => { setActiveTab("archive"); setSidebarOpen(false); }}><Archive size={18} /><span>Archive</span></button>
-        <button className={`bottom-nav-btn ${activeTab === "analytics" ? "active" : ""}`} onClick={() => { setActiveTab("analytics"); setSidebarOpen(false); }}><BarChart3 size={18} /><span>Analytics</span></button>
-        <button className="bottom-nav-btn" onClick={() => { setShowSettings(true); setSidebarOpen(false); }}><Settings size={18} /><span>Settings</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("archive"); setSidebarOpen(false); }}><Archive size={18} /><span>Archive</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "analytics" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("analytics"); setSidebarOpen(false); }}><BarChart3 size={18} /><span>Analytics</span></button>
+        <button className="bottom-nav-btn" onClick={(e) => { e.stopPropagation(); setShowSettings(true); setSidebarOpen(false); }}><Settings size={18} /><span>Settings</span></button>
       </nav>
 
       {showSettings && (
