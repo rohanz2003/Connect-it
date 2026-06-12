@@ -846,12 +846,6 @@ body {
   font-size: 12px;
 }
 
-
-
-.quick-action-item:hover svg {
-  color: var(--primary-color);
-}
-
 /* Sidebar Footer - Account Actions */
 .sidebar-footer {
   padding: 8px;

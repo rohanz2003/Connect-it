@@ -2029,16 +2029,9 @@ function Chat({ user: currentUser }) {
             <span>Archive</span>
             {archivedChatsList.length > 0 && <span className="tab-count">{archivedChatsList.length}</span>}
           </button>
-          <button
-            className={`tab ${activeTab === "analytics" ? "active" : ""}`}
-            onClick={() => setActiveTab("analytics")}
-          >
-            <BarChart3 size={14} />
-            <span>Analytics</span>
-          </button>
         </div>
 
-        <div className={`sidebar-search ${activeTab === "analytics" ? "mobile-hidden" : ""}`}>
+        <div className="sidebar-search">
           <Search size={16} />
           <input
             type="search"
@@ -2047,6 +2040,8 @@ function Chat({ user: currentUser }) {
             placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search online users" : "Search archived chats"}
           />
         </div>
+
+
 
           {activeTab === "recent" && (
           <div className="sidebar-section">
@@ -2175,12 +2170,6 @@ function Chat({ user: currentUser }) {
                 <div className="empty-list">No archived chats.</div>
               )}
             </div>
-          </div>
-        )}
-
-        {activeTab === "analytics" && (
-          <div className="sidebar-section" style={{ flex: 1, overflow: "auto", padding: "12px 0" }}>
-            {renderAnalytics()}
           </div>
         )}
 
