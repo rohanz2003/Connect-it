@@ -42,6 +42,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   BarChart3,
+  History,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
@@ -222,6 +223,12 @@ function Chat({ user: currentUser }) {
     document.body.classList.toggle("dark-mode", isDarkMode);
     localStorage.setItem("theme", isDarkMode ? "dark" : "light");
   }, [isDarkMode]);
+
+  useEffect(() => {
+    if (sidebarCollapsed) {
+      setActiveTab("archive");
+    }
+  }, [sidebarCollapsed]);
 
   const handleAvatarClick = (e, email, isOwn = false) => {
     e.stopPropagation();
@@ -1761,6 +1768,40 @@ function Chat({ user: currentUser }) {
   const totalUnread = filteredRecentChats.reduce((sum, u) => sum + getUnreadCount(u), 0);
 
   const renderTabContent = (type) => {
+    if (type === "mobile-recent") {
+      return (
+        <div className="sidebar-section">
+          <div className="sidebar-list">
+            {filteredRecentChats.length > 0 ? filteredRecentChats.map((u, i) => {
+              const unreadCount = getUnreadCount(u);
+              return (
+                <div key={`mr-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}>
+                  <div className="avatar-wrap">
+                    <Avatar src={userProfiles[u]} email={u} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u, false)} />
+                    {isUserOnline(u) && <span className="status-dot online" />}
+                  </div>
+                  <div className="user-item-copy">
+                    <span className="user-name">{getDisplayName(u)}</span>
+                    <span className="user-last">{isUserOnline(u) ? "Online" : formatLastSeen(lastSeen[u])}</span>
+                  </div>
+                  <div className="user-item-actions">
+                    {unreadCount > 0 && <span className="unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+                    <button className="remove-recent-btn" onClick={(e) => handleArchiveChat(e, u)} title="Archive chat">
+                      <Archive size={14} />
+                    </button>
+                    <button className="remove-recent-btn" onClick={(e) => handleRemoveChatFromRecent(e, u)} title="Remove from list">
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+              );
+            }) : (
+              <div className="empty-list">Try searching or start a new conversation.</div>
+            )}
+          </div>
+        </div>
+      );
+    }
     if (type === "mobile-contacts") {
       return (
         <>
@@ -1770,7 +1811,7 @@ function Chat({ user: currentUser }) {
               {filteredRecentChats.length > 0 ? filteredRecentChats.map((u, i) => {
                 const unreadCount = getUnreadCount(u);
                 return (
-                  <div key={`mc-recent-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("recent"); }}>
+                  <div key={`mc-recent-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}>
                     <div className="avatar-wrap">
                       <Avatar src={userProfiles[u]} email={u} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u, false)} />
                       {isUserOnline(u) && <span className="status-dot online" />}
@@ -1793,7 +1834,7 @@ function Chat({ user: currentUser }) {
             <div className="sidebar-section-title">Online Users</div>
             <div className="sidebar-list">
               {filteredOnlineUsers.length > 0 ? filteredOnlineUsers.map((u, i) => (
-                <div key={`mc-online-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("recent"); }}>
+                <div key={`mc-online-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}>
                   <div className="avatar-wrap">
                     <Avatar src={userProfiles[u]} email={u} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u, false)} />
                     <span className="status-dot online" />
@@ -1818,7 +1859,7 @@ function Chat({ user: currentUser }) {
             {archivedChatsList.length > 0 ? archivedChatsList.map((u, i) => {
               const unreadCount = getUnreadCount(u);
               return (
-                <div key={`ma-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("recent"); }}>
+                <div key={`ma-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}>
                   <div className="avatar-wrap">
                     <Avatar src={userProfiles[u]} email={u} size={40} className="user-avatar" />
                   </div>
@@ -1904,7 +1945,7 @@ function Chat({ user: currentUser }) {
   return (
     <div className={`chat-layout ${isDarkMode ? "dark" : ""} w-full h-screen max-w-screen overflow-hidden md:grid md:grid-cols-[280px_1fr]`}>
       <div className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`} onClick={() => setSidebarOpen(false)} />
-      <aside className={`sidebar ${sidebarOpen ? "open" : ""} ${sidebarCollapsed ? "minimized" : ""} ${activeTab === "online" || activeTab === "archive" || activeTab === "analytics" ? "fullscreen" : ""}`}>
+      <aside className={`sidebar ${sidebarOpen ? "open" : ""} ${sidebarCollapsed ? "minimized" : ""}`}>
         <div className="sidebar-top">
           <div className="brand-head">
             <div className="brand-mark">C</div>
@@ -1957,29 +1998,32 @@ function Chat({ user: currentUser }) {
         </div>
 
         <div className={`sidebar-tabs ${sidebarCollapsed ? "minimized" : ""}`}>
-          <button
-            className={`tab ${activeTab === "recent" ? "active" : ""}`}
-            onClick={() => setActiveTab("recent")}
-          >
-            <MessageCircle size={14} />
-            <span className={sidebarCollapsed ? "collapsed-hidden" : ""}>Recent</span>
-            {totalUnread > 0 && <span className="tab-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
-            
-          </button>
-          <button
-            className={`tab ${activeTab === "online" ? "active" : ""}`}
-            onClick={() => setActiveTab("online")}
-          >
-            <span className="tab-online-dot" />
-            <span className={sidebarCollapsed ? "collapsed-hidden" : ""}>Online</span>
-            <span className="tab-count">{filteredOnlineUsers.length}</span>
-          </button>
+          {!sidebarCollapsed && (
+            <>
+              <button
+                className={`tab ${activeTab === "recent" ? "active" : ""}`}
+                onClick={() => setActiveTab("recent")}
+              >
+                <History size={14} />
+                <span>Recent</span>
+                {totalUnread > 0 && <span className="tab-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
+              </button>
+              <button
+                className={`tab ${activeTab === "online" ? "active" : ""}`}
+                onClick={() => setActiveTab("online")}
+              >
+                <span className="tab-online-dot" />
+                <span>Online</span>
+                <span className="tab-count">{filteredOnlineUsers.length}</span>
+              </button>
+            </>
+          )}
           <button
             className={`tab ${activeTab === "archive" ? "active" : ""}`}
             onClick={() => setActiveTab("archive")}
           >
             <Archive size={14} />
-            <span className={sidebarCollapsed ? "collapsed-hidden" : ""}>Archive</span>
+            <span className={sidebarCollapsed ? "" : ""}>Archive</span>
             {archivedChatsList.length > 0 && <span className="tab-count">{archivedChatsList.length}</span>}
           </button>
         </div>
@@ -2150,26 +2194,27 @@ function Chat({ user: currentUser }) {
       </aside>
 
       {/* Mobile page - full screen for Contacts & Archive on mobile */}
-      <div className={`mobile-page ${activeTab === "recent" ? "mobile-hidden" : ""}`}>
+      <div className={`mobile-page ${activeTab === "chat" ? "mobile-hidden" : ""}`}>
         <div className="mobile-page-header">
-          <button className="mobile-page-back" onClick={() => setActiveTab("recent")}>
+          <button className="mobile-page-back" onClick={() => setActiveTab("chat")}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <h3>{activeTab === "online" ? "Contacts" : activeTab === "analytics" ? "Analytics" : "Archived"}</h3>
+          <h3>{activeTab === "online" ? "Online Users" : activeTab === "analytics" ? "Analytics" : activeTab === "archive" ? "Archive" : "Recent Chats"}</h3>
         </div>
         <div className={`sidebar-search ${activeTab === "analytics" ? "mobile-hidden" : ""}`}>
           <Search size={16} />
           <input type="search" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={activeTab === "online" ? "Search contacts" : "Search archived chats"} />
+            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search contacts" : "Search archived chats"} />
         </div>
         <div className="mobile-page-body">
+          {activeTab === "recent" && renderTabContent("mobile-recent")}
           {activeTab === "online" && renderTabContent("mobile-contacts")}
           {activeTab === "archive" && renderTabContent("mobile-archive")}
           {activeTab === "analytics" && renderAnalytics()}
         </div>
       </div>
 
-      <main className={`chat-panel ${activeTab !== "recent" ? "mobile-hidden" : ""}`}>
+      <main className={`chat-panel ${activeTab !== "chat" ? "mobile-hidden" : ""}`}>
         <div className="chat-panel-header">
           <button className="mobile-menu-btn" onClick={() => { if (selectedUser) { setSelectedUser(null); setSidebarOpen(true); } else { setSidebarOpen(!sidebarOpen); } }} aria-label={selectedUser ? "Back" : "Open menu"}>
             {selectedUser ? (
@@ -2788,10 +2833,11 @@ function Chat({ user: currentUser }) {
       )}
 
       <nav className="bottom-nav">
-        <button className={`bottom-nav-btn ${activeTab === "recent" ? "active" : ""}`} onClick={() => { setActiveTab("recent"); setSidebarOpen(true); }}><MessageCircle size={18} /><span>Chat</span></button>
-        <button className={`bottom-nav-btn ${activeTab === "online" ? "active" : ""}`} onClick={() => { setActiveTab("online"); setSidebarOpen(true); }}><Users size={18} /><span>Contacts</span></button>
-        <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={() => { setActiveTab("archive"); setSidebarOpen(true); }}><Archive size={18} /><span>Archive</span></button>
-        <button className={`bottom-nav-btn ${activeTab === "analytics" ? "active" : ""}`} onClick={() => { setActiveTab("analytics"); setSidebarOpen(true); }}><BarChart3 size={18} /><span>Analytics</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "chat" ? "active" : ""}`} onClick={() => { setActiveTab("chat"); setSidebarOpen(false); }}><MessageCircle size={18} /><span>Chat</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "recent" ? "active" : ""}`} onClick={() => { setActiveTab("recent"); setSidebarOpen(false); }}><History size={18} /><span>Recent</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "online" ? "active" : ""}`} onClick={() => { setActiveTab("online"); setSidebarOpen(false); }}><Users size={18} /><span>Online</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={() => { setActiveTab("archive"); setSidebarOpen(false); }}><Archive size={18} /><span>Archive</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "analytics" ? "active" : ""}`} onClick={() => { setActiveTab("analytics"); setSidebarOpen(false); }}><BarChart3 size={18} /><span>Analytics</span></button>
       </nav>
 
       {showSettings && (

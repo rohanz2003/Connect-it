@@ -1098,6 +1098,9 @@ body {
   min-height: 65px;
   gap: 16px;
   transition: all 0.3s ease;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .chat-panel-title {
