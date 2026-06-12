@@ -2454,8 +2454,33 @@ function Chat({ user: currentUser }) {
           ) : (
             <div className="dashboard-empty-state">
               <div className="welcome-panel">
-                <h2>Welcome back, {getDisplayName(user.email)} 👋</h2>
-                <p>Pick a chat or start messaging a colleague from the sidebar.</p>
+                <div className="welcome-brand">
+                  <div className="welcome-logo">C</div>
+                  <h1>Connect It</h1>
+                </div>
+                <div className="welcome-greeting">
+                  <h2>Welcome back, {getDisplayName(user.email)}</h2>
+                  <p className="welcome-subtitle">Real-time messaging platform for seamless team collaboration</p>
+                </div>
+                <div className="welcome-features">
+                  <div className="welcome-feature">
+                    <MessageCircle size={18} />
+                    <span>Instant messaging with real-time delivery</span>
+                  </div>
+                  <div className="welcome-feature">
+                    <Users size={18} />
+                    <span>Connect with online team members</span>
+                  </div>
+                  <div className="welcome-feature">
+                    <Image size={18} />
+                    <span>Share images, videos & documents</span>
+                  </div>
+                  <div className="welcome-feature">
+                    <Archive size={18} />
+                    <span>Archive conversations for later</span>
+                  </div>
+                </div>
+                <p className="welcome-tip">Select a conversation from the sidebar to start chatting</p>
               </div>
             </div>
           )}
