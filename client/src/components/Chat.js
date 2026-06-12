@@ -220,6 +220,7 @@ function Chat({ user: currentUser }) {
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
   const remoteAudioRef = useRef(null);
+  const remoteAudioElementsRef = useRef([]);
   const callPartnerRef = useRef(null);
 
   // Auto-refresh last seen display every 1 second
@@ -1831,7 +1832,8 @@ function Chat({ user: currentUser }) {
     if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); localStreamRef.current = null; }
     if (peerConnectionRef.current) { peerConnectionRef.current.close(); peerConnectionRef.current = null; }
     remoteStreamRef.current = null;
-    if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = null; }
+    remoteAudioElementsRef.current.forEach(el => { el.pause(); el.srcObject = null; el.remove(); });
+    remoteAudioElementsRef.current = [];
   };
 
   const createPeerConnection = (stream) => {
@@ -1844,6 +1846,16 @@ function Chat({ user: currentUser }) {
     };
     pc.ontrack = (e) => {
       remoteStreamRef.current = e.streams[0];
+      // Always create a fresh audio element attached to body for reliability
+      const audio = document.createElement("audio");
+      audio.srcObject = e.streams[0];
+      audio.setAttribute("playsinline", "");
+      audio.autoplay = true;
+      audio.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:1px;height:1px";
+      document.body.appendChild(audio);
+      audio.play().catch(() => {});
+      remoteAudioElementsRef.current.push(audio);
+      // Also assign to React ref if available
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = e.streams[0];
         remoteAudioRef.current.play().catch(() => {});
@@ -2790,7 +2802,7 @@ function Chat({ user: currentUser }) {
       )}
 
       {/* Permanent hidden audio element for remote call audio */}
-      <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
+      <audio ref={remoteAudioRef} autoPlay playsInline style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }} />
 
       {/* Incoming Call */}
       {callStatus === "ringing" && incomingCall && (
