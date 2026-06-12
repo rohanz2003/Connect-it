@@ -847,10 +847,43 @@ body {
 }
 
 .sidebar-actions {
-  padding: 12px;
-  border-top: 1px solid var(--border-color);
+  padding: 8px 12px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.quick-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-color);
+  background: var(--background-white);
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.quick-action-btn:hover {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+  box-shadow: 0 2px 8px rgba(21, 101, 216, 0.2);
+}
+
+.quick-action-btn:active {
+  transform: scale(0.97);
+}
+
+.quick-action-btn svg {
+  flex-shrink: 0;
 }
 
 /* Sidebar Footer - Account Actions */

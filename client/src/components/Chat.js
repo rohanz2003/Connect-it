@@ -1325,6 +1325,15 @@ function Chat({ user: currentUser }) {
     });
   };
 
+  const handleMarkAllRead = () => {
+    if (!user) return;
+    const key = `unread_${user.email}`;
+    try {
+      localStorage.setItem(key, JSON.stringify({}));
+    } catch (e) {}
+    setUnreadMessages({});
+  };
+
   const handleClearCurrentChat = () => {
     if (!selectedUser) return;
     if (
@@ -2031,7 +2040,24 @@ function Chat({ user: currentUser }) {
           />
         </div>
 
-        {activeTab === "recent" && (
+          <div className="sidebar-actions">
+            <button className="quick-action-btn" onClick={() => { setSelectedUser(null); setActiveTab("recent"); }} title="New Message">
+              <PlusCircle size={16} />
+              <span>New</span>
+            </button>
+            <button className="quick-action-btn" onClick={handleMarkAllRead} title="Mark all as read">
+              <MessageCircle size={16} />
+              <span>Mark Read</span>
+            </button>
+            {selectedUser && (
+              <button className="quick-action-btn" onClick={handleClearCurrentChat} title="Clear current chat">
+                <Trash2 size={16} />
+                <span>Clear</span>
+              </button>
+            )}
+          </div>
+
+          {activeTab === "recent" && (
           <div className="sidebar-section">
             <div className="sidebar-list">
               {filteredRecentChats.length > 0 ? filteredRecentChats.map((u, i) => {
