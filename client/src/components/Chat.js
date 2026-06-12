@@ -41,8 +41,6 @@ import {
   EyeOff,
   Phone,
   PhoneOff,
-  Video,
-  VideoOff,
   Mic,
   MicOff,
   Volume2,
@@ -214,15 +212,10 @@ function Chat({ user: currentUser }) {
   const callStatusRef = useRef("idle");
   useEffect(() => { callStatusRef.current = callStatus; }, [callStatus]);
 
-  // Assign media streams to video elements when call UI mounts
+  // Assign remote audio stream element when call connects
   useEffect(() => {
-    if (callStatus === "calling" || callStatus === "connected") {
+    if (callStatus === "connected") {
       const assign = () => {
-        if (localVideoRef.current && localStreamRef.current) {
-          if (localVideoRef.current.srcObject !== localStreamRef.current) {
-            localVideoRef.current.srcObject = localStreamRef.current;
-          }
-        }
         if (remoteVideoRef.current && remoteStreamRef.current) {
           if (remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
             remoteVideoRef.current.srcObject = remoteStreamRef.current;
@@ -238,12 +231,10 @@ function Chat({ user: currentUser }) {
   const [callType, setCallType] = useState("audio");
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
-  const [isCameraOn, setIsCameraOn] = useState(true);
   const [callError, setCallError] = useState(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
-  const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const callPartnerRef = useRef(null);
 
@@ -1860,15 +1851,14 @@ function Chat({ user: currentUser }) {
     return pc;
   };
 
-  const startCall = async (type) => {
+  const startCall = async () => {
     if (!selectedUser || !socket) return;
     try {
       setCallError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === "video" });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = stream;
       callPartnerRef.current = selectedUser;
-      setCallType(type);
-      setIsCameraOn(type === "video" || !type);
+      setCallType("audio");
       setIsMuted(false);
       setIsSpeakerOn(false);
       setCallStatus("calling");
@@ -1876,7 +1866,7 @@ function Chat({ user: currentUser }) {
       const pc = createPeerConnection(stream);
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      socket.emit("call-user", { targetUserEmail: selectedUser, signalData: offer, callType: type });
+      socket.emit("call-user", { targetUserEmail: selectedUser, signalData: offer, callType: "audio" });
     } catch (err) {
       setCallError(err.message);
       cleanupMedia();
@@ -1888,12 +1878,10 @@ function Chat({ user: currentUser }) {
     if (!incomingCall || !socket) return;
     try {
       setCallError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: incomingCall.callType === "video" });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
       callPartnerRef.current = incomingCall.from;
-      setCallType(incomingCall.callType);
-      setIsCameraOn(incomingCall.callType === "video");
+      setCallType("audio");
       setIsMuted(false);
       setIsSpeakerOn(false);
       setCallStatus("connected");
@@ -1931,20 +1919,14 @@ function Chat({ user: currentUser }) {
 
   const toggleMute = () => {
     if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = isMuted; });
-      setIsMuted(!isMuted);
+      const muted = !isMuted;
+      localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !muted; });
+      setIsMuted(muted);
     }
   };
 
   const toggleSpeaker = () => {
     setIsSpeakerOn(!isSpeakerOn);
-  };
-
-  const toggleCamera = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getVideoTracks().forEach(t => { t.enabled = !isCameraOn; });
-      setIsCameraOn(!isCameraOn);
-    }
   };
 
   // --- End WebRTC Calling ---
@@ -2197,8 +2179,7 @@ function Chat({ user: currentUser }) {
                 >
                   <Trash2 size={16} /> Clear Chat
                 </button>
-                <button className="icon-btn call-btn" title="Audio call" onClick={() => startCall("audio")} disabled={callStatus !== "idle"}><Phone size={18} /></button>
-                <button className="icon-btn call-btn" title="Video call" onClick={() => startCall("video")} disabled={callStatus !== "idle"}><Video size={18} /></button>
+                <button className="icon-btn" title="Audio call" onClick={startCall} disabled={callStatus !== "idle"}><Phone size={18} /></button>
                 <button 
                   className="icon-btn minimize-btn" 
                   title={isChatMinimized ? "Expand chat" : "Minimize chat"}
@@ -2799,8 +2780,8 @@ function Chat({ user: currentUser }) {
         />
       )}
 
-      {/* Incoming Call Modal - Audio */}
-      {callStatus === "ringing" && incomingCall && incomingCall.callType !== "video" && (
+      {/* Incoming Call */}
+      {callStatus === "ringing" && incomingCall && (
         <div className="call-overlay">
           <div className="call-modal audio-call">
             <div className="call-avatar-ring">
@@ -2817,28 +2798,9 @@ function Chat({ user: currentUser }) {
           </div>
         </div>
       )}
-
-      {/* Incoming Call Modal - Video */}
-      {callStatus === "ringing" && incomingCall && incomingCall.callType === "video" && (
-        <div className="call-overlay">
-          <div className="call-modal video-call">
-            <div className="call-avatar-ring">
-              <Avatar src={userProfiles[incomingCall.from]} email={incomingCall.from} size={72} className="call-avatar-img" />
-            </div>
-            <div className="call-info">
-              <h3>{getDisplayName(incomingCall.from)}</h3>
-              <p>Incoming video call...</p>
-            </div>
-            <div className="call-actions">
-              <button className="call-btn reject" onClick={rejectCall}><PhoneOff size={24} /></button>
-              <button className="call-btn accept video-accept" onClick={acceptCall}><Video size={24} /></button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      
       {/* Outgoing Audio Call */}
-      {callStatus === "calling" && callType !== "video" && (
+      {callStatus === "calling" && (
         <div className="call-overlay">
           <div className="call-modal audio-call">
             <div className="call-avatar-ring pulse">
@@ -2855,23 +2817,10 @@ function Chat({ user: currentUser }) {
         </div>
       )}
 
-      {/* Outgoing Video Call - with local preview */}
-      {callStatus === "calling" && callType === "video" && (
-        <div className="call-overlay active-call">
-          <div className="call-video-container">
-            <video ref={localVideoRef} autoPlay playsInline muted className="remote-video preview" />
-          </div>
-          <div className="call-label">
-            <h3>{selectedUser ? getDisplayName(selectedUser) : "Connecting..."}</h3>
-            <p>{callError || "Calling..."}</p>
-          </div>
-          <button className="call-end-fab" onClick={endCall}><PhoneOff size={28} /></button>
-        </div>
-      )}
-
       {/* Active Audio Call */}
-      {callStatus === "connected" && (!callType || callType === "audio") && (
+      {callStatus === "connected" && (
         <div className="call-overlay audio-active">
+          <audio ref={remoteVideoRef} autoPlay />
           <div className="call-avatar-container">
             <div className="call-avatar-pulse-ring">
               <Avatar src={callPartnerRef.current ? userProfiles[callPartnerRef.current] : null} email={callPartnerRef.current || ""} size={96} className="call-avatar-img" />
@@ -2884,24 +2833,6 @@ function Chat({ user: currentUser }) {
           <div className="call-controls">
             <button className={`call-ctrl-btn ${isMuted ? "active" : ""}`} onClick={toggleMute} title={isMuted ? "Unmute" : "Mute"}>{isMuted ? <MicOff size={22} /> : <Mic size={22} />}</button>
             <button className={`call-ctrl-btn ${isSpeakerOn ? "active" : ""}`} onClick={toggleSpeaker} title={isSpeakerOn ? "Speaker off" : "Speaker on"}><Volume2 size={22} /></button>
-            <button className="call-ctrl-btn end" onClick={endCall} title="End call"><PhoneOff size={22} /></button>
-          </div>
-        </div>
-      )}
-
-      {/* Active Video Call */}
-      {callStatus === "connected" && callType === "video" && (
-        <div className="call-overlay active-call">
-          <div className="call-video-container">
-            <video ref={remoteVideoRef} autoPlay playsInline className="remote-video" />
-            <video ref={localVideoRef} autoPlay playsInline muted className="local-video" />
-          </div>
-          <div className="call-label">
-            <h3>{callPartnerRef.current ? getDisplayName(callPartnerRef.current) : ""}</h3>
-          </div>
-          <div className="call-controls">
-            <button className={`call-ctrl-btn ${isMuted ? "active" : ""}`} onClick={toggleMute} title={isMuted ? "Unmute" : "Mute"}>{isMuted ? <MicOff size={22} /> : <Mic size={22} />}</button>
-            <button className={`call-ctrl-btn ${!isCameraOn ? "active" : ""}`} onClick={toggleCamera} title={isCameraOn ? "Camera off" : "Camera on"}>{isCameraOn ? <Video size={22} /> : <VideoOff size={22} />}</button>
             <button className="call-ctrl-btn end" onClick={endCall} title="End call"><PhoneOff size={22} /></button>
           </div>
         </div>
