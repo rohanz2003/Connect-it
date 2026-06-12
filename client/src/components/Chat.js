@@ -220,6 +220,7 @@ function Chat({ user: currentUser }) {
           if (remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
             remoteVideoRef.current.srcObject = remoteStreamRef.current;
           }
+          remoteVideoRef.current.play().catch(() => {});
         }
       };
       assign();
@@ -932,9 +933,13 @@ function Chat({ user: currentUser }) {
       setCallStatus("ringing");
     });
 
-    socket.on("call-accepted", ({ signalData }) => {
+    socket.on("call-accepted", async ({ signalData }) => {
       if (!peerConnectionRef.current) return;
-      peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(signalData)).catch(() => {});
+      try {
+        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(signalData));
+      } catch (e) {
+        console.error("setRemoteDescription failed:", e);
+      }
       setCallStatus("connected");
     });
 
@@ -1829,24 +1834,48 @@ function Chat({ user: currentUser }) {
   const totalUnread = filteredRecentChats.reduce((sum, u) => sum + getUnreadCount(u), 0);
 
   // --- WebRTC Calling ---
-  const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] };
+  const rtcConfig = {
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
+    ]
+  };
 
   const cleanupMedia = () => {
     if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); localStreamRef.current = null; }
     if (peerConnectionRef.current) { peerConnectionRef.current.close(); peerConnectionRef.current = null; }
     remoteStreamRef.current = null;
+    remoteVideoRef.current = null;
   };
 
   const createPeerConnection = (stream) => {
     const pc = new RTCPeerConnection(rtcConfig);
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+    stream.getAudioTracks().forEach(track => pc.addTrack(track, stream));
     pc.onicecandidate = (e) => {
       if (e.candidate && callPartnerRef.current) {
         socket.emit("ice-candidate", { targetUserEmail: callPartnerRef.current, candidate: e.candidate });
       }
     };
-    pc.ontrack = (e) => { remoteStreamRef.current = e.streams[0]; if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0]; };
-    pc.oniceconnectionstatechange = () => { if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") { endCall(); } };
+    pc.ontrack = (e) => {
+      remoteStreamRef.current = e.streams[0];
+      const el = remoteVideoRef.current;
+      if (el) {
+        el.srcObject = e.streams[0];
+        el.play().catch(() => {});
+      } else {
+        const audio = new Audio();
+        audio.srcObject = e.streams[0];
+        audio.play().catch(() => {});
+      }
+    };
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === "failed") {
+        endCall();
+      }
+    };
     peerConnectionRef.current = pc;
     return pc;
   };
@@ -1855,6 +1884,7 @@ function Chat({ user: currentUser }) {
     if (!selectedUser || !socket) return;
     try {
       setCallError(null);
+      cleanupMedia();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = stream;
       callPartnerRef.current = selectedUser;
@@ -1868,7 +1898,7 @@ function Chat({ user: currentUser }) {
       await pc.setLocalDescription(offer);
       socket.emit("call-user", { targetUserEmail: selectedUser, signalData: offer, callType: "audio" });
     } catch (err) {
-      setCallError(err.message);
+      setCallError("Call failed: " + err.message);
       cleanupMedia();
       setCallStatus("idle");
     }
@@ -1878,6 +1908,7 @@ function Chat({ user: currentUser }) {
     if (!incomingCall || !socket) return;
     try {
       setCallError(null);
+      cleanupMedia();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = stream;
       callPartnerRef.current = incomingCall.from;
@@ -1893,7 +1924,7 @@ function Chat({ user: currentUser }) {
       await pc.setLocalDescription(answer);
       socket.emit("accept-call", { targetUserEmail: incomingCall.from, signalData: answer });
     } catch (err) {
-      setCallError(err.message);
+      setCallError("Call failed: " + err.message);
       cleanupMedia();
       setCallStatus("idle");
     }
