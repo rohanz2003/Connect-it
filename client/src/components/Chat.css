@@ -180,13 +180,31 @@ body {
     grid-column: unset;
     grid-row: unset;
     width: 100%;
-    min-height: 100vh;
-    padding-bottom: 60px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   .chat-panel-header {
     padding: 10px 12px;
     min-height: 56px;
+    flex-shrink: 0;
+    position: static;
+  }
+
+  .clear-chat-btn {
+    display: none !important;
+  }
+
+  .chat-header-actions .icon-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .chat-header-actions .icon-btn svg {
+    width: 16px;
+    height: 16px;
   }
 
   .chat-panel-title h3 {
