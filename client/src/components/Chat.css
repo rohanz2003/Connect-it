@@ -195,10 +195,6 @@ body {
     position: static;
   }
 
-  .clear-chat-btn {
-    display: none !important;
-  }
-
   .chat-header-actions .icon-btn {
     width: 32px;
     height: 32px;

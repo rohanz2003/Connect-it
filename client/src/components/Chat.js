@@ -2224,18 +2224,11 @@ function Chat({ user: currentUser }) {
             {selectedUser && (
               <>
                 <button
-                  className="secondary-btn clear-chat-btn"
+                  className="icon-btn clear-chat-btn"
                   title="Clear chat for you only"
                   onClick={handleClearCurrentChat}
                 >
-                  <Trash2 size={16} /> Clear Chat
-                </button>
-                <button 
-                  className="icon-btn minimize-btn" 
-                  title={isChatMinimized ? "Expand chat" : "Minimize chat"}
-                  onClick={() => setIsChatMinimized(!isChatMinimized)}
-                >
-                  {isChatMinimized ? <ChevronDown size={18} /> : <ChevronDown size={18} style={{ transform: 'rotate(180deg)' }} />}
+                  <Trash2 size={16} />
                 </button>
                 <button 
                   className="icon-btn close-btn" 
