@@ -1855,7 +1855,7 @@ function Chat({ user: currentUser }) {
 
   const allMessages = Object.values(chatHistory).flat();
   const totalChatMessages = allMessages.length;
-  const totalChatMedia = allMessages.filter(m => m.fileUrl).length;
+  const totalChatMedia = allMessages.filter(m => m.type === "media" || m.fileUrl).length;
   const conversationsWithReplies = Object.values(chatHistory).filter(msgs => {
     const senders = [...new Set(msgs.map(m => m.sender?.toLowerCase()))];
     return senders.length > 1;
@@ -1872,20 +1872,23 @@ function Chat({ user: currentUser }) {
     }
   });
 
+  const analyticsActiveChats = recentChats.length;
+  const analyticsUnread = recentChats.reduce((sum, u) => sum + getUnreadCount(u), 0);
+
   const renderAnalytics = () => (
     <div className="analytics-panel">
       <div className="analytics-grid">
         <div className="analytics-stat-card">
           <div className="analytics-stat-icon active-chat"><MessageCircle size={20} /></div>
           <div className="analytics-stat-body">
-            <span className="analytics-stat-value">{filteredRecentChats.length}</span>
+            <span className="analytics-stat-value">{analyticsActiveChats}</span>
             <span className="analytics-stat-label">Active Chats</span>
           </div>
         </div>
         <div className="analytics-stat-card">
           <div className="analytics-stat-icon unread"><BellRing size={20} /></div>
           <div className="analytics-stat-body">
-            <span className="analytics-stat-value">{totalUnread}</span>
+            <span className="analytics-stat-value">{analyticsUnread}</span>
             <span className="analytics-stat-label">Unread</span>
           </div>
         </div>
