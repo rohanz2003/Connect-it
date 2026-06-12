@@ -2255,76 +2255,6 @@ function Chat({ user: currentUser }) {
           </div>
         </div>
 
-        {showLogoutConfirm && (
-          <div className="logout-modal-overlay" onClick={() => setShowLogoutConfirm(false)}>
-            <div className="logout-modal" onClick={(e) => e.stopPropagation()}>
-              <h3>Log out?</h3>
-              <p>You will be signed out of Connect It.</p>
-              <div className="logout-modal-actions">
-                <button type="button" className="logout-cancel-btn" onClick={() => setShowLogoutConfirm(false)}>
-                  Cancel
-                </button>
-                <button type="button" className="logout-confirm-btn" onClick={performLogout}>
-                  Logout
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showDeleteConfirm && (
-          <div className="logout-modal-overlay" onClick={() => { setShowDeleteConfirm(false); setDeleteError(""); setDeletePassword(""); }}>
-            <div className="logout-modal" onClick={(e) => e.stopPropagation()}>
-              <h3><AlertTriangle size={18} style={{ verticalAlign: "middle", marginRight: 8, color: "#ef4444" }} />Delete Account</h3>
-              <p style={{ color: "#ef4444", fontWeight: 500, marginBottom: 8 }}>
-                This will permanently delete all your messages, chats, and account data. This action cannot be undone.
-              </p>
-              <p style={{ marginBottom: 12, fontSize: 13, opacity: 0.7 }}>
-                Enter your password to confirm deletion.
-              </p>
-              {deleteError && <div className="login-error" style={{ marginBottom: 10 }}>{deleteError}</div>}
-              <div style={{ position: "relative" }}>
-                <input
-                  type={showDeletePwd ? "text" : "password"}
-                  placeholder="Enter your password"
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  className="delete-password-input"
-                  autoComplete="new-password"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowDeletePwd(!showDeletePwd)}
-                  style={{
-                    position: "absolute",
-                    right: 10,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--text-muted, #9ca3af)",
-                    padding: 4,
-                    display: "flex",
-                  }}
-                  tabIndex={-1}
-                >
-                  {showDeletePwd ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              <div className="logout-modal-actions" style={{ marginTop: 14 }}>
-                <button type="button" className="logout-cancel-btn" onClick={() => { setShowDeleteConfirm(false); setDeleteError(""); setDeletePassword(""); }}>
-                  Cancel
-                </button>
-                <button type="button" className="logout-confirm-btn" style={{ background: "#ef4444" }} onClick={handleDeleteAccount} disabled={deleting}>
-                  {deleting ? "Deleting..." : "Delete Forever"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {!isChatMinimized && (
         <div className="chat-panel-body">
           {selectedUser ? (
@@ -2623,6 +2553,76 @@ function Chat({ user: currentUser }) {
         <input id="attach-document" type="file" accept=".pdf,.doc,.docx,.txt,.rtf" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
         <input id="attach-file" type="file" accept="*/*" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
       </main>
+
+      {showLogoutConfirm && (
+        <div className="logout-modal-overlay" onClick={() => setShowLogoutConfirm(false)}>
+          <div className="logout-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Log out?</h3>
+            <p>You will be signed out of Connect It.</p>
+            <div className="logout-modal-actions">
+              <button type="button" className="logout-cancel-btn" onClick={() => setShowLogoutConfirm(false)}>
+                Cancel
+              </button>
+              <button type="button" className="logout-confirm-btn" onClick={performLogout}>
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="logout-modal-overlay" onClick={() => { setShowDeleteConfirm(false); setDeleteError(""); setDeletePassword(""); }}>
+          <div className="logout-modal" onClick={(e) => e.stopPropagation()}>
+            <h3><AlertTriangle size={18} style={{ verticalAlign: "middle", marginRight: 8, color: "#ef4444" }} />Delete Account</h3>
+            <p style={{ color: "#ef4444", fontWeight: 500, marginBottom: 8 }}>
+              This will permanently delete all your messages, chats, and account data. This action cannot be undone.
+            </p>
+            <p style={{ marginBottom: 12, fontSize: 13, opacity: 0.7 }}>
+              Enter your password to confirm deletion.
+            </p>
+            {deleteError && <div className="login-error" style={{ marginBottom: 10 }}>{deleteError}</div>}
+            <div style={{ position: "relative" }}>
+              <input
+                type={showDeletePwd ? "text" : "password"}
+                placeholder="Enter your password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                className="delete-password-input"
+                autoComplete="new-password"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setShowDeletePwd(!showDeletePwd)}
+                style={{
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--text-muted, #9ca3af)",
+                  padding: 4,
+                  display: "flex",
+                }}
+                tabIndex={-1}
+              >
+                {showDeletePwd ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            <div className="logout-modal-actions" style={{ marginTop: 14 }}>
+              <button type="button" className="logout-cancel-btn" onClick={() => { setShowDeleteConfirm(false); setDeleteError(""); setDeletePassword(""); }}>
+                Cancel
+              </button>
+              <button type="button" className="logout-confirm-btn" style={{ background: "#ef4444" }} onClick={handleDeleteAccount} disabled={deleting}>
+                {deleting ? "Deleting..." : "Delete Forever"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <aside className="dashboard-panel">
         <div className="dashboard-card welcome-card">
