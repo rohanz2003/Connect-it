@@ -18,14 +18,20 @@ export default function ActiveCall({
   onEndCall,
 }) {
   const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
   const localVideoRef = useRef(null);
   const hideTimerRef = useRef(null);
   const [showUi, setShowUi] = useState(true);
 
-  // Attach remote stream to video element
+  // Attach remote stream to video or audio element
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStreamRef?.current) {
-      remoteVideoRef.current.srcObject = remoteStreamRef.current;
+    if (remoteStreamRef?.current) {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStreamRef.current;
+      }
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = remoteStreamRef.current;
+      }
     }
   }, [remoteStreamRef?.current]); // eslint-disable-line
 
@@ -74,7 +80,7 @@ export default function ActiveCall({
       exit={{ opacity: 0 }}
       onClick={handleTap}
     >
-      {/* Video background or voice gradient */}
+      {/* Remote video for video calls */}
       {isVideo && hasRemoteStream ? (
         <video
           ref={remoteVideoRef}
@@ -101,6 +107,16 @@ export default function ActiveCall({
             {callState === "calling" ? "Calling..." : callState === "ringing" ? "Ringing..." : duration || "00:00"}
           </div>
         </div>
+      )}
+
+      {/* Hidden audio element for voice calls — plays remote audio stream */}
+      {!isVideo && (
+        <audio
+          ref={remoteAudioRef}
+          autoPlay
+          playsInline
+          style={{ display: "none" }}
+        />
       )}
 
       {/* Top bar — name + timer + signal quality */}
