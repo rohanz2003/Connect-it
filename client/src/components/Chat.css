@@ -805,7 +805,7 @@ body {
   justify-content: center;
   cursor: pointer;
   transition: var(--transition);
-  opacity: 0.4; /* Changed from 0 to 0.4 for better visibility */
+  opacity: 1; /* Always visible for better discoverability */
 }
 
 .user-item:hover .remove-recent-btn {
@@ -5558,3 +5558,4 @@ body.dark-mode .incoming-call-card,
 /* ============================================================================
    END CALL SYSTEM
    ============================================================================ */
+

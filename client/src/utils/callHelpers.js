@@ -50,3 +50,33 @@ export const clearCallHistory = () => {
     localStorage.removeItem(CALL_HISTORY_KEY);
   } catch (e) {}
 };
+
+export const deleteCallFromHistory = (index) => {
+  try {
+    const existing = JSON.parse(localStorage.getItem(CALL_HISTORY_KEY) || "[]");
+    existing.splice(index, 1);
+    localStorage.setItem(CALL_HISTORY_KEY, JSON.stringify(existing));
+    return existing;
+  } catch (e) {
+    console.warn("Failed to delete call from history", e);
+    return [];
+  }
+};
+
+export const deleteCallEntry = (call) => {
+  try {
+    const existing = JSON.parse(localStorage.getItem(CALL_HISTORY_KEY) || "[]");
+    // Find the entry by matching fields (from, to, timestamp)
+    const idx = existing.findIndex(
+      (c) => c.from === call.from && c.to === call.to && c.timestamp === call.timestamp
+    );
+    if (idx !== -1) {
+      existing.splice(idx, 1);
+      localStorage.setItem(CALL_HISTORY_KEY, JSON.stringify(existing));
+    }
+    return existing;
+  } catch (e) {
+    console.warn("Failed to delete call entry", e);
+    return [];
+  }
+};

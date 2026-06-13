@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Phone, Video, PhoneIncoming, PhoneMissed, PhoneOutgoing, PhoneCall } from "lucide-react";
+import { Phone, Video, PhoneIncoming, PhoneMissed, PhoneOutgoing, PhoneCall, X, Trash2 } from "lucide-react";
 import Avatar from "../Avatar";
 import { formatCallDuration } from "../../utils/callHelpers";
 
@@ -30,7 +30,7 @@ const getCallIcon = (status, type) => {
   return <PhoneCall size={15} className="call-hist-icon completed" />;
 };
 
-export default function CallHistory({ callHistory, userProfiles, getDisplayName, onCallBack }) {
+export default function CallHistory({ callHistory, userProfiles, getDisplayName, onCallBack, onDeleteCall, onClearAll }) {
   const [filter, setFilter] = useState("All");
 
   const filtered = (callHistory || []).filter((c) => {
@@ -53,6 +53,18 @@ export default function CallHistory({ callHistory, userProfiles, getDisplayName,
             {f}
           </button>
         ))}
+      </div>
+
+        {onClearAll && callHistory?.length > 0 && (
+          <button
+            className="call-hist-clear-all"
+            onClick={() => { if (window.confirm("Clear all call history?")) onClearAll(); }}
+            title="Clear all call history"
+          >
+            <Trash2 size={14} />
+            Clear all
+          </button>
+        )}
       </div>
 
       <div className="call-history-list">
@@ -107,6 +119,15 @@ export default function CallHistory({ callHistory, userProfiles, getDisplayName,
                     title="Call back"
                   >
                     <Phone size={16} />
+                  </button>
+                )}
+                {onDeleteCall && (
+                  <button
+                    className="call-hist-delete-btn"
+                    onClick={(e) => { e.stopPropagation(); if (window.confirm("Delete this call entry?")) onDeleteCall(call); }}
+                    title="Delete call entry"
+                  >
+                    <X size={14} />
                   </button>
                 )}
               </div>

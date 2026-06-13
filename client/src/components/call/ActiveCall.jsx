@@ -26,14 +26,17 @@ export default function ActiveCall({
   // Attach remote stream to video or audio element
   useEffect(() => {
     if (remoteStreamRef?.current) {
+      const stream = remoteStreamRef.current;
       if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStreamRef.current;
+        remoteVideoRef.current.srcObject = stream;
+        remoteVideoRef.current.play().catch(e => console.warn("Video play blocked:", e));
       }
       if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = remoteStreamRef.current;
+        remoteAudioRef.current.srcObject = stream;
+        remoteAudioRef.current.play().catch(e => console.warn("Audio play blocked:", e));
       }
     }
-  }, [remoteStreamRef?.current]); // eslint-disable-line
+  }, [remoteStreamRef?.current, activeCall?.remoteStream]);
 
   // Attach local stream to PIP video element
   useEffect(() => {
@@ -109,15 +112,13 @@ export default function ActiveCall({
         </div>
       )}
 
-      {/* Hidden audio element for voice calls — plays remote audio stream */}
-      {!isVideo && (
-        <audio
-          ref={remoteAudioRef}
-          autoPlay
-          playsInline
-          style={{ display: "none" }}
-        />
-      )}
+      {/* Audio element for voice calls */}
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        style={{ width: "1px", height: "1px", opacity: "0.01", position: "fixed", top: 0, left: 0 }}
+      />
 
       {/* Top bar — name + timer + signal quality */}
       <AnimatePresence>

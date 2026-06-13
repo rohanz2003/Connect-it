@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { useCall } from "../context/CallContext";
 import CallHistory from "./call/CallHistory";
+import { deleteCallFromHistory, clearCallHistory } from "../utils/callHelpers";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
 import ErrorBoundary from "./ErrorBoundary";
@@ -157,6 +158,8 @@ function Chat({ user: currentUser }) {
     toggleMute,
     toggleVideo,
     toggleSpeaker,
+    unviewedMissedCount,
+    markMissedCallsViewed,
   } = useCall();
 
   const [user, setUser] = useState(null);
@@ -2046,13 +2049,13 @@ function Chat({ user: currentUser }) {
           </button>
           <button
             className={`tab ${activeTab === "calls" ? "active" : ""}`}
-            onClick={() => setActiveTab("calls")}
+            onClick={() => { setActiveTab("calls"); markMissedCallsViewed(); }}
           >
             <PhoneCall size={14} />
             <span>Calls</span>
-            {callHistory.filter(c => c.status === "missed").length > 0 && (
+            {unviewedMissedCount > 0 && (
               <span className="tab-badge missed-badge">
-                {callHistory.filter(c => c.status === "missed").length}
+                {unviewedMissedCount}
               </span>
             )}
           </button>
@@ -2217,6 +2220,16 @@ function Chat({ user: currentUser }) {
               handleUserSelect(email);
               startCall(email, type);
             }}
+            onDeleteCall={(call) => {
+              deleteCallEntry(call);
+              window.location.reload();
+            }}
+            onClearAll={() => {
+              if (window.confirm("Clear all call history?")) {
+                clearCallHistory();
+                window.location.reload();
+              }
+            }}
           />
         )}
 
@@ -2265,6 +2278,16 @@ function Chat({ user: currentUser }) {
               onCallBack={(email, type) => {
                 handleUserSelect(email);
                 startCall(email, type);
+              }}
+              onDeleteCall={(call) => {
+                deleteCallEntry(call);
+                window.location.reload();
+              }}
+              onClearAll={() => {
+                if (window.confirm("Clear all call history?")) {
+                  clearCallHistory();
+                  window.location.reload();
+                }
               }}
             />
           )}
@@ -2946,11 +2969,11 @@ function Chat({ user: currentUser }) {
           </span>
           <span>Online</span>
         </button>
-        <button className={`bottom-nav-btn ${activeTab === "calls" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("calls"); setSidebarOpen(false); }}>
+        <button className={`bottom-nav-btn ${activeTab === "calls" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("calls"); setSidebarOpen(false); markMissedCallsViewed(); }}>
           <span className="bottom-nav-icon-wrap">
             <PhoneCall size={18} />
-            {callHistory.filter(c => c.status === "missed").length > 0 && (
-              <span className="bottom-nav-badge">{callHistory.filter(c => c.status === "missed").length}</span>
+            {unviewedMissedCount > 0 && (
+              <span className="bottom-nav-badge">{unviewedMissedCount}</span>
             )}
           </span>
           <span>Calls</span>
@@ -3099,5 +3122,8 @@ function Chat({ user: currentUser }) {
 }
 
 export default Chat;
+
+
+
 
 

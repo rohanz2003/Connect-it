@@ -20,6 +20,7 @@ export function CallProvider({ children, user }) {
     controlsVisible: true,
   });
   const [callHistory, setCallHistory] = useState([]);
+  const [unviewedMissedCount, setUnviewedMissedCount] = useState(0);
   const [callId, setCallId] = useState(null);
   const remoteStreamRef = useRef(null);
   const pendingCallerRef = useRef(null);
@@ -48,7 +49,19 @@ export function CallProvider({ children, user }) {
   webrtcRef.current = webrtc;
 
   useEffect(() => {
-    setCallHistory(getCallHistory());
+    const history = getCallHistory();
+    setCallHistory(history);
+    // Count missed calls that haven't been viewed yet
+    const lastViewed = localStorage.getItem("missedCallsLastViewed");
+    const unviewed = lastViewed
+      ? history.filter(c => c.status === "missed" && c.timestamp > parseInt(lastViewed)).length
+      : history.filter(c => c.status === "missed").length;
+    setUnviewedMissedCount(unviewed);
+  }, []);
+
+  const markMissedCallsViewed = useCallback(() => {
+    localStorage.setItem("missedCallsLastViewed", Date.now().toString());
+    setUnviewedMissedCount(0);
   }, []);
 
   // Sound effects: ringtone on ringing, stop on any state change
@@ -113,13 +126,16 @@ export function CallProvider({ children, user }) {
       if (callStateRef.current !== "idle") {
         const duration = secondsRef.current;
         if (activeCallRef.current.with) {
-          saveCallToHistory({
-            with: activeCallRef.current.with,
-            type: activeCallRef.current.type,
-            duration,
-            status: "completed",
-          });
-          setCallHistory(getCallHistory());
+          // Only save as completed if the call was actually connected (duration > 0 or state was active)
+          if (duration > 0 || callStateRef.current === "active") {
+            saveCallToHistory({
+              with: activeCallRef.current.with,
+              type: activeCallRef.current.type,
+              duration,
+              status: "completed",
+            });
+            setCallHistory(getCallHistory());
+          }
         }
         w.endCall();
         playEndSound();
@@ -176,6 +192,13 @@ export function CallProvider({ children, user }) {
   const startCall = useCallback(async (targetUserId, type) => {
     try {
       const result = await webrtc.startCall(targetUserId, type);
+      // Save outgoing call to history immediately
+      saveCallToHistory({
+        with: targetUserId,
+        type,
+        duration: 0,
+        status: "outgoing",
+      });
       setCallState("calling");
       setActiveCall({
         type,
@@ -186,6 +209,7 @@ export function CallProvider({ children, user }) {
         isSpeakerOn: false,
         controlsVisible: true,
       });
+      setCallHistory(getCallHistory());
       setIncomingCall(null);
       return result;
     } catch (err) {
@@ -228,7 +252,9 @@ export function CallProvider({ children, user }) {
         duration: 0,
         status: "missed",
       });
-      setCallHistory(getCallHistory());
+      const newHistory = getCallHistory();
+      setCallHistory(newHistory);
+      setUnviewedMissedCount(prev => prev + 1);
     }
     setIncomingCall(null);
     setCallState("idle");
@@ -282,6 +308,8 @@ export function CallProvider({ children, user }) {
     incomingCall,
     activeCall,
     callHistory,
+    unviewedMissedCount,
+    markMissedCallsViewed,
     callId,
     duration: timer.duration,
     seconds: timer.seconds,
