@@ -48,7 +48,7 @@ import {
 } from "lucide-react";
 import { useCall } from "../context/CallContext";
 import CallHistory from "./call/CallHistory";
-import { deleteCallFromHistory, clearCallHistory } from "../utils/callHelpers";
+import { deleteCallEntry, clearCallHistory } from "../utils/callHelpers";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
 import ErrorBoundary from "./ErrorBoundary";
@@ -3122,6 +3122,7 @@ function Chat({ user: currentUser }) {
 }
 
 export default Chat;
+
 
 
 

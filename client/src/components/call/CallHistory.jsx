@@ -65,7 +65,6 @@ export default function CallHistory({ callHistory, userProfiles, getDisplayName,
             Clear all
           </button>
         )}
-      </div>
 
       <div className="call-history-list">
         {filtered.length === 0 ? (
