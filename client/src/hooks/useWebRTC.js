@@ -31,13 +31,20 @@ export default function useWebRTC({ socket, userId, onRemoteStream }) {
         const peer = createPeer(true, stream);
         peerRef.current = peer;
 
+        let initialSignalSent = false;
         peer.on("signal", (signal) => {
-          socket.emit("call-user", {
-            userToCall: targetUserId,
-            signalData: signal,
-            from: userId,
-            type,
-          });
+          // First signal is the offer; subsequent signals are trickled ICE candidates
+          if (!initialSignalSent) {
+            initialSignalSent = true;
+            socket.emit("call-user", {
+              userToCall: targetUserId,
+              signalData: signal,
+              from: userId,
+              type,
+            });
+          } else {
+            socket.emit("ice-candidate", { candidate: signal, to: targetUserId, from: userId });
+          }
         });
 
         peer.on("stream", (remoteStream) => {
@@ -67,10 +74,16 @@ export default function useWebRTC({ socket, userId, onRemoteStream }) {
         const peer = createPeer(false, stream);
         peerRef.current = peer;
 
+        let initialSignalSent = false;
         peer.on("signal", (outSignal) => {
-          // Use the ref — safe inside closure, no stale value
           const to = callerEmailRef.current;
-          socket.emit("answer-call", { signal: outSignal, to });
+          // First signal is the answer; subsequent signals are trickled ICE candidates
+          if (!initialSignalSent) {
+            initialSignalSent = true;
+            socket.emit("answer-call", { signal: outSignal, to });
+          } else {
+            socket.emit("ice-candidate", { candidate: outSignal, to, from: userId });
+          }
         });
 
         peer.on("stream", (remoteStream) => {
@@ -88,7 +101,7 @@ export default function useWebRTC({ socket, userId, onRemoteStream }) {
         console.error("getUserMedia error:", err);
         throw err;
       });
-  }, [socket, createPeer, onRemoteStream]);
+  }, [socket, userId, createPeer, onRemoteStream]);
 
   const toggleMute = useCallback(() => {
     if (localStreamRef.current) {

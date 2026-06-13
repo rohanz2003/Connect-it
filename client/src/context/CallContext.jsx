@@ -26,12 +26,26 @@ export function CallProvider({ children, user }) {
 
   const timer = useCallTimer(callState === "active");
 
+  // Refs to avoid stale closures in socket handlers
+  const callStateRef = useRef(callState);
+  const activeCallRef = useRef(activeCall);
+  const callIdRef = useRef(callId);
+  const secondsRef = useRef(timer.seconds);
+
+  // Keep refs in sync with latest state (runs on every render, not just state change — but that's fine for refs)
+  callStateRef.current = callState;
+  activeCallRef.current = activeCall;
+  callIdRef.current = callId;
+  secondsRef.current = timer.seconds;
+
   const onRemoteStream = useCallback((stream) => {
     remoteStreamRef.current = stream;
     setActiveCall((prev) => ({ ...prev, remoteStream: stream }));
   }, []);
 
   const webrtc = useWebRTC({ socket, userId: user?.email, onRemoteStream });
+  const webrtcRef = useRef(webrtc);
+  webrtcRef.current = webrtc;
 
   useEffect(() => {
     setCallHistory(getCallHistory());
@@ -61,8 +75,14 @@ export function CallProvider({ children, user }) {
     stopRingtone();
   }, [callState]);
 
+  // Socket event listeners — uses refs to avoid stale closures,
+  // so the effect only depends on the stable socket reference.
+  // webrtcRef, callStateRef, activeCallRef, callIdRef, secondsRef are
+  // synced each render so handlers always read the latest values.
   useEffect(() => {
     if (!socket) return;
+
+    const w = webrtcRef.current;
 
     const handleIncoming = ({ callId, from, type, signal }) => {
       pendingCallerRef.current = from;
@@ -73,16 +93,16 @@ export function CallProvider({ children, user }) {
     };
 
     const handleAccepted = ({ signal, from }) => {
-      if (webrtc.peerRef.current) {
-        webrtc.peerRef.current.signal(signal);
+      if (w.peerRef.current) {
+        w.peerRef.current.signal(signal);
       }
       playConnectSound();
       setCallState("active");
     };
 
     const handleRejected = ({ from, callId: id }) => {
-      if (callId === id || !id) {
-        webrtc.endCall();
+      if (callIdRef.current === id || !id) {
+        w.endCall();
         playEndSound();
         setCallState("idle");
         setIncomingCall(null);
@@ -90,18 +110,18 @@ export function CallProvider({ children, user }) {
     };
 
     const handleEnded = ({ from, callId: id }) => {
-      if (callState !== "idle") {
-        const duration = timer.seconds;
-        if (activeCall.with) {
+      if (callStateRef.current !== "idle") {
+        const duration = secondsRef.current;
+        if (activeCallRef.current.with) {
           saveCallToHistory({
-            with: activeCall.with,
-            type: activeCall.type,
+            with: activeCallRef.current.with,
+            type: activeCallRef.current.type,
             duration,
             status: "completed",
           });
           setCallHistory(getCallHistory());
         }
-        webrtc.endCall();
+        w.endCall();
         playEndSound();
         timer.reset();
         setCallState("idle");
@@ -112,9 +132,23 @@ export function CallProvider({ children, user }) {
     };
 
     const handleIceCandidate = ({ candidate, from }) => {
-      if (webrtc.peerRef.current && candidate) {
-        webrtc.peerRef.current.signal(candidate);
+      if (w.peerRef.current && candidate) {
+        w.peerRef.current.signal(candidate);
       }
+    };
+
+    const handleCallStarted = ({ callId: id, to }) => {
+      // Server confirmed the call was initiated; store the server-generated callId
+      setCallId(id);
+    };
+
+    const handleCallUserBusy = () => {
+      // Target user is offline or busy — clean up the optimistic "calling" state
+      w.endCall();
+      timer.reset();
+      setCallState("idle");
+      setActiveCall((p) => ({ ...p, remoteStream: null }));
+      setCallId(null);
     };
 
     socket.on("incoming-call", handleIncoming);
@@ -122,6 +156,8 @@ export function CallProvider({ children, user }) {
     socket.on("call-rejected", handleRejected);
     socket.on("call-ended", handleEnded);
     socket.on("ice-candidate", handleIceCandidate);
+    socket.on("call-started", handleCallStarted);
+    socket.on("call-user-busy", handleCallUserBusy);
 
     return () => {
       socket.off("incoming-call", handleIncoming);
@@ -129,8 +165,13 @@ export function CallProvider({ children, user }) {
       socket.off("call-rejected", handleRejected);
       socket.off("call-ended", handleEnded);
       socket.off("ice-candidate", handleIceCandidate);
+      socket.off("call-started", handleCallStarted);
+      socket.off("call-user-busy", handleCallUserBusy);
     };
-  }, [socket, callState, callId, activeCall, timer, webrtc]);
+  }, [socket]);
+  // Note: intentionally omitting callState/activeCall/callId/timer/webrtc from deps.
+  // Handlers use refs (callStateRef, activeCallRef, callIdRef, secondsRef, webrtcRef)
+  // to always read the latest values without re-registering socket listeners.
 
   const startCall = useCallback(async (targetUserId, type) => {
     try {
