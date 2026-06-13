@@ -42,7 +42,14 @@ import {
   BarChart3,
   History,
   UserPlus,
+  Phone,
+  Video,
+  PhoneCall,
 } from "lucide-react";
+import { useCall } from "../context/CallContext";
+import IncomingCall from "./call/IncomingCall";
+import ActiveCall from "./call/ActiveCall";
+import CallHistory from "./call/CallHistory";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
 import ErrorBoundary from "./ErrorBoundary";
@@ -135,6 +142,24 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
 function Chat({ user: currentUser }) {
   const socket = useSocket();
   const navigate = useNavigate();
+
+  // Call system — from CallContext mounted in App.js
+  const {
+    callState,
+    incomingCall,
+    activeCall,
+    callHistory,
+    duration,
+    remoteStreamRef,
+    localStreamRef,
+    startCall,
+    acceptCall,
+    rejectCall,
+    endCall,
+    toggleMute,
+    toggleVideo,
+    toggleSpeaker,
+  } = useCall();
 
   const [user, setUser] = useState(null);
   const [message, setMessage] = useState("");
@@ -2022,6 +2047,18 @@ function Chat({ user: currentUser }) {
             <span className="tab-count">{filteredOnlineUsers.length}</span>
           </button>
           <button
+            className={`tab ${activeTab === "calls" ? "active" : ""}`}
+            onClick={() => setActiveTab("calls")}
+          >
+            <PhoneCall size={14} />
+            <span>Calls</span>
+            {callHistory.filter(c => c.status === "missed").length > 0 && (
+              <span className="tab-badge missed-badge">
+                {callHistory.filter(c => c.status === "missed").length}
+              </span>
+            )}
+          </button>
+          <button
             className={`tab ${activeTab === "archive" ? "active" : ""}`}
             onClick={() => setActiveTab("archive")}
           >
@@ -2031,13 +2068,13 @@ function Chat({ user: currentUser }) {
           </button>
         </div>
 
-        <div className="sidebar-search">
+        <div className={`sidebar-search ${activeTab === "calls" ? "mobile-hidden" : ""}`}>
           <Search size={16} />
           <input
             type="search"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search online users" : "Search archived chats"}
+            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search online users" : activeTab === "calls" ? "Search call history" : "Search archived chats"}
           />
         </div>
 
@@ -2173,6 +2210,18 @@ function Chat({ user: currentUser }) {
           </div>
         )}
 
+        {activeTab === "calls" && (
+          <CallHistory
+            callHistory={callHistory}
+            userProfiles={userProfiles}
+            getDisplayName={getDisplayName}
+            onCallBack={(email, type) => {
+              handleUserSelect(email);
+              startCall(email, type);
+            }}
+          />
+        )}
+
         <div className="sidebar-footer">
           <button className="sidebar-footer-btn" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }} title="Invite team member">
             <UserPlus size={16} />
@@ -2216,6 +2265,38 @@ function Chat({ user: currentUser }) {
       </div>
 
       <main className={`chat-panel ${activeTab !== "chat" ? "mobile-hidden" : ""}`}>
+        {/* Incoming call overlay — shown globally over the entire app */}
+        <IncomingCall
+          call={incomingCall}
+          onAccept={acceptCall}
+          onReject={rejectCall}
+          onMessage={() => {
+            rejectCall();
+            if (incomingCall?.from) handleUserSelect(incomingCall.from);
+          }}
+          userProfiles={userProfiles}
+          getDisplayName={getDisplayName}
+        />
+
+        {/* Active call overlay */}
+        <AnimatePresence>
+          {(callState === "calling" || callState === "active") && (
+            <ActiveCall
+              callState={callState}
+              activeCall={activeCall}
+              duration={duration}
+              remoteStreamRef={remoteStreamRef}
+              localStreamRef={localStreamRef}
+              userProfiles={userProfiles}
+              getDisplayName={getDisplayName}
+              onToggleMute={toggleMute}
+              onToggleVideo={toggleVideo}
+              onToggleSpeaker={toggleSpeaker}
+              onEndCall={endCall}
+            />
+          )}
+        </AnimatePresence>
+
         <div className="chat-panel-header">
           <button className="mobile-menu-btn" onClick={() => { if (selectedUser) { setSelectedUser(null); setSidebarOpen(true); } else { setSidebarOpen(!sidebarOpen); } }} aria-label={selectedUser ? "Back" : "Open menu"}>
             {selectedUser ? (
@@ -2242,6 +2323,25 @@ function Chat({ user: currentUser }) {
           <div className="chat-header-actions">
             {selectedUser && (
               <>
+                {/* Voice & Video Call Buttons */}
+                <button
+                  id="voice-call-btn"
+                  className="icon-btn call-btn"
+                  title="Voice call"
+                  onClick={() => startCall(selectedUser, "audio")}
+                  disabled={callState !== "idle"}
+                >
+                  <Phone size={17} />
+                </button>
+                <button
+                  id="video-call-btn"
+                  className="icon-btn call-btn video-call-btn"
+                  title="Video call"
+                  onClick={() => startCall(selectedUser, "video")}
+                  disabled={callState !== "idle"}
+                >
+                  <Video size={17} />
+                </button>
                 <button
                   className="icon-btn clear-chat-btn"
                   title="Clear chat for you only"
