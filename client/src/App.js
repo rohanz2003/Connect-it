@@ -9,6 +9,7 @@ import Feedback from "./components/Feedback";
 import Admin from "./components/Admin";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { CallProvider } from "./context/CallContext";
+import GlobalCallOverlay from "./components/call/GlobalCallOverlay";
 
 // ✅ Protected Route
 const PrivateRoute = ({ children, loading, user }) => {
@@ -69,28 +70,29 @@ function App() {
   }, []);
 
   return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
-      
-      <Route path="/login" element={<Login />} />
+    <CallProvider user={user}>
+      <GlobalCallOverlay />
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        
+        <Route path="/login" element={<Login />} />
 
-      <Route
-        path="/chat"
-        element={
-          <PrivateRoute loading={loading} user={user}>
-            <ErrorBoundary>
-              <CallProvider user={user}>
+        <Route
+          path="/chat"
+          element={
+            <PrivateRoute loading={loading} user={user}>
+              <ErrorBoundary>
                 <Chat user={user} />
-              </CallProvider>
-            </ErrorBoundary>
-          </PrivateRoute>
-        }
-      />
+              </ErrorBoundary>
+            </PrivateRoute>
+          }
+        />
 
-      <Route path="/feedback" element={<Feedback />} />
-      
-      <Route path="/admin" element={<Admin />} />
-    </Routes>
+        <Route path="/feedback" element={<Feedback />} />
+        
+        <Route path="/admin" element={<Admin />} />
+      </Routes>
+    </CallProvider>
   );
 }
 
