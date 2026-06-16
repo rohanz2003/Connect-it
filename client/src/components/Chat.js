@@ -157,6 +157,7 @@ function Chat({ user: currentUser }) {
     toggleMute,
     toggleVideo,
     toggleSpeaker,
+    refreshCallHistory,
   } = useCall();
 
   const [user, setUser] = useState(null);
@@ -2247,18 +2248,8 @@ function Chat({ user: currentUser }) {
               handleUserSelect(email);
               startCall(email, type);
             }}
-            onClearAll={() => {
-              setCallHistory([]);
-              try { localStorage.removeItem("call_history"); } catch {}
-            }}
-            onDeleteItem={(index) => {
-              try {
-                const existing = JSON.parse(localStorage.getItem("call_history") || "[]");
-                existing.splice(index, 1);
-                localStorage.setItem("call_history", JSON.stringify(existing));
-                setCallHistory(existing);
-              } catch (e) {}
-            }}
+            onClearAll={() => { try { localStorage.removeItem("call_history"); refreshCallHistory(); } catch {} }}
+            onDeleteItem={(index) => { try { const existing = JSON.parse(localStorage.getItem("call_history") || "[]"); existing.splice(index, 1); localStorage.setItem("call_history", JSON.stringify(existing)); refreshCallHistory(); } catch {} }}
           />
         )}
 
@@ -2305,6 +2296,8 @@ function Chat({ user: currentUser }) {
                 handleUserSelect(email);
                 startCall(email, type);
               }}
+              onClearAll={() => { try { localStorage.removeItem("call_history"); refreshCallHistory(); } catch {} }}
+              onDeleteItem={(index) => { try { const existing = JSON.parse(localStorage.getItem("call_history") || "[]"); existing.splice(index, 1); localStorage.setItem("call_history", JSON.stringify(existing)); refreshCallHistory(); } catch {} }}
             />
           )}
           {activeTab === "archive" && renderTabContent("mobile-archive")}

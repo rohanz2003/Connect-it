@@ -288,6 +288,10 @@ export function CallProvider({ children, user }) {
     setActiveCall((prev) => ({ ...prev, controlsVisible: false }));
   }, []);
 
+  const refreshCallHistory = useCallback(() => {
+    setCallHistory(getCallHistory());
+  }, []);
+
   const value = {
     callState,
     incomingCall,
@@ -307,6 +311,7 @@ export function CallProvider({ children, user }) {
     toggleSpeaker,
     showControls,
     hideControls,
+    refreshCallHistory,
   };
 
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
