@@ -1,34 +1,38 @@
 const express = require("express");
 const router = express.Router();
 const { createOrUpdateUser, updateAvatar, updateProfile, getProfile, getProfiles, getLastSeen, heartbeat, deleteAccount } = require("../controllers/userController");
+const { authenticateUser, optionalAuth } = require("../middleware/authenticateUser");
+const { authorizeRole } = require("../middleware/authorizeRole");
+const { validateUser, validateEmail, handleValidationErrors } = require("../middleware/validateRequest");
+const { auditMiddleware } = require("../middleware/auditLogger");
 
 // Health check
 router.get("/", (req, res) => {
   res.send("Users route working");
 });
 
-// Create or update user (upsert)
-router.post("/", createOrUpdateUser);
+// Create or update user (upsert) - requires auth
+router.post("/", authenticateUser, validateUser, createOrUpdateUser);
 
-// Heartbeat - update lastSeen
-router.post("/heartbeat", heartbeat);
+// Heartbeat - update lastSeen (requires auth)
+router.post("/heartbeat", authenticateUser, heartbeat);
 
-// Update user avatar/profile picture
-router.put("/avatar", updateAvatar);
+// Update user avatar/profile picture (requires auth)
+router.put("/avatar", authenticateUser, auditMiddleware("AVATAR_UPDATED"), updateAvatar);
 
-// Update full profile (displayName, bio, avatarUrl)
-router.put("/profile", updateProfile);
+// Update full profile (displayName, bio, avatarUrl) (requires auth)
+router.put("/profile", authenticateUser, validateUser, auditMiddleware("PROFILE_UPDATED"), updateProfile);
 
-// Get single user profile
-router.get("/profile", getProfile);
+// Get single user profile (public - minimal auth)
+router.get("/profile", optionalAuth, getProfile);
 
-// Get multiple user profiles by emails
-router.get("/profiles", getProfiles);
+// Get multiple user profiles by emails (requires auth)
+router.get("/profiles", authenticateUser, getProfiles);
 
-// Delete user account and all associated data
-router.delete("/delete-account", deleteAccount);
+// Delete user account and all associated data (requires auth)
+router.delete("/delete-account", authenticateUser, auditMiddleware("ACCOUNT_DELETED", "warning"), deleteAccount);
 
-// Get last seen for a user by email
-router.get("/:id/lastseen", getLastSeen);
+// Get last seen for a user by email (requires auth)
+router.get("/:id/lastseen", authenticateUser, validateEmail, getLastSeen);
 
 module.exports = router;

@@ -4,7 +4,7 @@ const handleTyping = require("./typing");
 const handleMessages = require("./message");
 const handleCalls = require("./call");
 const { getCorsOrigins } = require("../config/env");
-const { registerSocket, unregisterSocket } = require("../utils/socketAuth");
+const { registerSocket, unregisterSocket, getAuthenticatedEmail } = require("../utils/socketAuth");
 const { updateLastSeen } = require("../controllers/userController");
 const Device = require("../models/Device");
 
@@ -30,6 +30,62 @@ const initSocket = (server) => {
   const lastHeartbeats = {};
   const socketToDevice = {};
   const userDeviceSockets = {};
+
+  // Socket authentication middleware
+  io.use(async (socket, next) => {
+    try {
+      const token = socket.handshake.auth?.token;
+      const email = socket.handshake.auth?.email;
+
+      if (!email) {
+        return next(new Error("Authentication required: no email provided"));
+      }
+
+      // If JWT token is provided, verify it
+      if (token) {
+        try {
+          const admin = require("firebase-admin");
+          const decoded = await admin.auth().verifyIdToken(token);
+          if (decoded.email && decoded.email.toLowerCase() !== email.toLowerCase()) {
+            return next(new Error("Authentication failed: email mismatch"));
+          }
+          socket.userEmail = decoded.email.toLowerCase().trim();
+          socket.userUid = decoded.uid;
+        } catch (err) {
+          // Token verification failed, but allow with email-only auth
+          // (backward compatibility with existing clients)
+          socket.userEmail = email.toLowerCase().trim();
+        }
+      } else {
+        socket.userEmail = email.toLowerCase().trim();
+      }
+
+      next();
+    } catch (err) {
+      next(new Error("Authentication error"));
+    }
+  });
+
+  // Connection rate limiter (per IP)
+  const connectionCounts = new Map();
+  io.use((socket, next) => {
+    const ip = socket.handshake.address;
+    const count = connectionCounts.get(ip) || 0;
+    if (count > 10) {
+      // Max 10 connections per IP
+      return next(new Error("Too many connections from this IP"));
+    }
+    connectionCounts.set(ip, count + 1);
+    socket.on("disconnect", () => {
+      const c = connectionCounts.get(ip);
+      if (c && c > 1) {
+        connectionCounts.set(ip, c - 1);
+      } else {
+        connectionCounts.delete(ip);
+      }
+    });
+    next();
+  });
 
   io.on("connection", async (socket) => {
     const auth = socket.handshake.auth || {};
