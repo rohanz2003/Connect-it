@@ -868,7 +868,7 @@ function Chat({ user: currentUser }) {
       });
     });
 
-    // Listen for message-status-update (sent âœ“, delivered âœ“âœ“)
+    // Listen for message-status-update (sent ✓, delivered ✓✓)
     socket.on("message-status-update", ({ messageId, tempId, status }) => {
       const applyStatus = (list) =>
         list.map((m) =>
@@ -890,7 +890,7 @@ function Chat({ user: currentUser }) {
       }
     });
 
-    // Listen for messages-read (receiver read our messages â†’ âœ“âœ“ blue)
+    // Listen for messages-read (receiver read our messages â†’ ✓✓ blue)
     socket.on("messages-read", ({ sender, receiver }) => {
       const myEmail = normalizeEmail(user.email);
       if (normalizeEmail(receiver) === myEmail) {
@@ -2518,11 +2518,11 @@ function Chat({ user: currentUser }) {
                           {msg.sender === user.email && !msg.pending && !msg.failed && (
                             <span className={`message-status-tick ${msg.status || 'sent'}`}>
                               {msg.status === "read" ? (
-                                <span className="double-tick read">âœ“âœ“</span>
+                                <span className="double-tick read">✓✓</span>
                               ) : msg.status === "delivered" ? (
-                                <span className="double-tick delivered">âœ“âœ“</span>
+                                <span className="double-tick delivered">✓✓</span>
                               ) : (
-                                <span className="single-tick sent">âœ“</span>
+                                <span className="single-tick sent">✓</span>
                               )}
                             </span>
                           )}

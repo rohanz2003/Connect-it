@@ -1389,23 +1389,23 @@ body {
 .single-tick.sent {
   color: #9ca3af;
   font-weight: 900;
-  font-size: 15px;
+  font-size: 20px;
 }
 
 /* Double Tick - Gray (Delivered) */
 .double-tick.delivered {
   color: #9ca3af;
   font-weight: 900;
-  font-size: 15px;
-  letter-spacing: -3px;
+  font-size: 20px;
+  letter-spacing: -4px;
 }
 
 /* Double Tick - Blue (Read) */
 .double-tick.read {
   color: #53bdeb;
   font-weight: 900;
-  font-size: 15px;
-  letter-spacing: -3px;
+  font-size: 20px;
+  letter-spacing: -4px;
   animation: readPulse 0.3s ease-in-out;
 }
 

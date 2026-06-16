@@ -13,8 +13,14 @@ function Message({ msg, currentUser }) {
       <div className="message-details">
         <span className="message-time">{messageTime}</span>
         {msg.sender === currentUser && (
-          <span className="message-status">
-            {msg.seen ? "✓✓" : "✓"}
+          <span className={`message-status-tick ${msg.status || 'sent'}`}>
+            {msg.status === "read" ? (
+              <span className="double-tick read">✓✓</span>
+            ) : msg.status === "delivered" ? (
+              <span className="double-tick delivered">✓✓</span>
+            ) : (
+              <span className="single-tick sent">✓</span>
+            )}
           </span>
         )}
       </div>
