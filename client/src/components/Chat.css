@@ -846,47 +846,65 @@ body {
   font-size: 12px;
 }
 
-/* Sidebar Footer - Account Actions */
+/* Sidebar Footer - Professional Icon Row */
 .sidebar-footer {
-  padding: 8px;
+  padding: 6px 12px;
   border-top: 1px solid var(--border-color);
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  justify-content: space-around;
+  gap: 4px;
   background: var(--background-sidebar);
 }
 
-.sidebar-footer-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+.sidebar-footer-icon-btn {
+  width: 36px;
+  height: 36px;
   border: none;
   background: transparent;
-  color: var(--text-secondary);
-  border-radius: var(--radius-md);
+  color: var(--text-light);
+  border-radius: var(--radius-full);
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  font-family: inherit;
-  transition: var(--transition);
-  text-align: left;
-  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  position: relative;
 }
 
-.sidebar-footer-btn:hover {
+.sidebar-footer-icon-btn:hover {
   background: var(--border-light);
   color: var(--text-primary);
+  transform: scale(1.1);
 }
 
-.sidebar-footer-btn svg {
-  flex-shrink: 0;
+.sidebar-footer-icon-btn:active {
+  transform: scale(0.95);
 }
 
-.sidebar-footer-divider {
-  height: 1px;
+.sidebar-footer-icon-btn[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text-primary);
+  color: var(--background-white);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.sidebar-footer-separator {
+  width: 1px;
+  height: 24px;
   background: var(--border-color);
-  margin: 4px 8px;
+  flex-shrink: 0;
 }
 
 .sidebar-footer-logout {
@@ -1319,7 +1337,7 @@ body {
     padding: 6px 8px;
   }
   
-  .sidebar-footer-btn {
+  .sidebar-footer-icon-btn {
     padding: 8px 10px;
     font-size: 12px;
   }
@@ -1339,7 +1357,7 @@ body {
     padding: 4px 6px;
   }
   
-  .sidebar-footer-btn {
+  .sidebar-footer-icon-btn {
     padding: 6px 8px;
     font-size: 11px;
     gap: 6px;

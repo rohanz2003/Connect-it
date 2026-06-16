@@ -2222,17 +2222,17 @@ function Chat({ user: currentUser }) {
         )}
 
         <div className="sidebar-footer">
-          <button className="sidebar-footer-icon-btn" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }} data-tip="Invite" title="Invite">
+          <button className="sidebar-footer-icon-btn" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }} data-tip="Invite">
             <UserPlus size={18} />
           </button>
-          <button className="sidebar-footer-icon-btn" onClick={() => setShowSettings(true)} data-tip="Settings" title="Settings">
+          <button className="sidebar-footer-icon-btn" onClick={() => setShowSettings(true)} data-tip="Settings">
             <Settings size={18} />
           </button>
           <div className="sidebar-footer-separator" />
-          <button className="sidebar-footer-icon-btn sidebar-footer-logout" onClick={() => setShowLogoutConfirm(true)} data-tip="Logout" title="Logout">
+          <button className="sidebar-footer-icon-btn sidebar-footer-logout" onClick={() => setShowLogoutConfirm(true)} data-tip="Logout">
             <LogOut size={18} />
           </button>
-          <button className="sidebar-footer-icon-btn sidebar-footer-delete" onClick={() => setShowDeleteConfirm(true)} data-tip="Delete" title="Delete account">
+          <button className="sidebar-footer-icon-btn sidebar-footer-delete" onClick={() => setShowDeleteConfirm(true)} data-tip="Delete">
             <Trash2 size={18} />
           </button>
         </div>
@@ -2338,7 +2338,7 @@ function Chat({ user: currentUser }) {
                 </button>
               </>
             )}
-            <button className="icon-btn" data-tip="Settings" title="Settings" onClick={() => setShowSettings(true)}>
+            <button className="icon-btn" data-tip="Settings" onClick={() => setShowSettings(true)}>
               <Settings size={18} />
             </button>
           </div>
