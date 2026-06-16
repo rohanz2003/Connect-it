@@ -23,6 +23,7 @@ export function CallProvider({ children, user }) {
   const [callId, setCallId] = useState(null);
   const remoteStreamRef = useRef(null);
   const pendingCallerRef = useRef(null);
+  const isIncomingCallRef = useRef(false);
 
   const timer = useCallTimer(callState === "active");
 
@@ -98,6 +99,8 @@ export function CallProvider({ children, user }) {
       }
       playConnectSound();
       setCallState("active");
+      // This is the caller being notified that the callee accepted — for the caller, this is outgoing
+      isIncomingCallRef.current = false;
     };
 
     const handleRejected = ({ from, callId: id }) => {
@@ -113,11 +116,13 @@ export function CallProvider({ children, user }) {
       if (callStateRef.current !== "idle") {
         const duration = secondsRef.current;
         if (activeCallRef.current.with) {
+          // Track as "incoming" if this was an answered incoming call, otherwise "completed"
+          const status = isIncomingCallRef.current ? "incoming" : "completed";
           saveCallToHistory({
             with: activeCallRef.current.with,
             type: activeCallRef.current.type,
             duration,
-            status: "completed",
+            status,
           });
           setCallHistory(getCallHistory());
         }
@@ -128,6 +133,7 @@ export function CallProvider({ children, user }) {
         setActiveCall((p) => ({ ...p, remoteStream: null }));
         setIncomingCall(null);
         setCallId(null);
+        isIncomingCallRef.current = false;
       }
     };
 
@@ -186,6 +192,7 @@ export function CallProvider({ children, user }) {
         isSpeakerOn: false,
         controlsVisible: true,
       });
+      isIncomingCallRef.current = false;
       setIncomingCall(null);
       return result;
     } catch (err) {
@@ -200,6 +207,8 @@ export function CallProvider({ children, user }) {
       // Pass caller email explicitly to fix the stale-closure bug
       const result = await webrtc.answerCall(incomingCall.signal, incomingCall.type, incomingCall.from);
       playConnectSound();
+      // Mark this as an incoming call for history tracking
+      isIncomingCallRef.current = true;
       setCallState("active");
       setActiveCall({
         type: incomingCall.type,
@@ -238,11 +247,12 @@ export function CallProvider({ children, user }) {
   const endCall = useCallback(() => {
     if (activeCall.with) {
       socket.emit("end-call", { to: activeCall.with, callId });
+      const status = isIncomingCallRef.current ? "incoming" : "completed";
       saveCallToHistory({
         with: activeCall.with,
         type: activeCall.type,
         duration: timer.seconds,
-        status: "completed",
+        status,
       });
       setCallHistory(getCallHistory());
     }
@@ -253,6 +263,7 @@ export function CallProvider({ children, user }) {
     setActiveCall((p) => ({ ...p, remoteStream: null }));
     setIncomingCall(null);
     setCallId(null);
+    isIncomingCallRef.current = false;
   }, [activeCall, callId, webrtc, timer]);
 
   const toggleMute = useCallback(() => {

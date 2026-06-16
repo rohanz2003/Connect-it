@@ -217,6 +217,10 @@ function Chat({ user: currentUser }) {
     try { return JSON.parse(localStorage.getItem(`archivedChats_${localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")).email : ""}`) || "[]"); } catch { return []; }
   });
   const [activeTab, setActiveTab] = useState("recent");
+  const [lastViewedMissed, setLastViewedMissed] = useState(() => {
+    try { return parseInt(localStorage.getItem("lastViewedMissed") || "0", 10); }
+    catch { return 0; }
+  });
   const [displayName, setDisplayName] = useState(() => {
     try { return JSON.parse(localStorage.getItem("user") || "{}").displayName || ""; } catch { return ""; }
   });
@@ -2046,15 +2050,15 @@ function Chat({ user: currentUser }) {
           </button>
           <button
             className={`tab ${activeTab === "calls" ? "active" : ""}`}
-            onClick={() => setActiveTab("calls")}
+            onClick={() => { setActiveTab("calls"); const now = Date.now(); setLastViewedMissed(now); try { localStorage.setItem("lastViewedMissed", String(now)); } catch {} }}
           >
             <PhoneCall size={14} />
             {/* <span>Calls</span> */}
-            {callHistory.filter(c => c.status === "missed").length > 0 && (
+            {(() => { const newMissed = callHistory.filter(c => c.status === "missed" && (!c.timestamp || new Date(c.timestamp).getTime() > lastViewedMissed)).length; return newMissed > 0 ? (
               <span className="tab-badge missed-badge">
-                {callHistory.filter(c => c.status === "missed").length}
+                {newMissed}
               </span>
-            )}
+            ) : null; })()}
           </button>
           <button
             className={`tab ${activeTab === "archive" ? "active" : ""}`}
@@ -2080,6 +2084,31 @@ function Chat({ user: currentUser }) {
 
           {activeTab === "recent" && (
           <div className="sidebar-section">
+            {filteredRecentChats.length > 0 && (
+              <div className="sidebar-section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>Recent Chats</span>
+                <button
+                  onClick={handleClearAllHistory}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--danger-color, #ef4444)",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: "4px 8px",
+                    borderRadius: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    fontFamily: "inherit"
+                  }}
+                  title="Clear all chat history"
+                >
+                  <Trash2 size={12} /> Clear all
+                </button>
+              </div>
+            )}
             <div className="sidebar-list">
               {filteredRecentChats.length > 0 ? filteredRecentChats.map((u, i) => {
                 const unreadCount = getUnreadCount(u);
