@@ -50,3 +50,15 @@ export const clearCallHistory = () => {
     localStorage.removeItem(CALL_HISTORY_KEY);
   } catch (e) {}
 };
+
+export const deleteCallHistoryEntry = (index) => {
+  try {
+    const existing = JSON.parse(localStorage.getItem(CALL_HISTORY_KEY) || "[]");
+    if (index >= 0 && index < existing.length) {
+      existing.splice(index, 1);
+      localStorage.setItem(CALL_HISTORY_KEY, JSON.stringify(existing));
+    }
+  } catch (e) {
+    console.warn("Failed to delete call history entry", e);
+  }
+};

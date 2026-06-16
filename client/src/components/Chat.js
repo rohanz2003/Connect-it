@@ -2247,6 +2247,18 @@ function Chat({ user: currentUser }) {
               handleUserSelect(email);
               startCall(email, type);
             }}
+            onClearAll={() => {
+              setCallHistory([]);
+              try { localStorage.removeItem("call_history"); } catch {}
+            }}
+            onDeleteItem={(index) => {
+              try {
+                const existing = JSON.parse(localStorage.getItem("call_history") || "[]");
+                existing.splice(index, 1);
+                localStorage.setItem("call_history", JSON.stringify(existing));
+                setCallHistory(existing);
+              } catch (e) {}
+            }}
           />
         )}
 

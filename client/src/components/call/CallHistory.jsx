@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Phone, Video, PhoneIncoming, PhoneMissed, PhoneOutgoing, PhoneCall } from "lucide-react";
+import { Phone, Video, PhoneIncoming, PhoneMissed, PhoneOutgoing, PhoneCall, Trash2, X } from "lucide-react";
 import Avatar from "../Avatar";
 import { formatCallDuration } from "../../utils/callHelpers";
 
@@ -30,7 +30,7 @@ const getCallIcon = (status, type) => {
   return <PhoneCall size={15} className="call-hist-icon completed" />;
 };
 
-export default function CallHistory({ callHistory, userProfiles, getDisplayName, onCallBack, onItemClick }) {
+export default function CallHistory({ callHistory, userProfiles, getDisplayName, onCallBack, onItemClick, onClearAll, onDeleteItem }) {
   const [filter, setFilter] = useState("All");
 
   const filtered = (callHistory || []).filter((c) => {
@@ -43,16 +43,45 @@ export default function CallHistory({ callHistory, userProfiles, getDisplayName,
 
   return (
     <div className="call-history-panel">
-      <div className="call-history-filters">
-        {FILTERS.map((f) => (
+      <div className="call-history-filters" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "6px", overflowX: "auto" }}>
+          {FILTERS.map((f) => (
+            <button
+              key={f}
+              className={`call-hist-filter-btn ${filter === f ? "active" : ""}`}
+              onClick={() => setFilter(f)}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+        {callHistory && callHistory.length > 0 && (
           <button
-            key={f}
-            className={`call-hist-filter-btn ${filter === f ? "active" : ""}`}
-            onClick={() => setFilter(f)}
+            onClick={() => {
+              if (window.confirm("Clear all call history?")) {
+                onClearAll && onClearAll();
+              }
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--danger-color, #ef4444)",
+              cursor: "pointer",
+              padding: "6px 8px",
+              borderRadius: "4px",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              fontSize: "11px",
+              fontWeight: 600,
+              fontFamily: "inherit",
+              flexShrink: 0
+            }}
+            title="Clear all call history"
           >
-            {f}
+            <Trash2 size={12} /> Clear all
           </button>
-        ))}
+        )}
       </div>
 
       <div className="call-history-list">
@@ -91,7 +120,7 @@ export default function CallHistory({ callHistory, userProfiles, getDisplayName,
                   )}
                 </div>
               </div>
-              <div className="call-hist-actions">
+              <div className="call-hist-actions" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                 {call.type === "video" ? (
                   <button
                     className="call-hist-callback-btn"
@@ -109,6 +138,19 @@ export default function CallHistory({ callHistory, userProfiles, getDisplayName,
                     <Phone size={16} />
                   </button>
                 )}
+                <button
+                  className="call-hist-callback-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm(`Delete this call record?`)) {
+                      onDeleteItem && onDeleteItem(i);
+                    }
+                  }}
+                  title="Delete from history"
+                  style={{ background: "transparent", color: "var(--text-light, #9ca3af)" }}
+                >
+                  <X size={14} />
+                </button>
               </div>
             </div>
           ))
