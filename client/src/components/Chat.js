@@ -2033,7 +2033,7 @@ function Chat({ user: currentUser }) {
             onClick={() => setActiveTab("recent")}
           >
             <History size={14} />
-            <span>Recent</span>
+            {/* <span>Recent</span> */}
             {totalUnread > 0 && <span className="tab-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
           </button>
           <button
@@ -2041,7 +2041,7 @@ function Chat({ user: currentUser }) {
             onClick={() => setActiveTab("online")}
           >
             <span className="tab-online-dot" />
-            <span>Online</span>
+            {/* <span>Online</span> */}
             <span className="tab-count">{filteredOnlineUsers.length}</span>
           </button>
           <button
@@ -2049,7 +2049,7 @@ function Chat({ user: currentUser }) {
             onClick={() => setActiveTab("calls")}
           >
             <PhoneCall size={14} />
-            <span>Calls</span>
+            {/* <span>Calls</span> */}
             {callHistory.filter(c => c.status === "missed").length > 0 && (
               <span className="tab-badge missed-badge">
                 {callHistory.filter(c => c.status === "missed").length}
@@ -2061,7 +2061,7 @@ function Chat({ user: currentUser }) {
             onClick={() => setActiveTab("archive")}
           >
             <Archive size={14} />
-            <span>Archive</span>
+            {/* <span>Archive</span> */}
             {archivedChatsList.length > 0 && <span className="tab-count">{archivedChatsList.length}</span>}
           </button>
         </div>
@@ -2213,6 +2213,7 @@ function Chat({ user: currentUser }) {
             callHistory={callHistory}
             userProfiles={userProfiles}
             getDisplayName={getDisplayName}
+            onItemClick={(email) => handleUserSelect(email)}
             onCallBack={(email, type) => {
               handleUserSelect(email);
               startCall(email, type);
@@ -2221,22 +2222,18 @@ function Chat({ user: currentUser }) {
         )}
 
         <div className="sidebar-footer">
-          <button className="sidebar-footer-btn" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }} title="Invite team member">
-            <UserPlus size={16} />
-            <span>Invite</span>
+          <button className="sidebar-footer-icon-btn" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }} data-tip="Invite" title="Invite">
+            <UserPlus size={18} />
           </button>
-          <button className="sidebar-footer-btn" onClick={() => setShowSettings(true)} title="Settings">
-            <Settings size={16} />
-            <span>Settings</span>
+          <button className="sidebar-footer-icon-btn" onClick={() => setShowSettings(true)} data-tip="Settings" title="Settings">
+            <Settings size={18} />
           </button>
-          <div className="sidebar-footer-divider" />
-          <button className="sidebar-footer-btn sidebar-footer-logout" onClick={() => setShowLogoutConfirm(true)} title="Logout">
-            <LogOut size={16} />
-            <span>Logout</span>
+          <div className="sidebar-footer-separator" />
+          <button className="sidebar-footer-icon-btn sidebar-footer-logout" onClick={() => setShowLogoutConfirm(true)} data-tip="Logout" title="Logout">
+            <LogOut size={18} />
           </button>
-          <button className="sidebar-footer-btn sidebar-footer-delete" onClick={() => setShowDeleteConfirm(true)} title="Delete account">
-            <Trash2 size={16} />
-            <span>Delete</span>
+          <button className="sidebar-footer-icon-btn sidebar-footer-delete" onClick={() => setShowDeleteConfirm(true)} data-tip="Delete" title="Delete account">
+            <Trash2 size={18} />
           </button>
         </div>
       </aside>
@@ -2262,6 +2259,7 @@ function Chat({ user: currentUser }) {
               callHistory={callHistory}
               userProfiles={userProfiles}
               getDisplayName={getDisplayName}
+              onItemClick={(email) => handleUserSelect(email)}
               onCallBack={(email, type) => {
                 handleUserSelect(email);
                 startCall(email, type);
@@ -2340,7 +2338,7 @@ function Chat({ user: currentUser }) {
                 </button>
               </>
             )}
-            <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
+            <button className="icon-btn" data-tip="Settings" title="Settings" onClick={() => setShowSettings(true)}>
               <Settings size={18} />
             </button>
           </div>

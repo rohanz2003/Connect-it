@@ -30,7 +30,7 @@ const getCallIcon = (status, type) => {
   return <PhoneCall size={15} className="call-hist-icon completed" />;
 };
 
-export default function CallHistory({ callHistory, userProfiles, getDisplayName, onCallBack }) {
+export default function CallHistory({ callHistory, userProfiles, getDisplayName, onCallBack, onItemClick }) {
   const [filter, setFilter] = useState("All");
 
   const filtered = (callHistory || []).filter((c) => {
@@ -63,7 +63,7 @@ export default function CallHistory({ callHistory, userProfiles, getDisplayName,
           </div>
         ) : (
           filtered.map((call, i) => (
-            <div key={i} className="call-hist-item">
+            <div key={i} className="call-hist-item" onClick={() => onItemClick && onItemClick(call.with)}>
               <div className="call-hist-avatar">
                 <Avatar
                   src={userProfiles?.[call.with]}
@@ -95,7 +95,7 @@ export default function CallHistory({ callHistory, userProfiles, getDisplayName,
                 {call.type === "video" ? (
                   <button
                     className="call-hist-callback-btn"
-                    onClick={() => onCallBack && onCallBack(call.with, "video")}
+                    onClick={(e) => { e.stopPropagation(); onCallBack && onCallBack(call.with, "video"); }}
                     title="Video call back"
                   >
                     <Video size={16} />
@@ -103,7 +103,7 @@ export default function CallHistory({ callHistory, userProfiles, getDisplayName,
                 ) : (
                   <button
                     className="call-hist-callback-btn"
-                    onClick={() => onCallBack && onCallBack(call.with, "audio")}
+                    onClick={(e) => { e.stopPropagation(); onCallBack && onCallBack(call.with, "audio"); }}
                     title="Call back"
                   >
                     <Phone size={16} />
