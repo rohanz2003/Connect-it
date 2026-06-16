@@ -2,8 +2,6 @@ const express = require("express");
 const router = express.Router();
 const { getMessages, getRecentChats, clearChat } = require("../controllers/messageController");
 const { authenticateUser } = require("../middleware/authenticateUser");
-const { authorizeRole } = require("../middleware/authorizeRole");
-const { validateMessage, handleValidationErrors } = require("../middleware/validateRequest");
 const { auditMiddleware } = require("../middleware/auditLogger");
 
 // Get messages between two users (requires auth)

@@ -4,7 +4,7 @@ const handleTyping = require("./typing");
 const handleMessages = require("./message");
 const handleCalls = require("./call");
 const { getCorsOrigins } = require("../config/env");
-const { registerSocket, unregisterSocket, getAuthenticatedEmail } = require("../utils/socketAuth");
+const { registerSocket, unregisterSocket } = require("../utils/socketAuth");
 const { updateLastSeen } = require("../controllers/userController");
 const Device = require("../models/Device");
 
