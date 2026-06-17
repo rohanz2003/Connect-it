@@ -3,7 +3,7 @@ const { normalizeEmail } = require("../utils/socketAuth");
 
 /**
  * Log a security event to the database asynchronously.
- * Never blocks the request â€” fire and forget.
+ * Never blocks the request — fire and forget.
  */
 const logEvent = async ({ userId, action, details, ip, userAgent, severity = "info" }) => {
   try {

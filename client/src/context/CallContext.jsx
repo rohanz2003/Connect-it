@@ -33,7 +33,7 @@ export function CallProvider({ children, user }) {
   const callIdRef = useRef(callId);
   const secondsRef = useRef(timer.seconds);
 
-  // Keep refs in sync with latest state (runs on every render, not just state change â€” but that's fine for refs)
+  // Keep refs in sync with latest state (runs on every render, not just state change — but that's fine for refs)
   callStateRef.current = callState;
   activeCallRef.current = activeCall;
   callIdRef.current = callId;
@@ -76,7 +76,7 @@ export function CallProvider({ children, user }) {
     stopRingtone();
   }, [callState]);
 
-  // Socket event listeners â€” uses refs to avoid stale closures,
+  // Socket event listeners — uses refs to avoid stale closures,
   // so the effect only depends on the stable socket reference.
   // webrtcRef, callStateRef, activeCallRef, callIdRef, secondsRef are
   // synced each render so handlers always read the latest values.
@@ -99,7 +99,7 @@ export function CallProvider({ children, user }) {
       }
       playConnectSound();
       setCallState("active");
-      // This is the caller being notified that the callee accepted â€” for the caller, this is outgoing
+      // This is the caller being notified that the callee accepted — for the caller, this is outgoing
       isIncomingCallRef.current = false;
     };
 
@@ -149,7 +149,7 @@ export function CallProvider({ children, user }) {
     };
 
     const handleCallUserBusy = () => {
-      // Target user is offline or busy â€” clean up the optimistic "calling" state
+      // Target user is offline or busy — clean up the optimistic "calling" state
       w.endCall();
       timer.reset();
       setCallState("idle");

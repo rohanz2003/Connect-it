@@ -46,7 +46,7 @@ const sendFeedback = async (req, res) => {
       console.warn("Could not save feedback to DB:", dbErr.message);
     }
 
-    // Fire-and-forget emails â€” never block the response on email delivery
+    // Fire-and-forget emails — never block the response on email delivery
     Promise.allSettled([
       sendNotificationEmail({
         email: adminMailTo,

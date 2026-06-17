@@ -42,7 +42,7 @@ export default function GlobalCallOverlay() {
 
   return (
     <>
-      {/* Incoming call overlay â€” shown globally on all pages */}
+      {/* Incoming call overlay — shown globally on all pages */}
       <IncomingCall
         call={incomingCall}
         onAccept={acceptCall}

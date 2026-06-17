@@ -50,7 +50,7 @@ export default function ActiveCall({
 
   const handleTap = useCallback(() => {
     if (showUi) {
-      // Already visible â€” start hide timer
+      // Already visible — start hide timer
       resetHideTimer();
     } else {
       setShowUi(true);
@@ -109,7 +109,7 @@ export default function ActiveCall({
         </div>
       )}
 
-      {/* Hidden audio element for voice calls â€” plays remote audio stream */}
+      {/* Hidden audio element for voice calls — plays remote audio stream */}
       {!isVideo && (
         <audio
           ref={remoteAudioRef}
@@ -119,7 +119,7 @@ export default function ActiveCall({
         />
       )}
 
-      {/* Top bar â€” name + timer + signal quality */}
+      {/* Top bar — name + timer + signal quality */}
       <AnimatePresence>
         {showUi && (
           <motion.div

@@ -30,7 +30,7 @@ const createTransporter = () => {
   const provider = detectProvider();
 
   if (provider === "log") {
-    console.log("📧 Email: no provider configured — emails will be logged to console");
+    console.log("📧 Email: no provider configured � emails will be logged to console");
     return null;
   }
 

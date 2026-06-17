@@ -139,9 +139,7 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
 
 function Chat({ user: currentUser }) {
   const socket = useSocket();
-  const navigate = useNavigate();
-
-  // Call system â€” from CallContext mounted in App.js
+  const navigate = useNavigate();    // Call system — from CallContext mounted in App.js
   const {
     callState,
     incomingCall,
@@ -498,7 +496,7 @@ function Chat({ user: currentUser }) {
           try {
             const parsed = JSON.parse(savedHistory);
             setChatHistory(parsed);
-            console.log("âœ… Loaded chat history from localStorage:", Object.keys(parsed).length, "conversations");
+            console.log("✅ Loaded chat history from localStorage:", Object.keys(parsed).length, "conversations");
           } catch (e) {
             console.error("Failed to parse saved chat history", e);
           }
@@ -530,7 +528,7 @@ function Chat({ user: currentUser }) {
             persistHistory(merged, user.email);
             return merged;
           });
-          console.log("âœ… Loaded", recentChats.length, "recent chats from server");
+          console.log("✅ Loaded", recentChats.length, "recent chats from server");
 
           // Fetch profiles (including lastSeen) for recent chat partners
           const partnerEmails = recentChats.map(c => c.userEmail).filter(Boolean);
@@ -578,7 +576,7 @@ function Chat({ user: currentUser }) {
         displayName: displayName || null,
         bio: bio || null
       };
-      console.log("ðŸ“¡ Joining socket with data:", { email: joinData.email, hasProfilePic: !!joinData.profilePic });
+      console.log("📡 Joining socket with data:", { email: joinData.email, hasProfilePic: !!joinData.profilePic });
       socket.emit("join", joinData);
     };
 
@@ -604,13 +602,13 @@ function Chat({ user: currentUser }) {
       const activeChat = selectedUserRef.current;
       const normalizedFrom = normalizeEmail(from);
       const normalizedActiveChat = normalizeEmail(activeChat);
-      console.log(`ðŸ“¨ Typing listener triggered: from=${normalizedFrom}, activeChat=${normalizedActiveChat}, match=${normalizedFrom === normalizedActiveChat}`);
+      console.log(`📨 Typing listener triggered: from=${normalizedFrom}, activeChat=${normalizedActiveChat}, match=${normalizedFrom === normalizedActiveChat}`);
       
       if (normalizedFrom && normalizedActiveChat && normalizedFrom === normalizedActiveChat) {
-        console.log(`âœ… Typing indicator set for ${normalizedFrom}`);
+        console.log(`✅ Typing indicator set for ${normalizedFrom}`);
         setTypingUser(normalizedFrom);
       } else {
-        console.warn(`âŒ Typing mismatch or empty: normalizedFrom=[${normalizedFrom}], normalizedActiveChat=[${normalizedActiveChat}]`);
+        console.warn(`❌ Typing mismatch or empty: normalizedFrom=[${normalizedFrom}], normalizedActiveChat=[${normalizedActiveChat}]`);
       }
     });
 
@@ -618,16 +616,16 @@ function Chat({ user: currentUser }) {
       const activeChat = selectedUserRef.current;
       const normalizedFrom = normalizeEmail(from);
       const normalizedActiveChat = normalizeEmail(activeChat);
-      console.log(`ðŸ“¨ Stop-typing listener triggered: from=${normalizedFrom}, activeChat=${normalizedActiveChat}, match=${normalizedFrom === normalizedActiveChat}`);
+      console.log(`📨 Stop-typing listener triggered: from=${normalizedFrom}, activeChat=${normalizedActiveChat}, match=${normalizedFrom === normalizedActiveChat}`);
       
       if (normalizedFrom && normalizedActiveChat && normalizedFrom === normalizedActiveChat) {
-        console.log(`âœ… Typing indicator cleared`);
+        console.log(`✅ Typing indicator cleared`);
         setTypingUser(null);
         return;
       }
       setTypingUser((currentTypingUser) => {
         if (currentTypingUser && normalizeEmail(currentTypingUser) === normalizedFrom) {
-          console.log(`âœ… Fallback stop-typing cleared for ${normalizedFrom}`);
+          console.log(`✅ Fallback stop-typing cleared for ${normalizedFrom}`);
           return null;
         }
         return currentTypingUser;
@@ -643,13 +641,13 @@ function Chat({ user: currentUser }) {
 
     // Listen for unread message updates from server
     socket.on("unread-update", (unreadData) => {
-      console.log("ðŸ“¬ Unread messages updated:", unreadData);
+      console.log("📬 Unread messages updated:", unreadData);
       setUnreadMessages(unreadData);
     });
 
     // Listen for profile picture updates
     socket.on("user-profile-update", (data) => {
-      console.log("ðŸ‘¤ Profile update:", data);
+      console.log("👤 Profile update:", data);
       const updatedEmail = data.email.toLowerCase();
       
       // Handle profile picture updates (including removal)
@@ -851,7 +849,7 @@ function Chat({ user: currentUser }) {
 
     // Listen for undelivered messages (status: sent) sent while user was offline
     socket.on("undelivered-messages", (msgs) => {
-      console.log("ðŸ”´ Undelivered messages received:", msgs.length);
+      console.log("🔴 Undelivered messages received:", msgs.length);
       const myEmail = normalizeEmail(user.email);
 
       msgs.forEach((msg) => {
@@ -895,7 +893,7 @@ function Chat({ user: currentUser }) {
       }
     });
 
-    // Listen for messages-read (receiver read our messages â†’ ✓✓ blue)
+    // Listen for messages-read (receiver read our messages → ✓✓ blue)
     socket.on("messages-read", ({ sender, receiver }) => {
       const myEmail = normalizeEmail(user.email);
       if (normalizeEmail(receiver) === myEmail) {
@@ -941,14 +939,27 @@ function Chat({ user: currentUser }) {
     };
   }, [socket, user]);
 
-  // Visibility and offline handlers
+  // Visibility and offline handlers - debounced to avoid flickering
   useEffect(() => {
     if (!socket || !user) return;
 
+    const hideTimeoutRef = { current: null };
+
     const emitVisiblePresence = () => {
       if (document.hidden) {
-        socket.emit("leave", { email: user.email.toLowerCase() });
+        // Debounce: only leave presence after 30s of being hidden
+        if (!hideTimeoutRef.current) {
+          hideTimeoutRef.current = setTimeout(() => {
+            socket.emit("leave", { email: user.email.toLowerCase() });
+            hideTimeoutRef.current = null;
+          }, 30000);
+        }
       } else {
+        // Clear any pending leave timer
+        if (hideTimeoutRef.current) {
+          clearTimeout(hideTimeoutRef.current);
+          hideTimeoutRef.current = null;
+        }
         const joinData = { email: user.email.toLowerCase() };
         if (user.profilePic) {
           joinData.profilePic = user.profilePic;
@@ -957,31 +968,18 @@ function Chat({ user: currentUser }) {
       }
     };
 
-    const handleBlur = () => {
-      socket.emit("leave", { email: user.email.toLowerCase() });
-    };
-
-    const handleFocus = () => {
-      const joinData = { email: user.email.toLowerCase() };
-      if (user.profilePic) {
-        joinData.profilePic = user.profilePic;
-      }
-      socket.emit("join", joinData);
-    };
-
     const handleBeforeUnload = () => {
       socket.disconnect();
     };
 
     document.addEventListener("visibilitychange", emitVisiblePresence);
-    window.addEventListener("blur", handleBlur);
-    window.addEventListener("focus", handleFocus);
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+      }
       document.removeEventListener("visibilitychange", emitVisiblePresence);
-      window.removeEventListener("blur", handleBlur);
-      window.removeEventListener("focus", handleFocus);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [socket, user]);
@@ -1027,7 +1025,7 @@ function Chat({ user: currentUser }) {
     const syncChat = async () => {
       if (!user || !selectedUser || !socket) return;
 
-      console.log(`ðŸ“ Joining room and fetching history: ${user.email} â†” ${selectedUser}`);
+      console.log(`📍 Joining room and fetching history: ${user.email} ↔ ${selectedUser}`);
 
       // 1. Join room
       socket.emit("join-room", { user1: user.email, user2: selectedUser });
@@ -1076,15 +1074,15 @@ function Chat({ user: currentUser }) {
       const normalizedSelected = normalizeEmail(selectedUser);
       
       if (!normalizedUser || !normalizedSelected) {
-        console.warn("âŒ Stop-typing aborted: invalid email normalization");
+        console.warn("❌ Stop-typing aborted: invalid email normalization");
         return;
       }
       
       const stopPayload = { from: normalizedUser, to: normalizedSelected };
-      console.log("ðŸ“¤ Emitting stop-typing:", stopPayload);
+      console.log("📤 Emitting stop-typing:", stopPayload);
       socket.emit("stop-typing", stopPayload);
     } else {
-      console.debug("âš ï¸ Stop-typing not sent: missing user, selectedUser, socket, or not connected");
+      console.debug("⚠️ Stop-typing not sent: missing user, selectedUser, socket, or not connected");
     }
   };
 
@@ -1111,12 +1109,12 @@ function Chat({ user: currentUser }) {
     setMessage(val);
 
     if (!user || !selectedUser || !socket) {
-      console.warn("âŒ Typing aborted: missing user, selectedUser, or socket");
+      console.warn("❌ Typing aborted: missing user, selectedUser, or socket");
       return;
     }
 
     if (!socket.connected) {
-      console.warn("âŒ Socket not connected, typing not sent");
+      console.warn("❌ Socket not connected, typing not sent");
       return;
     }
 
@@ -1124,7 +1122,7 @@ function Chat({ user: currentUser }) {
     const normalizedSelected = normalizeEmail(selectedUser);
 
     if (!normalizedUser || !normalizedSelected) {
-      console.warn("âŒ Typing aborted: invalid email normalization", { user: user.email, selected: selectedUser });
+      console.warn("❌ Typing aborted: invalid email normalization", { user: user.email, selected: selectedUser });
       return;
     }
 
@@ -1134,7 +1132,7 @@ function Chat({ user: currentUser }) {
     }
 
     const typingPayload = { from: normalizedUser, to: normalizedSelected };
-    console.log("ðŸ“¤ Emitting typing:", typingPayload);
+    console.log("📤 Emitting typing:", typingPayload);
     socket.emit("typing", typingPayload);
 
     if (typingTimeoutRef.current) {
@@ -1142,7 +1140,7 @@ function Chat({ user: currentUser }) {
     }
 
     typingTimeoutRef.current = setTimeout(() => {
-      console.log("â±ï¸ Typing timeout reached - auto stopping typing");
+      console.log("⏱️ Typing timeout reached - auto stopping typing");
       stopTyping();
     }, 3000); // Timeout for better UX
   };
@@ -1152,7 +1150,7 @@ function Chat({ user: currentUser }) {
 
     // Check if socket is connected
     if (!socket.connected) {
-      alert("âŒ You are offline. Please check your connection.");
+      alert("❌ You are offline. Please check your connection.");
       return;
     }
 
@@ -1160,7 +1158,7 @@ function Chat({ user: currentUser }) {
 
     const msgText = message;
     const tempId = `${Date.now()}-${Math.random()}`;
-    console.log(`ðŸ“¤ Sending message from ${user.email} to ${selectedUser}: "${msgText}"`);
+    console.log(`📤 Sending message from ${user.email} to ${selectedUser}: "${msgText}"`);
 
     // Create message object
     const newMsg = {
@@ -1211,7 +1209,7 @@ function Chat({ user: currentUser }) {
     if (!file || !user || !selectedUser || !socket) return;
 
     if (!socket.connected) {
-      alert("âŒ You are offline. Please check your connection.");
+      alert("❌ You are offline. Please check your connection.");
       e.target.value = null;
       return;
     }
@@ -1219,7 +1217,7 @@ function Chat({ user: currentUser }) {
     ensureSocketJoined();
 
     if (isMediaSending) {
-      alert("â³ File is already being sent. Please wait...");
+      alert("⏳ File is already being sent. Please wait...");
       e.target.value = null;
       return;
     }
@@ -1307,8 +1305,8 @@ function Chat({ user: currentUser }) {
       });
 
     } catch (err) {
-      console.error("âŒ Error processing file:", err);
-      alert("âŒ Error sending file. Please try again.");
+      console.error("❌ Error processing file:", err);
+      alert("❌ Error sending file. Please try again.");
       setIsMediaSending(false);
       setUploadProgress(0);
     } finally {
@@ -2306,7 +2304,7 @@ function Chat({ user: currentUser }) {
       </div>
 
       <main className={`chat-panel ${activeTab !== "chat" ? "mobile-hidden" : ""}`}>
-        {/* Incoming call overlay â€” shown globally over the entire app */}
+        {/* Incoming call overlay � shown globally over the entire app */}
 
         <div className="chat-panel-header">
           <button className="mobile-menu-btn" onClick={() => { if (selectedUser) { setSelectedUser(null); setSidebarOpen(true); } else { setSidebarOpen(!sidebarOpen); } }} aria-label={selectedUser ? "Back" : "Open menu"}>
@@ -2476,7 +2474,7 @@ function Chat({ user: currentUser }) {
                                 <div className="media-file">
                                   <div className="media-file-header">
                                     <div className={`media-file-icon ${msg.text?.name?.endsWith('.pdf') ? 'pdf' : msg.text?.name?.endsWith('.doc') || msg.text?.name?.endsWith('.docx') ? 'doc' : 'other'}`}>
-                                      {msg.text?.name?.endsWith('.pdf') ? 'ðŸ“„' : msg.text?.name?.endsWith('.doc') || msg.text?.name?.endsWith('.docx') ? 'ðŸ“' : 'ðŸ“Ž'}
+                                      {msg.text?.name?.endsWith('.pdf') ? '📄' : msg.text?.name?.endsWith('.doc') || msg.text?.name?.endsWith('.docx') ? '📝' : '📎'}
                                     </div>
                                     <div className="media-file-info">
                                       <span className="media-file-name">{msg.text?.name || "Document"}</span>
@@ -2509,7 +2507,7 @@ function Chat({ user: currentUser }) {
                               {msg.text?.data && msg.mediaType !== "image" && msg.mediaType !== "video" && msg.mediaType !== "audio" && msg.mediaType !== "application" && (
                                 <div className="media-file">
                                   <div className="media-file-header">
-                                    <div className="media-file-icon other">ðŸ“Ž</div>
+                                    <div className="media-file-icon other">📎</div>
                                     <div className="media-file-info">
                                       <span className="media-file-name">{msg.text?.name || "Attachment"}</span>
                                       <span className="media-file-size">{msg.text?.size ? `${(msg.text.size / 1024).toFixed(1)} KB` : "File"}</span>
@@ -2545,8 +2543,8 @@ function Chat({ user: currentUser }) {
                         </div>
                         <div className="message-meta">
                           <span>{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
-                          {msg.pending && <span className="message-status pending">â° Sendingâ€¦</span>}
-                          {msg.failed && <span className="message-status failed">âŒ Failed</span>}
+                          {msg.pending && <span className="message-status pending">⏰ Sending…</span>}
+                          {msg.failed && <span className="message-status failed">❌ Failed</span>}
                           {msg.sender === user.email && !msg.pending && !msg.failed && (
                             <span className={`message-status-tick ${msg.status || 'sent'}`}>
                               {msg.status === "read" ? (

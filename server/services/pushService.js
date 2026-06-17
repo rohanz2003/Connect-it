@@ -13,7 +13,7 @@ const initPush = () => {
     webpush.setVapidDetails(config.email, config.publicKey, config.privateKey);
     console.log("🔔 Web Push initialized");
   } else {
-    console.warn("⚠️ VAPID keys not configured — push notifications disabled");
+    console.warn("⚠️ VAPID keys not configured � push notifications disabled");
   }
 };
 

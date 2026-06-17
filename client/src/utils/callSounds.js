@@ -1,5 +1,5 @@
 /**
- * callSounds.js â€” Web Audio API synthesized call sounds.
+ * callSounds.js — Web Audio API synthesized call sounds.
  * No external audio files required. Works offline.
  */
 
