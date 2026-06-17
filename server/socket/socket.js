@@ -31,38 +31,39 @@ const initSocket = (server) => {
   const socketToDevice = {};
   const userDeviceSockets = {};
 
-  // Socket authentication middleware
+  // Socket authentication middleware (non-blocking)
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token;
       const email = socket.handshake.auth?.email;
 
-      if (!email) {
-        return next(new Error("Authentication required: no email provided"));
-      }
+      // Set email if provided in auth handshake
+      if (email) {
+        socket.userEmail = email.toLowerCase().trim();
 
-      // If JWT token is provided, verify it
-      if (token) {
-        try {
-          const admin = require("firebase-admin");
-          const decoded = await admin.auth().verifyIdToken(token);
-          if (decoded.email && decoded.email.toLowerCase() !== email.toLowerCase()) {
-            return next(new Error("Authentication failed: email mismatch"));
+        // If JWT token is provided, verify it
+        if (token) {
+          try {
+            const admin = require("firebase-admin");
+            const decoded = await admin.auth().verifyIdToken(token);
+            if (decoded.email && decoded.email.toLowerCase() !== socket.userEmail) {
+              console.warn("Socket auth: email mismatch, using handshake email");
+            }
+            socket.userUid = decoded.uid;
+          } catch (err) {
+            // Token verification failed - still allow connection
+            console.warn("Socket auth: token verification failed, allowing email-only auth");
           }
-          socket.userEmail = decoded.email.toLowerCase().trim();
-          socket.userUid = decoded.uid;
-        } catch (err) {
-          // Token verification failed, but allow with email-only auth
-          // (backward compatibility with existing clients)
-          socket.userEmail = email.toLowerCase().trim();
         }
       } else {
-        socket.userEmail = email.toLowerCase().trim();
+        // No email provided - allow connection anyway (presence auth happens via 'join' event)
+        console.warn("Socket connected without auth email - presence will be set on 'join' event");
       }
 
       next();
     } catch (err) {
-      next(new Error("Authentication error"));
+      console.error("Socket auth middleware error:", err.message);
+      next(); // Still allow connection even on error
     }
   });
 

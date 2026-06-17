@@ -59,6 +59,7 @@ import { validateImageFile, compressImage } from "../utils/imageUtils";
 import { getDeviceInfo } from "../utils/deviceDetector";
 import { subscribeToPush } from "../utils/pushHelper";
 import { fetchMessages, fetchRecentChats } from "../services/messageService";
+import { setSocketAuth } from "../services/socketService";
 import { useNavigate } from "react-router-dom";
 import "./Chat.css";
 
@@ -438,6 +439,9 @@ function Chat({ user: currentUser }) {
       email: userData.email,
       uid: userData.uid
     }));
+
+    // Set socket auth for the server connection
+    setSocketAuth(userData.email, null);
 
     if (userData.profilePic) {
       setUserProfiles((prev) => ({
