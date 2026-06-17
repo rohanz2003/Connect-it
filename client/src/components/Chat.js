@@ -2538,7 +2538,7 @@ function Chat({ user: currentUser }) {
                                 </div>
                               )}
                               {!msg.text?.data && msg.type === "media" && (
-                                <span className="media-unavailable">Media unavailable (reload chat)</span>
+                                <span className="media-unavailable">{msg.text?.__decrypt_failed ? "Message encrypted with different key - can't decrypt" : "Media unavailable (reload chat)"}</span>
                               )}
                             </div>
                           ) : (

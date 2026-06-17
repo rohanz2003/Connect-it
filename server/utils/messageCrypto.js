@@ -53,14 +53,26 @@ const decryptPayload = (stored) => {
     }
   } catch (err) {
     console.error("Message decryption failed:", err.message);
-    return "[Unable to decrypt message]";
+    // Return a safe placeholder that preserves the type structure
+    // so UI doesn't break (e.g. media messages expecting an object)
+    return { __decrypt_failed: true, message: "Unable to decrypt" };
   }
 };
 
 const decryptMessageDoc = (doc) => {
   if (!doc) return doc;
   const plain = typeof doc.toObject === "function" ? doc.toObject() : { ...doc };
-  plain.text = decryptPayload(plain.text);
+  const decrypted = decryptPayload(plain.text);
+  // Handle decryption failure differently based on message type
+  if (typeof decrypted === "object" && decrypted?.__decrypt_failed) {
+    // For media messages: return the object so UI can show contextual message
+    // For text messages: return a readable string instead of [object Object]
+    plain.text = plain.type === "media"
+      ? decrypted
+      : "[Unable to decrypt message]";
+  } else {
+    plain.text = decrypted;
+  }
   return plain;
 };
 
