@@ -63,6 +63,25 @@ exports.clearChat = async (req, res) => {
   }
 };
 
+exports.clearAllMessages = async (req, res) => {
+  try {
+    const result = await Promise.all([
+      Message.deleteMany({}),
+      ClearedChat.deleteMany({}),
+    ]);
+
+    console.log(`🗑️ All messages cleared: ${result[0].deletedCount} messages, ${result[1].deletedCount} cleared records`);
+    res.json({
+      success: true,
+      deletedMessages: result[0].deletedCount,
+      deletedClearedRecords: result[1].deletedCount,
+    });
+  } catch (error) {
+    console.error("Error clearing all messages:", error);
+    res.status(500).json({ error: "Failed to clear messages", details: error.message });
+  }
+};
+
 exports.getRecentChats = async (req, res) => {
   try {
     const { userEmail } = req.query;
