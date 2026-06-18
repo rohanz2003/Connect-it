@@ -172,6 +172,7 @@ function Chat({ user: currentUser }) {
     toggleMute,
     toggleVideo,
     toggleSpeaker,
+    markMissedCallsAsRead,
   } = useCall();
 
   const [user, setUser] = useState(null);
@@ -1792,6 +1793,8 @@ function Chat({ user: currentUser }) {
       socket.emit("seen-message", { sender: partner, receiver: user.email });
     }
 
+    // Also mark missed calls as read for this user
+    markMissedCallsAsRead();
     // Clear unread badge for this chat immediately
     if (user) {
       setUnreadMessages(prev => {
@@ -2114,14 +2117,14 @@ function Chat({ user: currentUser }) {
           </button>
           <button
             className={`tab ${activeTab === "calls" ? "active" : ""}`}
-            onClick={() => setActiveTab("calls")}
+            onClick={() => { setActiveTab("calls"); markMissedCallsAsRead(); }}
             title="Call History"
           >
             <div style={{ position: 'relative' }}>
               <PhoneCall size={18} />
-              {callHistory.filter(c => c.status === "missed").length > 0 && (
+              {callHistory.filter(c => c.status === "missed" && !c.seen).length > 0 && (
                 <span className="tab-badge missed-badge" style={{ position: 'absolute', top: -8, right: -12 }}>
-                  {callHistory.filter(c => c.status === "missed").length}
+                  {callHistory.filter(c => c.status === "missed" && !c.seen).length}
                 </span>
               )}
             </div>
@@ -3015,11 +3018,11 @@ function Chat({ user: currentUser }) {
           </span>
           <span>Online</span>
         </button>
-        <button className={`bottom-nav-btn ${activeTab === "calls" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("calls"); setSidebarOpen(false); }}>
+        <button className={`bottom-nav-btn ${activeTab === "calls" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("calls"); setSidebarOpen(false); markMissedCallsAsRead(); }}>
           <span className="bottom-nav-icon-wrap">
             <PhoneCall size={18} />
             {callHistory.filter(c => c.status === "missed").length > 0 && (
-              <span className="bottom-nav-badge">{callHistory.filter(c => c.status === "missed").length}</span>
+              <span className="bottom-nav-badge">{callHistory.filter(c => c.status === "missed" && !c.seen).length}</span>
             )}
           </span>
           <span>Calls</span>

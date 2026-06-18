@@ -40,6 +40,7 @@ const normalizeCallEntry = (entry, index = 0) => {
     duration: Number(entry.duration) || 0,
     status,
     timestamp,
+    seen: entry.seen === true,
   };
 };
 
@@ -64,6 +65,25 @@ export const getCallHistory = () => {
     return existing.map(normalizeCallEntry);
   } catch (e) {
     return [];
+  }
+};
+
+export const markMissedCallsAsRead = () => {
+  try {
+    const existing = getCallHistory();
+    let changed = false;
+    const updated = existing.map((entry) => {
+      if (entry.status === "missed" && !entry.seen) {
+        changed = true;
+        return { ...entry, seen: true };
+      }
+      return entry;
+    });
+    if (changed) {
+      localStorage.setItem(CALL_HISTORY_KEY, JSON.stringify(updated));
+    }
+  } catch (e) {
+    console.warn("Failed to mark missed calls as read", e);
   }
 };
 

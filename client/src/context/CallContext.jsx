@@ -6,6 +6,7 @@ import {
   getCallHistory,
   clearCallHistory,
   deleteCallHistoryEntry,
+  markMissedCallsAsRead,
 } from "../utils/callHelpers";
 import { playRingtone, stopRingtone, playConnectSound, playEndSound } from "../utils/callSounds";
 import socket from "../services/socketService";
@@ -367,6 +368,7 @@ export function CallProvider({ children, user }) {
     clearAllCallHistory,
     deleteCallHistoryItem,
     refreshCallHistory,
+    markMissedCallsAsRead,
   };
 
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
