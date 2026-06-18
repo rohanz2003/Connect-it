@@ -11,6 +11,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { CallProvider } from "./context/CallContext";
 import GlobalCallOverlay from "./components/call/GlobalCallOverlay";
 import { createSession } from "./services/authToken";
+import { connectSocket, disconnectSocket } from "./services/socketService";
 
 // ✅ Protected Route
 const PrivateRoute = ({ children, loading, user }) => {
@@ -37,14 +38,22 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser && !sessionCreated) {
         sessionCreated = true;
-        try {
-          const sessionData = await createSession();
-          if (sessionData?.refreshToken) {
-            const { storeRefreshToken } = await import("./services/refreshTokenService");
-            storeRefreshToken(sessionData.refreshToken);
+        const sessionError = await (async () => {
+          try {
+            const sessionData = await createSession();
+            return null;
+          } catch (err) {
+            return err;
           }
-        } catch (err) {
-          console.warn("Session creation failed (will retry on Chat mount):", err.message);
+        })();
+        if (sessionError) {
+          console.warn("Session creation failed (socket will use Firebase token):", sessionError.message);
+        }
+        try {
+          await connectSocket();
+          console.log("✅ Socket connected after auth");
+        } catch (socketErr) {
+          console.warn("Socket connection failed (will retry on Chat mount):", socketErr.message);
         }
 
         const mappedUser = {
@@ -76,6 +85,7 @@ function App() {
       } else {
         setUser(null);
         localStorage.removeItem("user");
+        disconnectSocket();
       }
       setLoading(false);
     });

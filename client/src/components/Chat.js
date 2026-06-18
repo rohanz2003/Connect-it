@@ -501,11 +501,17 @@ function Chat({ user: currentUser }) {
   useEffect(() => {
     if (!user) return;
 
-    if (!socket.connected) {
-      connectSocket().catch((err) =>
-        console.error("Socket connection failed:", err)
-      );
-    }
+    const ensureSocket = async () => {
+      if (!socket.connected) {
+        try {
+          await connectSocket();
+          console.log("✅ Socket connected from Chat mount");
+        } catch (err) {
+          console.error("Socket connection failed from Chat:", err);
+        }
+      }
+    };
+    ensureSocket();
 
     const loadChatHistory = async () => {
       try {

@@ -2,10 +2,13 @@ import { getAuthToken } from "./authToken";
 import { auth } from "../firebase";
 
 const REFRESH_TOKEN_KEY = "connect_it_refresh_token";
+const ACCESS_TOKEN_KEY = "connect_it_access_token";
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 let isRefreshing = false;
 let refreshSubscribers = [];
+
+let cachedAccessToken = null;
 
 const onRefreshed = (token) => {
   refreshSubscribers.forEach((cb) => cb(token));
@@ -14,6 +17,34 @@ const onRefreshed = (token) => {
 
 const addRefreshSubscriber = (cb) => {
   refreshSubscribers.push(cb);
+};
+
+export const storeAccessToken = (token) => {
+  cachedAccessToken = token;
+  try {
+    sessionStorage.setItem(ACCESS_TOKEN_KEY, token || "");
+  } catch (e) {
+    console.warn("Failed to store access token", e);
+  }
+};
+
+export const getAccessToken = () => {
+  if (cachedAccessToken) return cachedAccessToken;
+  try {
+    cachedAccessToken = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+    return cachedAccessToken;
+  } catch (e) {
+    return null;
+  }
+};
+
+export const clearAccessToken = () => {
+  cachedAccessToken = null;
+  try {
+    sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  } catch (e) {
+    console.warn("Failed to clear access token", e);
+  }
 };
 
 export const storeRefreshToken = (token) => {
@@ -71,9 +102,11 @@ export const refreshAccessToken = async () => {
 
     const data = await response.json();
     storeRefreshToken(data.refreshToken);
+    storeAccessToken(data.token);
     onRefreshed(data.token);
     return data.token;
   } catch (err) {
+    clearAccessToken();
     clearRefreshToken();
     throw err;
   } finally {

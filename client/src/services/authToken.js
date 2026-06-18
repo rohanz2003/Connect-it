@@ -1,9 +1,12 @@
 import { auth } from "../firebase";
 import {
   storeRefreshToken,
+  storeAccessToken,
+  clearAccessToken,
   clearRefreshToken,
   refreshAccessToken,
   getStoredRefreshToken,
+  getAccessToken,
 } from "./refreshTokenService";
 
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
@@ -48,13 +51,13 @@ const tryRefreshOn401 = async (url, options, retries = 0) => {
 };
 
 export const createSession = async () => {
-  const token = await getAuthToken();
-  if (!token) throw new Error("Not authenticated");
+  const firebaseToken = await getAuthToken(true);
+  if (!firebaseToken) throw new Error("Not authenticated");
 
   const response = await fetch(`${API_URL}/api/auth/session`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${firebaseToken}`,
       "Content-Type": "application/json",
     },
   });
@@ -66,6 +69,9 @@ export const createSession = async () => {
   const data = await response.json();
   if (data.refreshToken) {
     storeRefreshToken(data.refreshToken);
+  }
+  if (data.token) {
+    storeAccessToken(data.token);
   }
   return data;
 };
