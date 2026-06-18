@@ -5,7 +5,7 @@ const Device = require("../models/Device");
 const AuditLog = require("../models/AuditLog");
 
 // Initialize Firebase Admin SDK conditionally if configuration exists
-if (!admin.apps.length && process.env.FIREBASE_PROJECT_ID) {
+if ((!admin || !admin.apps || !admin.apps.length) && process.env.FIREBASE_PROJECT_ID) {
   try {
     admin.initializeApp({
       credential: admin.credential.cert({
