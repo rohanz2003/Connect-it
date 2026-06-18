@@ -848,28 +848,29 @@ body {
 .sidebar-footer {
   padding: 8px;
   border-top: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
   background: var(--background-sidebar);
 }
 
-.sidebar-footer-btn {
+.sidebar-footer-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.sidebar-footer-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0;
   border: none;
   background: transparent;
   color: var(--text-secondary);
   border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  font-family: inherit;
   transition: var(--transition);
-  text-align: left;
-  width: 100%;
 }
 
 .sidebar-footer-btn:hover {
