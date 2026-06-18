@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { Phone, Video, PhoneIncoming, PhoneMissed, PhoneOutgoing, PhoneCall } from "lucide-react";
+import { Phone, Video, PhoneIncoming, PhoneMissed, PhoneOutgoing, PhoneCall, Trash2, X } from "lucide-react";
 import Avatar from "../Avatar";
 import { formatCallDuration } from "../../utils/callHelpers";
+import { useCall } from "../../context/CallContext";
 
 const FILTERS = ["All", "Missed", "Incoming", "Outgoing"];
 
@@ -32,27 +33,43 @@ const getCallIcon = (status, type) => {
 
 export default function CallHistory({ callHistory, userProfiles, getDisplayName, onCallBack }) {
   const [filter, setFilter] = useState("All");
+  const { clearAllCallHistory, deleteCallHistoryItem } = useCall();
 
   const filtered = (callHistory || []).filter((c) => {
     if (filter === "All") return true;
     if (filter === "Missed") return c.status === "missed";
     if (filter === "Incoming") return c.status === "incoming";
-    if (filter === "Outgoing") return c.status === "outgoing" || c.status === "completed";
+    if (filter === "Outgoing") return c.status === "outgoing";
     return true;
   });
 
   return (
     <div className="call-history-panel">
-      <div className="call-history-filters">
-        {FILTERS.map((f) => (
-          <button
-            key={f}
-            className={`call-hist-filter-btn ${filter === f ? "active" : ""}`}
-            onClick={() => setFilter(f)}
+      <div className="call-history-header">
+        <div className="call-history-filters">
+          {FILTERS.map((f) => (
+            <button
+              key={f}
+              className={`call-hist-filter-btn ${filter === f ? "active" : ""}`}
+              onClick={() => setFilter(f)}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+        {(callHistory || []).length > 0 && (
+          <button 
+            className="call-history-clear-btn" 
+            onClick={() => {
+              if (window.confirm("Clear all call history?")) {
+                clearAllCallHistory();
+              }
+            }}
+            title="Clear all history"
           >
-            {f}
+            <Trash2 size={16} />
           </button>
-        ))}
+        )}
       </div>
 
       <div className="call-history-list">
@@ -62,8 +79,8 @@ export default function CallHistory({ callHistory, userProfiles, getDisplayName,
             <p>No {filter !== "All" ? filter.toLowerCase() + " " : ""}calls yet</p>
           </div>
         ) : (
-          filtered.map((call, i) => (
-            <div key={i} className="call-hist-item">
+          filtered.map((call) => (
+            <div key={call.id} className="call-hist-item">
               <div className="call-hist-avatar">
                 <Avatar
                   src={userProfiles?.[call.with]}
@@ -109,6 +126,13 @@ export default function CallHistory({ callHistory, userProfiles, getDisplayName,
                     <Phone size={16} />
                   </button>
                 )}
+                <button
+                  className="call-hist-delete-btn"
+                  onClick={() => deleteCallHistoryItem(call.id)}
+                  title="Remove from history"
+                >
+                  <X size={16} />
+                </button>
               </div>
             </div>
           ))

@@ -1,7 +1,12 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import useWebRTC from "../hooks/useWebRTC";
 import useCallTimer from "../hooks/useCallTimer";
-import { saveCallToHistory, getCallHistory } from "../utils/callHelpers";
+import {
+  saveCallToHistory,
+  getCallHistory,
+  clearCallHistory,
+  deleteCallHistoryEntry,
+} from "../utils/callHelpers";
 import { playRingtone, stopRingtone, playConnectSound, playEndSound } from "../utils/callSounds";
 import socket from "../services/socketService";
 
@@ -13,6 +18,7 @@ export function CallProvider({ children, user }) {
   const [activeCall, setActiveCall] = useState({
     type: null,
     with: null,
+    direction: null,
     remoteStream: null,
     isMuted: false,
     isVideoOff: false,
@@ -23,6 +29,8 @@ export function CallProvider({ children, user }) {
   const [callId, setCallId] = useState(null);
   const remoteStreamRef = useRef(null);
   const pendingCallerRef = useRef(null);
+  const incomingCallRef = useRef(null);
+  const pendingIceCandidatesRef = useRef([]);
 
   const timer = useCallTimer(callState === "active");
 
@@ -36,6 +44,7 @@ export function CallProvider({ children, user }) {
   callStateRef.current = callState;
   activeCallRef.current = activeCall;
   callIdRef.current = callId;
+  incomingCallRef.current = incomingCall;
   secondsRef.current = timer.seconds;
 
   const onRemoteStream = useCallback((stream) => {
@@ -46,6 +55,40 @@ export function CallProvider({ children, user }) {
   const webrtc = useWebRTC({ socket, userId: user?.email, onRemoteStream });
   const webrtcRef = useRef(webrtc);
   webrtcRef.current = webrtc;
+
+  const refreshCallHistory = useCallback(() => {
+    setCallHistory(getCallHistory());
+  }, []);
+
+  const addCallHistoryEntry = useCallback((entry) => {
+    saveCallToHistory(entry);
+    refreshCallHistory();
+  }, [refreshCallHistory]);
+
+  const flushPendingIceCandidates = useCallback(() => {
+    const peer = webrtcRef.current?.peerRef?.current;
+    if (!peer || pendingIceCandidatesRef.current.length === 0) return;
+
+    const queued = [...pendingIceCandidatesRef.current];
+    pendingIceCandidatesRef.current = [];
+    queued.forEach((candidate) => {
+      try {
+        peer.signal(candidate);
+      } catch (err) {
+        console.warn("Failed to apply queued ICE candidate:", err.message);
+      }
+    });
+  }, []);
+
+  const clearAllCallHistory = useCallback(() => {
+    clearCallHistory();
+    setCallHistory([]);
+  }, []);
+
+  const deleteCallHistoryItem = useCallback((id) => {
+    deleteCallHistoryEntry(id);
+    refreshCallHistory();
+  }, [refreshCallHistory]);
 
   useEffect(() => {
     setCallHistory(getCallHistory());
@@ -90,11 +133,14 @@ export function CallProvider({ children, user }) {
       setCallId(callId);
       setIncomingCall({ from, type, signal });
       setCallState("ringing");
+      pendingIceCandidatesRef.current = []; // Clear queue for new call
     };
 
     const handleAccepted = ({ signal, from }) => {
       if (w.peerRef.current) {
         w.peerRef.current.signal(signal);
+        // Flush any candidates received while waiting for acceptance
+        setTimeout(flushPendingIceCandidates, 100);
       }
       playConnectSound();
       setCallState("active");
@@ -102,6 +148,14 @@ export function CallProvider({ children, user }) {
 
     const handleRejected = ({ from, callId: id }) => {
       if (callIdRef.current === id || !id) {
+        if (activeCallRef.current.with) {
+          addCallHistoryEntry({
+            with: activeCallRef.current.with,
+            type: activeCallRef.current.type,
+            duration: 0,
+            status: "outgoing",
+          });
+        }
         w.endCall();
         playEndSound();
         setCallState("idle");
@@ -112,15 +166,24 @@ export function CallProvider({ children, user }) {
     const handleEnded = ({ from, callId: id }) => {
       if (callStateRef.current !== "idle") {
         const duration = secondsRef.current;
+        const state = callStateRef.current;
+
         if (activeCallRef.current.with) {
-          saveCallToHistory({
+          addCallHistoryEntry({
             with: activeCallRef.current.with,
             type: activeCallRef.current.type,
             duration,
-            status: "completed",
+            status: activeCallRef.current.direction || "outgoing",
           });
-          setCallHistory(getCallHistory());
+        } else if (state === "ringing" && incomingCallRef.current) {
+          addCallHistoryEntry({
+            with: incomingCallRef.current.from,
+            type: incomingCallRef.current.type,
+            duration: 0,
+            status: "missed",
+          });
         }
+
         w.endCall();
         playEndSound();
         timer.reset();
@@ -132,18 +195,24 @@ export function CallProvider({ children, user }) {
     };
 
     const handleIceCandidate = ({ candidate, from }) => {
-      if (w.peerRef.current && candidate) {
-        w.peerRef.current.signal(candidate);
+      const peer = w.peerRef.current;
+      if (peer && !peer.destroyed) {
+        try {
+          peer.signal(candidate);
+        } catch (e) {
+          console.warn("Signal error", e);
+        }
+      } else {
+        // Queue candidates if peer isn't ready
+        pendingIceCandidatesRef.current.push(candidate);
       }
     };
 
     const handleCallStarted = ({ callId: id, to }) => {
-      // Server confirmed the call was initiated; store the server-generated callId
       setCallId(id);
     };
 
     const handleCallUserBusy = () => {
-      // Target user is offline or busy — clean up the optimistic "calling" state
       w.endCall();
       timer.reset();
       setCallState("idle");
@@ -168,10 +237,7 @@ export function CallProvider({ children, user }) {
       socket.off("call-started", handleCallStarted);
       socket.off("call-user-busy", handleCallUserBusy);
     };
-  }, [socket]);
-  // Note: intentionally omitting callState/activeCall/callId/timer/webrtc from deps.
-  // Handlers use refs (callStateRef, activeCallRef, callIdRef, secondsRef, webrtcRef)
-  // to always read the latest values without re-registering socket listeners.
+  }, [socket, flushPendingIceCandidates, addCallHistoryEntry, timer]);
 
   const startCall = useCallback(async (targetUserId, type) => {
     try {
@@ -180,6 +246,7 @@ export function CallProvider({ children, user }) {
       setActiveCall({
         type,
         with: targetUserId,
+        direction: "outgoing",
         remoteStream: null,
         isMuted: false,
         isVideoOff: false,
@@ -187,6 +254,7 @@ export function CallProvider({ children, user }) {
         controlsVisible: true,
       });
       setIncomingCall(null);
+      pendingIceCandidatesRef.current = [];
       return result;
     } catch (err) {
       setCallState("idle");
@@ -197,13 +265,13 @@ export function CallProvider({ children, user }) {
   const acceptCall = useCallback(async () => {
     if (!incomingCall) return;
     try {
-      // Pass caller email explicitly to fix the stale-closure bug
       const result = await webrtc.answerCall(incomingCall.signal, incomingCall.type, incomingCall.from);
       playConnectSound();
       setCallState("active");
       setActiveCall({
         type: incomingCall.type,
         with: incomingCall.from,
+        direction: "incoming",
         remoteStream: null,
         isMuted: false,
         isVideoOff: false,
@@ -211,40 +279,40 @@ export function CallProvider({ children, user }) {
         controlsVisible: true,
       });
       setIncomingCall(null);
+      // Flush candidates after answering
+      setTimeout(flushPendingIceCandidates, 100);
       return result;
     } catch (err) {
       setCallState("idle");
       setIncomingCall(null);
       throw err;
     }
-  }, [incomingCall, webrtc]);
+  }, [incomingCall, webrtc, flushPendingIceCandidates]);
 
   const rejectCall = useCallback(() => {
     if (incomingCall) {
       socket.emit("reject-call", { to: incomingCall.from, callId });
-      saveCallToHistory({
+      addCallHistoryEntry({
         with: incomingCall.from,
         type: incomingCall.type,
         duration: 0,
         status: "missed",
       });
-      setCallHistory(getCallHistory());
     }
     setIncomingCall(null);
     setCallState("idle");
     setCallId(null);
-  }, [incomingCall, callId]);
+  }, [incomingCall, callId, addCallHistoryEntry]);
 
   const endCall = useCallback(() => {
     if (activeCall.with) {
       socket.emit("end-call", { to: activeCall.with, callId });
-      saveCallToHistory({
+      addCallHistoryEntry({
         with: activeCall.with,
         type: activeCall.type,
         duration: timer.seconds,
-        status: "completed",
+        status: activeCall.direction || "outgoing",
       });
-      setCallHistory(getCallHistory());
     }
     webrtc.endCall();
     playEndSound();
@@ -253,7 +321,7 @@ export function CallProvider({ children, user }) {
     setActiveCall((p) => ({ ...p, remoteStream: null }));
     setIncomingCall(null);
     setCallId(null);
-  }, [activeCall, callId, webrtc, timer]);
+  }, [activeCall, callId, webrtc, timer, addCallHistoryEntry]);
 
   const toggleMute = useCallback(() => {
     const enabled = webrtc.toggleMute();
@@ -296,6 +364,9 @@ export function CallProvider({ children, user }) {
     toggleSpeaker,
     showControls,
     hideControls,
+    clearAllCallHistory,
+    deleteCallHistoryItem,
+    refreshCallHistory,
   };
 
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
