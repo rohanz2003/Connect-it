@@ -47,10 +47,14 @@ export const useLastSeen = (userId, { pollInterval = 60000 } = {}) => {
 
     const normalizedId = (userId || "").toLowerCase().trim();
 
-    // Immediately check current online list on userId change
-    setIsOnline(onlineUsersRef.current.some((u) => u.toLowerCase().trim() === normalizedId));
+    // Immediately check current online list on userId change using the cached list on the socket instance
+    const initialOnline = (socket.currentOnlineUsers || []).some(
+      (u) => u.toLowerCase().trim() === normalizedId
+    );
+    setIsOnline(initialOnline);
 
     const handleOnlineUsers = (users) => {
+      socket.currentOnlineUsers = users; // Keep cache updated
       onlineUsersRef.current = users;
       setIsOnline(users.some((u) => u.toLowerCase().trim() === normalizedId));
     };

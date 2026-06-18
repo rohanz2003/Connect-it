@@ -601,6 +601,7 @@ function Chat({ user: currentUser }) {
     subscribeToPush(user.email.toLowerCase());
 
     const handleOnlineUsers = (users) => {
+      if (socket) socket.currentOnlineUsers = users;
       setOnlineUsers(users);
     };
     socket.on("online-users", handleOnlineUsers);

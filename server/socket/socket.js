@@ -116,29 +116,41 @@ const initSocket = (server) => {
     });
   });
 
-  // Periodic check for stale users (no heartbeat in 30s)
+  // Periodic check for stale users (no heartbeat in 90s)
   setInterval(() => {
     const now = Date.now();
-    const staleTimeout = 30000;
+    const staleTimeout = 90000;
     Object.keys(lastHeartbeats).forEach((userId) => {
       if (now - lastHeartbeats[userId] > staleTimeout) {
+        // Double check if any socket is actually still connected
         const sockets = users[userId];
+        let hasActiveSocket = false;
         if (sockets instanceof Set) {
           sockets.forEach((sid) => {
-            const sock = io.sockets.sockets.get(sid);
-            if (sock) {
-              sock.leave(userId);
+            if (io.sockets.sockets.has(sid)) {
+              hasActiveSocket = true;
+            } else {
+              sockets.delete(sid);
             }
           });
+          if (sockets.size === 0) delete users[userId];
+          else hasActiveSocket = true;
         }
-        delete users[userId];
-        delete lastHeartbeats[userId];
-        updateLastSeen(userId);
-        io.emit("online-users", Object.keys(users));
-        io.emit("last-seen", { userId, time: new Date().toISOString() });
+
+        if (!hasActiveSocket) {
+          delete users[userId];
+          delete lastHeartbeats[userId];
+          updateLastSeen(userId);
+          io.emit("online-users", Object.keys(users));
+          io.emit("last-seen", { userId, time: new Date().toISOString() });
+          console.log(`🧹 Marked user ${userId} as stale (no heartbeat)`);
+        } else {
+          // User still has active sockets, update their heartbeat to now to give them more time
+          lastHeartbeats[userId] = now;
+        }
       }
     });
-  }, 15000);
+  }, 30000);
 
   return io;
 };

@@ -59,9 +59,12 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
         if (!users[authSender]) {
           users[authSender] = new Set();
         }
-        users[authSender].add(socket.id);
-        socket.join(authSender);
-        console.log(`📡 Auto-authenticated socket ${socket.id} for ${authSender}`);
+        if (!users[authSender].has(socket.id)) {
+          users[authSender].add(socket.id);
+          socket.join(authSender);
+          console.log(`📡 Auto-authenticated socket ${socket.id} for ${authSender}`);
+          io.emit("online-users", Object.keys(users));
+        }
       }
 
       if (!authSender) {
