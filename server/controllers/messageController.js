@@ -1,130 +1,149 @@
 const Message = require("../models/Message");
-const ClearedChat = require("../models/ClearedChat");
-const { decryptMessageDoc } = require("../utils/messageCrypto");
-const { normalizeEmail } = require("../utils/socketAuth");
+const User = require("../models/User");
+const AuditLog = require("../models/AuditLog");
 
-const getClearedAt = async (user, partner) => {
-  const record = await ClearedChat.findOne({
-    user: normalizeEmail(user),
-    partner: normalizeEmail(partner),
-  }).lean();
-  return record?.clearedAt || null;
+/**
+ * Saves E2EE encrypted message payload after compliance filter validations.
+ */
+exports.sendMessage = async (req, res) => {
+  try {
+    const { receiverId, roomId, ciphertext, iv, disappearingTimer, fileUrl, fileName, fileType } = req.body;
+    const senderId = req.user.email;
+
+    if (!receiverId || !roomId || !ciphertext || !iv) {
+      return res.status(400).json({ error: "Missing mandatory fields: receiverId, roomId, ciphertext, and iv required." });
+    }
+
+    // Verify recipient blocklist status
+    const recipientUser = await User.findOne({ email: receiverId.toLowerCase().trim() });
+    if (recipientUser && recipientUser.blockedUsers.includes(senderId.toLowerCase().trim())) {
+      return res.status(403).json({ error: "Message delivery blocked by recipient." });
+    }
+
+    // Process disappearing dynamic message TTL timestamps
+    let expiresAt = null;
+    if (disappearingTimer && disappearingTimer > 0) {
+      const hours = parseInt(disappearingTimer, 10);
+      expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+    }
+
+    const message = new Message({
+      senderId,
+      receiverId: receiverId.toLowerCase().trim(),
+      roomId,
+      ciphertext,
+      iv,
+      disappearingTimer: disappearingTimer || 0,
+      expiresAt,
+      fileUrl: fileUrl || null,
+      fileName: fileName || null,
+      fileType: fileType || null
+    });
+
+    await message.save();
+    return res.status(201).json({ success: true, message });
+  } catch (err) {
+    console.error("sendMessage error:", err.message);
+    res.status(500).json({ error: "Failed to securely save message payload." });
+  }
 };
 
+/**
+ * Retrieves historical encrypted conversations between sender and receiver.
+ */
 exports.getMessages = async (req, res) => {
   try {
-    const { user1, user2 } = req.query;
-    if (!user1 || !user2) {
-      return res.status(400).json({ error: "user1 and user2 are required" });
-    }
+    const { roomId } = req.params;
+    const userEmail = req.user.email;
 
-    const u1 = normalizeEmail(user1);
-    const u2 = normalizeEmail(user2);
-
-    const clearedAt = await getClearedAt(u1, u2);
-    const query = {
-      $or: [
-        { sender: u1, receiver: u2 },
-        { sender: u2, receiver: u1 },
-      ],
-    };
-
-    if (clearedAt) {
-      query.timestamp = { $gt: clearedAt };
-    }
-
-    const messages = await Message.find(query)
-      .sort({ timestamp: 1 })
-      .limit(500)
+    // Fetch conversation thread history
+    const messages = await Message.find({ roomId })
+      .sort({ createdAt: 1 })
       .lean();
 
-    res.json(messages.map(decryptMessageDoc));
-  } catch (error) {
-    console.error("getMessages error:", error);
-    res.status(500).json({ error: "Failed to fetch messages", details: error.message });
+    return res.json(messages);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
 
-exports.clearChat = async (req, res) => {
+/**
+ * Deletes a single message by the sender with an audit trail entry.
+ */
+exports.deleteMessage = async (req, res) => {
   try {
-    const { user, partner } = req.body;
-    if (!user || !partner) {
-      return res.status(400).json({ error: "user and partner are required" });
+    const { messageId } = req.params;
+    const userEmail = req.user.email;
+
+    const msg = await Message.findById(messageId);
+    if (!msg) return res.status(404).json({ error: "Target message node not found." });
+
+    // Restrict removal authority to sender or administration
+    if (msg.senderId !== userEmail && req.user.role !== "Admin") {
+      return res.status(403).json({ error: "Unauthorized request deletion clearance." });
     }
-    await ClearedChat.findOneAndUpdate(
-      { user: normalizeEmail(user), partner: normalizeEmail(partner) },
-      { clearedAt: new Date() },
-      { upsert: true, new: true }
-    );
-    res.json({ success: true });
-  } catch (error) {
-    console.error("Error clearing chat:", error);
-    res.status(500).json({ error: "Failed to clear chat" });
+
+    await Message.findByIdAndDelete(messageId);
+
+    // Audit Logging
+    const ipAddress = req.ip || "127.0.0.1";
+    await new AuditLog({
+      userId: userEmail,
+      action: "MESSAGE_DELETION",
+      ipAddress,
+      details: `Deleted message node ID: ${messageId}`
+    }).save();
+
+    return res.json({ success: true, deletedId: messageId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
 
-exports.getRecentChats = async (req, res) => {
+/**
+ * Erases a whole thread for privacy optimization.
+ */
+exports.deleteChatHistory = async (req, res) => {
   try {
-    const { userEmail } = req.query;
-    if (!userEmail) {
-      return res.status(400).json({ error: "userEmail is required" });
-    }
+    const { roomId } = req.params;
+    const userEmail = req.user.email;
 
-    const normalizedEmail = normalizeEmail(userEmail);
+    // Delete matching records
+    await Message.deleteMany({ roomId, $or: [{ senderId: userEmail }, { receiverId: userEmail }] });
 
-    const clearedRecords = await ClearedChat.find({ user: normalizedEmail }).lean();
-    const clearedMap = Object.fromEntries(
-      clearedRecords.map((r) => [r.partner, r.clearedAt])
-    );
+    // Track operation
+    const ipAddress = req.ip || "127.0.0.1";
+    await new AuditLog({
+      userId: userEmail,
+      action: "MESSAGE_DELETION",
+      ipAddress,
+      details: `Purged complete chat log for room segment: ${roomId}`
+    }).save();
 
-    const messages = await Message.find({
-      $or: [{ sender: normalizedEmail }, { receiver: normalizedEmail }],
-    })
-      .sort({ timestamp: -1 })
-      .limit(1000)
+    return res.json({ success: true, roomId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/**
+ * Generates an offline backup of all historical messaging encrypted payloads for client utility.
+ */
+exports.exportEncryptedBackup = async (req, res) => {
+  try {
+    const userEmail = req.user.email;
+    const logs = await Message.find({ $or: [{ senderId: userEmail }, { receiverId: userEmail }] })
+      .sort({ createdAt: 1 })
       .lean();
 
-    const conversations = {};
-
-    for (const msg of messages) {
-      const otherUser =
-        msg.sender === normalizedEmail ? msg.receiver : msg.sender;
-      const clearedAt = clearedMap[otherUser];
-      const msgTime = msg.timestamp || msg.createdAt;
-
-      if (clearedAt && new Date(msgTime) <= new Date(clearedAt)) {
-        continue;
-      }
-
-      if (!conversations[otherUser]) {
-        const decrypted = decryptMessageDoc(msg);
-        const preview =
-          decrypted.type === "media"
-            ? "[Media]"
-            : typeof decrypted.text === "string"
-              ? decrypted.text
-              : "[Message]";
-
-        conversations[otherUser] = {
-          userEmail: otherUser,
-          lastMessage: preview,
-          timestamp: msgTime,
-          type: msg.type,
-          messageId: msg._id,
-          sender: msg.sender,
-          receiver: msg.receiver,
-          status: msg.status,
-        };
-      }
-    }
-
-    const recentChats = Object.values(conversations).sort(
-      (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-    );
-
-    res.json(recentChats);
-  } catch (error) {
-    console.error("Error fetching recent chats:", error);
-    res.status(500).json({ error: "Failed to fetch recent chats" });
+    return res.json({
+      exportedBy: userEmail,
+      timestamp: new Date(),
+      format: "E2EE-AES-GCM-BACKUP",
+      recordsCount: logs.length,
+      data: logs
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };

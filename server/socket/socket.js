@@ -1,158 +1,159 @@
-const { Server } = require("socket.io");
-const handlePresence = require("./presence");
-const handleTyping = require("./typing");
-const handleMessages = require("./message");
-const handleCalls = require("./call");
-const { getCorsOrigins } = require("../config/env");
-const { registerSocket, unregisterSocket } = require("../utils/socketAuth");
-const { updateLastSeen } = require("../controllers/userController");
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 const Device = require("../models/Device");
 
-const crypto = require("crypto");
+// Dedicated in-memory memory map for online sockets tracking (email -> socketId set)
+const operationalOnlineUsers = new Map();
 
-const generateDeviceId = () => `dev_${crypto.randomBytes(8).toString("hex")}`;
-
-const initSocket = (server) => {
-  const io = new Server(server, {
+function initSocket(server) {
+  const io = require("socket.io")(server, {
     cors: {
-      origin: getCorsOrigins(),
+      origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : "*",
       methods: ["GET", "POST"],
-      credentials: true,
+      credentials: true
     },
-    transports: ["websocket", "polling"],
-    pingTimeout: 60000,
-    pingInterval: 25000,
-    maxHttpBufferSize: 50 * 1024 * 1024, // 50MB for audio/video uploads
+    pingTimeout: 30000,
+    pingInterval: 15000
   });
 
-  const users = {};
-  const userProfiles = {};
-  const lastHeartbeats = {};
-  const socketToDevice = {};
-  const userDeviceSockets = {};
+  /**
+   * Hardened Handshake Connection Filter Interceptor
+   */
+  io.use(async (socket, next) => {
+    try {
+      const authHeader = socket.handshake.headers.authorization;
+      const queryToken = socket.handshake.query.token;
+      
+      let token = null;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        token = authHeader.split(" ")[1];
+      } else if (queryToken) {
+        token = queryToken;
+      }
 
-  io.on("connection", async (socket) => {
-    const auth = socket.handshake.auth || {};
-    let deviceId = auth.deviceId;
+      if (!token) {
+        return next(new Error("Authentication Failure: Missing token context."));
+      }
 
-    // Register/update device in DB
-    (async () => {
+      // Verify Access Token Integrity
+      let decoded;
       try {
-        if (!deviceId) {
-          deviceId = generateDeviceId();
-        }
-        let device = await Device.findOne({ deviceId });
-        if (device) {
-          device.socketId = socket.id;
-          device.isActive = true;
-          device.lastSeen = new Date();
-          await device.save();
-        }
-        socket.emit("device-registered", { deviceId });
-        socketToDevice[socket.id] = deviceId;
-      } catch (err) {
-        console.error("Device registration error:", err.message);
+        decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback_access_secret_production_ready");
+      } catch (tokenErr) {
+        return next(new Error("Authentication Failure: Session signature invalid or expired."));
       }
-    })();
 
-    handlePresence(io, socket, users, userProfiles, socketToDevice, userDeviceSockets);
-    handleTyping(io, socket, users);
-    handleMessages(io, socket, users, socketToDevice, userDeviceSockets);
-    handleCalls(io, socket, users);
+      const email = decoded.email.toLowerCase().trim();
 
-    socket.on("heartbeat", (email) => {
-      if (!email) return;
-      const normalized = email.toLowerCase().trim();
-      lastHeartbeats[normalized] = Date.now();
-    });
-
-    socket.on("disconnect", async () => {
-      const disconnectedUser = unregisterSocket(socket.id);
-
-      // Mark device inactive
-      const devId = socketToDevice[socket.id];
-      if (devId) {
-        try {
-          await Device.findOneAndUpdate(
-            { deviceId: devId },
-            { isActive: false, socketId: null, lastSeen: new Date() }
-          );
-        } catch (err) {
-          console.error("Device disconnect error:", err.message);
-        }
-        delete socketToDevice[socket.id];
-        // Remove from userDeviceSockets
-        for (const uid of Object.keys(userDeviceSockets)) {
-          if (userDeviceSockets[uid][devId] === socket.id) {
-            delete userDeviceSockets[uid][devId];
-            if (Object.keys(userDeviceSockets[uid]).length === 0) {
-              delete userDeviceSockets[uid];
-            }
-            break;
-          }
+      // Enforce Device Session state validation
+      if (decoded.deviceId) {
+        const matchingDevice = await Device.findOne({ deviceId: decoded.deviceId, isActive: true });
+        if (!matchingDevice) {
+          return next(new Error("Authentication Failure: Device session revoked."));
         }
       }
 
-      for (let userId in users) {
-        const entry = users[userId];
-        if (entry && typeof entry.delete === "function") {
-          if (entry.has(socket.id)) {
-            entry.delete(socket.id);
-            if (entry.size === 0) {
-              delete users[userId];
-              delete lastHeartbeats[userId];
-              updateLastSeen(userId);
-              io.emit("last-seen", { userId, time: new Date().toISOString() });
-            }
-          }
-        } else if (entry === socket.id) {
-          delete users[userId];
-          delete lastHeartbeats[userId];
-          updateLastSeen(userId);
-          io.emit("last-seen", { userId, time: new Date().toISOString() });
-        }
-      }
-      io.emit("online-users", Object.keys(users));
-    });
+      // Attach authoritative context onto active socket model reference
+      socket.user = {
+        email,
+        role: decoded.role,
+        deviceId: decoded.deviceId
+      };
+
+      next();
+    } catch (err) {
+      console.error("Socket handshake filtration failure:", err.message);
+      return next(new Error("Security Handshake Filtration Exception."));
+    }
   });
 
-  // Periodic check for stale users (no heartbeat in 90s)
-  setInterval(() => {
-    const now = Date.now();
-    const staleTimeout = 90000;
-    Object.keys(lastHeartbeats).forEach((userId) => {
-      if (now - lastHeartbeats[userId] > staleTimeout) {
-        // Double check if any socket is actually still connected
-        const sockets = users[userId];
-        let hasActiveSocket = false;
-        if (sockets instanceof Set) {
-          sockets.forEach((sid) => {
-            if (io.sockets.sockets.has(sid)) {
-              hasActiveSocket = true;
-            } else {
-              sockets.delete(sid);
-            }
-          });
-          if (sockets.size === 0) delete users[userId];
-          else hasActiveSocket = true;
+  io.on("connection", (socket) => {
+    const userEmail = socket.user.email;
+    console.log(`🔒 Secured socket node connected: ${userEmail} | Device: ${socket.user.deviceId}`);
+
+    // Map user socket reference into active directory
+    if (!operationalOnlineUsers.has(userEmail)) {
+      operationalOnlineUsers.set(userEmail, new Set());
+    }
+    operationalOnlineUsers.get(userEmail).add(socket.id);
+
+    // Join specialized private user broadcast room channel
+    socket.join(userEmail);
+
+    // Notify peers regarding live online presence update
+    io.emit("presence_change", { email: userEmail, status: "online" });
+
+    /**
+     * Real-time E2EE Packet Delivery Interceptor Event Handler
+     */
+    socket.on("send_secure_message", async (packet, ack) => {
+      try {
+        const { receiverId, roomId, ciphertext, iv, disappearingTimer, fileUrl, fileName, fileType } = packet;
+        
+        if (!receiverId || !ciphertext || !iv) {
+          if (ack) ack({ error: "Malformed payload structures." });
+          return;
         }
 
-        if (!hasActiveSocket) {
-          delete users[userId];
-          delete lastHeartbeats[userId];
-          updateLastSeen(userId);
-          io.emit("online-users", Object.keys(users));
-          io.emit("last-seen", { userId, time: new Date().toISOString() });
-          console.log(`🧹 Marked user ${userId} as stale (no heartbeat)`);
-        } else {
-          // User still has active sockets, update their heartbeat to now to give them more time
-          lastHeartbeats[userId] = now;
+        const recipientLower = receiverId.toLowerCase().trim();
+
+        // Enforce anti-spoofing sender verification check
+        const outgoingMessagePayload = {
+          _id: new Date().getTime().toString(), // Transient id for interface reactivity
+          senderId: userEmail,
+          receiverId: recipientLower,
+          roomId,
+          ciphertext,
+          iv,
+          disappearingTimer: disappearingTimer || 0,
+          fileUrl: fileUrl || null,
+          fileName: fileName || null,
+          fileType: fileType || null,
+          createdAt: new Date()
+        };
+
+        // Deliver E2EE payload directly to target user private channel loop
+        io.to(recipientLower).to(userEmail).emit("receive_secure_message", outgoingMessagePayload);
+
+        if (ack) ack({ success: true });
+      } catch (err) {
+        console.error("Realtime secure packet relay failure:", err.message);
+        if (ack) ack({ error: "Internal delivery channel failure." });
+      }
+    });
+
+    /**
+     * Dynamic Typing Indication event tracker
+     */
+    socket.on("typing_state", (payload) => {
+      if (payload && payload.receiverId) {
+        io.to(payload.receiverId.toLowerCase().trim()).emit("typing_state_broadcast", {
+          senderId: userEmail,
+          isTyping: !!payload.isTyping
+        });
+      }
+    });
+
+    /**
+     * Explicit Client-Side Disconnection lifecycle routine handler
+     */
+    socket.on("disconnect", () => {
+      console.log(`🔌 Secured socket node disconnected: ${userEmail}`);
+      
+      const socketSet = operationalOnlineUsers.get(userEmail);
+      if (socketSet) {
+        socketSet.delete(socket.id);
+        if (socketSet.size === 0) {
+          operationalOnlineUsers.delete(userEmail);
+          
+          // Broadcast offline state update to active pool
+          io.emit("presence_change", { email: userEmail, status: "offline", lastSeen: new Date() });
         }
       }
     });
-  }, 30000);
+  });
 
   return io;
-};
+}
 
 module.exports = initSocket;
