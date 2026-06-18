@@ -11,450 +11,19 @@ import {
   Paperclip,
   Home,
   Send,
-  Trash2,
-  Users,
-  Layers,
-  Sun,
-  Moon,
-  ChevronDown,
-  X,
-  Minus,
-  LogOut,
-  Archive,
-  ArchiveRestore,
-  User,
-  Info,
-  Image,
-  Film,
-  Music,
-  FileText,
-  FolderOpen,
-  Download,
-  ZoomIn,
-  ZoomOut,
-  Camera,
-  Palette,
-  Save,
-  Loader2,
-  AlertTriangle,
-  Eye,
-  EyeOff,
-  BarChart3,
-  History,
-  UserPlus,
-  Phone,
-  Video,
-  PhoneCall,
-} from "lucide-react";
-import { useCall } from "../context/CallContext";
-import CallHistory from "./call/CallHistory";
-import Avatar from "./Avatar";
-import LastSeen from "./LastSeen";
-import ErrorBoundary from "./ErrorBoundary";
-import { auth } from "../firebase";
-import { EmailAuthProvider, reauthenticateWithCredential, deleteUser } from "firebase/auth";
-import useSocket from "../hooks/useSocket";
-import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
-import { validateImageFile, compressImage } from "../utils/imageUtils";
-import { getDeviceInfo } from "../utils/deviceDetector";
-import { subscribeToPush } from "../utils/pushHelper";
-import { fetchMessages, fetchRecentChats } from "../services/messageService";
-import { useNavigate } from "react-router-dom";
-import "./Chat.css";
-
-const normalizeEmail = (email) => (email || "").toLowerCase().trim();
-
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
-
-const getOtherParty = (msg, currentUserEmail) => {
-  const senderEmail = normalizeEmail(msg.sender);
-  const receiverEmail = normalizeEmail(msg.receiver);
-  const me = normalizeEmail(currentUserEmail);
-  return senderEmail === me ? receiverEmail : senderEmail;
-};
-
-const isSameMessage = (a, b) => {
-  if (!a || !b) return false;
-  if (a._id && b._id && String(a._id) === String(b._id)) return true;
-  if (a.tempId && b.tempId && a.tempId === b.tempId) return true;
-  return false;
-};
-
-const upsertMessageInList = (list, msg) => {
-  const idx = list.findIndex((m) => isSameMessage(m, msg));
-  if (idx === -1) {
-    return [...list, msg].sort(
-      (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
-    );
-  }
-  const updated = [...list];
-  updated[idx] = { ...updated[idx], ...msg };
-  return updated.sort(
-    (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
-  );
-};
-
-const ImageCropModal = ({ src, onCrop, onCancel }) => {
-  const [scale, setScale] = React.useState(1);
-
-  const handleCrop = () => {
-    try {
-      // Simply pass the compressed image directly without cropping
-      onCrop(src);
-    } catch (err) {
-      console.error("Error:", err);
-      alert("Failed to save image. Please try again.");
-    }
-  };
-
-  return (
-    <div className="crop-overlay" onClick={onCancel}>
-      <div className="crop-modal crop-modal-animate" onClick={(e) => e.stopPropagation()}>
-        <div className="crop-header">
-          <h3>Profile Picture</h3>
-          <button onClick={onCancel}><X size={18} /></button>
-        </div>
-        <div style={{ padding: "20px", textAlign: "center" }}>
-          <img 
-            src={src} 
-            alt="Preview" 
-            style={{ 
-              maxWidth: "280px", 
-              maxHeight: "280px", 
-              borderRadius: "50%",
-              objectFit: "cover",
-              width: "280px",
-              height: "280px"
-            }} 
-          />
-        </div>
-        <div className="crop-actions">
-          <button className="crop-cancel-btn" onClick={onCancel}>Cancel</button>
-          <button className="crop-save-btn" onClick={handleCrop}>Save</button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-function Chat({ user: currentUser }) {
-  const socket = useSocket();
-  const navigate = useNavigate();
-
-  // Call system â€” from CallContext mounted in App.js
-  const {
-    callState,
-    incomingCall,
-    activeCall,
-    callHistory,
-    duration,
-    remoteStreamRef,
-    localStreamRef,
-    startCall,
-    acceptCall,
-    rejectCall,
-    endCall,
-    toggleMute,
-    toggleVideo,
-    toggleSpeaker,
-  } = useCall();
-
-  const [user, setUser] = useState(null);
-  const [message, setMessage] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [onlineUsers, setOnlineUsers] = useState([]);
-  const [chatHistory, setChatHistory] = useState({}); // Store all chats by user
-  const [typingUser, setTypingUser] = useState(null);
-  const [lastSeen, setLastSeen] = useState({});
-  const [messages, setMessages] = useState([]);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [unreadMessages, setUnreadMessages] = useState({}); // Track unread counts
-  const [userProfiles, setUserProfiles] = useState(() => {
-    try {
-      const email = JSON.parse(localStorage.getItem("user") || "{}").email;
-      if (email) {
-        const stored = localStorage.getItem(`userProfiles_${email.toLowerCase()}`);
-        return stored ? JSON.parse(stored) : {};
-      }
-    } catch {}
-    return {};
-  });
-  const [isMediaSending, setIsMediaSending] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [downloadProgress, setDownloadProgress] = useState({});
-  const [downloadingId, setDownloadingId] = useState(null);
-  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem("theme") === "dark");
-  const [isChatMinimized, setIsChatMinimized] = useState(false); // Track if chat is minimized
-  const [contextMenu, setContextMenu] = useState(null);
-  const [replyTo, setReplyTo] = useState(null);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deletePassword, setDeletePassword] = useState("");
-  const [showDeletePwd, setShowDeletePwd] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
-  const [deleting, setDeleting] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showAttachMenu, setShowAttachMenu] = useState(false);
-  const attachMenuRef = useRef(null);
-  const [userNames, setUserNames] = useState(() => {
-    try {
-      const email = JSON.parse(localStorage.getItem("user") || "{}").email;
-      if (email) {
-        const stored = localStorage.getItem(`userNames_${email.toLowerCase()}`);
-        return stored ? JSON.parse(stored) : {};
-      }
-    } catch {}
-    return {};
-  });
-  const [profilePreviewUser, setProfilePreviewUser] = useState(null);
-  const [imageViewerState, setImageViewerState] = useState({ open: false, src: null, type: "media", name: "", isOwn: false });
-  const [cropState, setCropState] = useState({ open: false, src: null, file: null });
-  const [imageZoom, setImageZoom] = useState(1);
-  const archivedChatsRef = useRef(null);
-  const [archivedChats, setArchivedChats] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(`archivedChats_${localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")).email : ""}`) || "[]"); } catch { return []; }
-  });
-  const [activeTab, setActiveTab] = useState("recent");
-  const [displayName, setDisplayName] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("user") || "{}").displayName || ""; } catch { return ""; }
-  });
-  const [bio, setBio] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("user") || "{}").bio || ""; } catch { return ""; }
-  });
-  const [isSaving, setIsSaving] = useState(false);
-  const emojiPickerRef = useRef(null);
-  const typingTimeoutRef = useRef(null);
-  const messagesEndRef = useRef(null);
-  const [, setLastSeenTick] = useState(0);
-
-  // Auto-refresh last seen display every 1 second
-  useEffect(() => {
-    const interval = setInterval(() => setLastSeenTick((t) => t + 1), 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Use Ref to track selectedUser for the socket listener to avoid stale closures
-  const selectedUserRef = useRef(selectedUser);
-  const previousSelectedUserRef = useRef(null);
-  useEffect(() => { selectedUserRef.current = selectedUser; }, [selectedUser]);
-
-  useEffect(() => {
-    document.body.classList.toggle("dark-mode", isDarkMode);
-    localStorage.setItem("theme", isDarkMode ? "dark" : "light");
-  }, [isDarkMode]);
-
-  const handleAvatarClick = (e, email, isOwn = false) => {
-    e.stopPropagation();
-    setProfilePreviewUser({ email, isOwn });
-  };
-
-  const handleViewFullImage = (src, type = "media", name = "", isOwn = false) => {
-    setProfilePreviewUser(null);
-    setImageZoom(1);
-    setImageViewerState({ open: true, src, type, name, isOwn });
-  };
-
-  const handleDownloadImage = (src, name) => {
-    if (!src) return;
-    const link = document.createElement("a");
-    link.href = src;
-    link.download = name || "image.jpg";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleDownloadMedia = (msg) => {
-    if (!msg?.text?.data || downloadingId) return;
-    const msgId = msg._id || msg.tempId;
-    setDownloadingId(msgId);
-    setDownloadProgress((prev) => ({ ...prev, [msgId]: 0 }));
-
-    setTimeout(() => {
-      try {
-        setDownloadProgress((prev) => ({ ...prev, [msgId]: 30 }));
-        const byteString = atob(msg.text.data.split(',')[1]);
-        const mimeType = msg.text.type || "application/octet-stream";
-
-        setDownloadProgress((prev) => ({ ...prev, [msgId]: 50 }));
-        const ab = new ArrayBuffer(byteString.length);
-        const ia = new Uint8Array(ab);
-        for (let i = 0; i < byteString.length; i++) {
-          ia[i] = byteString.charCodeAt(i);
-          if (i % Math.max(1, Math.floor(byteString.length / 20)) === 0) {
-            setDownloadProgress((prev) => ({
-              ...prev,
-              [msgId]: Math.min(90, 50 + Math.round((i / byteString.length) * 40))
-            }));
-          }
+  Tr      try {
+        // Load profile for current user and all known partners from localStorage
+        const savedHistory = localStorage.getItem(`chatHistory_${user.email}`);
+        let knownEmails = [user.email];
+        if (savedHistory) {
+          try {
+            const parsed = JSON.parse(savedHistory);
+            const partnerEmails = Object.keys(parsed).filter(e => e !== user.email.toLowerCase());
+            knownEmails = [...new Set([...knownEmails, ...partnerEmails])];
+          } catch {}
         }
-
-        setDownloadProgress((prev) => ({ ...prev, [msgId]: 95 }));
-        const blob = new Blob([ab], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = msg.text.name || `download.${mimeType.split('/')[1] || "bin"}`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        setDownloadProgress((prev) => ({ ...prev, [msgId]: 100 }));
-      } catch (err) {
-        console.error("Download error:", err);
-      } finally {
-        setTimeout(() => {
-          setDownloadingId(null);
-          setDownloadProgress((prev) => ({ ...prev, [msgId]: undefined }));
-        }, 1000);
-      }
-    }, 100);
-  };
-
-  // Auto-scroll to bottom whenever messages or typing state changes
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, typingUser]);
-
-  // Close context menu on outside click
-  useEffect(() => {
-    const handleGlobalClick = () => setContextMenu(null);
-    window.addEventListener("click", handleGlobalClick);
-    return () => window.removeEventListener("click", handleGlobalClick);
-  }, []);
-
-  // Close emoji picker on outside click
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
-        setShowEmojiPicker(false);
-      }
-    };
-    const handleEscape = (event) => {
-      if (event.key === "Escape") {
-        setShowEmojiPicker(false);
-        setShowAttachMenu(false);
-      }
-    };
-    if (showEmojiPicker) {
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("keydown", handleEscape);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [showEmojiPicker]);
-
-  // Close attach menu on outside click
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (attachMenuRef.current && !attachMenuRef.current.contains(event.target)) {
-        setShowAttachMenu(false);
-      }
-    };
-    if (showAttachMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showAttachMenu]);
-
-  const formatDay = (timestamp) => {
-    if (!timestamp) return "";
-    const date = new Date(timestamp);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-
-    if (date.toDateString() === today.toDateString()) return "Today";
-    if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-    return date.toLocaleDateString(undefined, {
-      month: "long",
-      day: "numeric"
-    });
-  };
-
-  const getDisplayName = (email) => {
-    const normalized = normalizeEmail(email);
-    return userNames[normalized] || (email || "").split("@")[0];
-  };
-
-  const chatHistoryRef = useRef({});
-  useEffect(() => {
-    chatHistoryRef.current = chatHistory;
-  }, [chatHistory]);
-
-  const safeLocalStorageSet = (key, value) => {
-    try {
-      localStorage.setItem(key, value);
-      return true;
-    } catch (err) {
-      console.warn(`Failed to persist ${key} to localStorage`, err);
-      return false;
-    }
-  };
-
-  // Helper to safely persist limited chat history without large media blobs or bloat
-  const persistHistory = (historyObj, currentUserEmail) => {
-    if (!currentUserEmail) return;
-    try {
-      const sanitized = {};
-      Object.keys(historyObj).forEach(key => {
-        // Cap to last 30 messages and strip heavy base64 media content for storage
-        sanitized[key] = historyObj[key].slice(-30).map(m => ({
-          ...m,
-          text: m.type === 'media' ? { ...m.text, data: null, persisted: false } : m.text
-        }));
-      });
-      try {
-        localStorage.setItem(`chatHistory_${currentUserEmail}`, JSON.stringify(sanitized));
-      } catch (quotaError) {
-        console.warn("Chat history quota exceeded, skipping local persistence.");
-      }
-    } catch (e) {
-      console.error("Failed to persist chat history", e);
-    }
-  };
-
-  useEffect(() => {
-    if (!currentUser) {
-      navigate("/");
-      return;
-    }
-
-    const userData = {
-      email: currentUser.email.toLowerCase(),
-      profilePic: currentUser.profilePic,
-      uid: currentUser.uid
-    };
-    setUser(userData);
-    safeLocalStorageSet("user", JSON.stringify({
-      email: userData.email,
-      uid: userData.uid
-    }));
-
-    if (userData.profilePic) {
-      setUserProfiles((prev) => ({
-        ...prev,
-        [userData.email.toLowerCase()]: userData.profilePic
-      }));
-    }
-
-    const savedPicFromReg = localStorage.getItem(`profilePic_${userData.email.toLowerCase()}`);
-    if (savedPicFromReg && !userData.profilePic) {
-      setUser(prev => ({ ...prev, profilePic: savedPicFromReg }));
-    }
-  }, [currentUser, navigate]);
-
-  // Load profiles from server on mount
-  useEffect(() => {
-    if (!user) return;
-    const loadProfiles = async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/users/profiles?emails=${encodeURIComponent(user.email)}`);
+        
+        const res = await fetch(`${API_URL}/api/users/profiles?emails=${encodeURIComponent(knownEmails.join(","))}`);
         const data = await res.json();
         if (data.success && data.profiles) {
           const newLastSeen = {};
@@ -494,6 +63,13 @@ function Chat({ user: currentUser }) {
             const parsed = JSON.parse(savedHistory);
             setChatHistory(parsed);
             console.log("âœ… Loaded chat history from localStorage:", Object.keys(parsed).length, "conversations");
+            // Fetch profiles for partners from localStorage right away
+            const localPartnerEmails = Object.keys(parsed).filter(
+              email => email !== user.email.toLowerCase()
+            );
+            if (localPartnerEmails.length > 0) {
+              fetchProfilesForPartners(localPartnerEmails);
+            }
           } catch (e) {
             console.error("Failed to parse saved chat history", e);
           }
@@ -520,48 +96,56 @@ function Chat({ user: currentUser }) {
           });
 
           // Merge with existing localStorage data, preferring localStorage for full histories
+          // Merge with existing localStorage data, preferring localStorage for full histories
           setChatHistory(prev => {
             const merged = { ...historyFromServer, ...prev };
             persistHistory(merged, user.email);
             return merged;
           });
-          console.log("âœ… Loaded", recentChats.length, "recent chats from server");
-
-          // Fetch profiles (including lastSeen) for recent chat partners
-          const partnerEmails = recentChats.map(c => c.userEmail).filter(Boolean);
-          if (partnerEmails.length > 0) {
-            try {
-              const profilesRes = await fetch(`${API_URL}/api/users/profiles?emails=${encodeURIComponent(partnerEmails.join(","))}`);
-              const profilesData = await profilesRes.json();
-              if (profilesData.success && profilesData.profiles) {
-                const newLastSeen = {};
-                Object.entries(profilesData.profiles).forEach(([email, profile]) => {
-                  if (profile.avatarUrl) {
-                    setUserProfiles(prev => ({ ...prev, [email]: profile.avatarUrl }));
-                  }
-                  if (profile.displayName) {
-                    setUserNames(prev => ({ ...prev, [email]: profile.displayName }));
-                  }
-                  if (profile.lastSeen) {
-                    newLastSeen[email] = profile.lastSeen;
-                  }
-                });
-                if (Object.keys(newLastSeen).length > 0) {
-                  setLastSeen(prev => ({ ...prev, ...newLastSeen }));
-                }
-              }
-            } catch (e) {
-              console.warn("Failed to load recent chat profiles");
-            }
+          
+          // Fetch profiles for server-based partners
+          const serverPartnerEmails = recentChats.map(c => c.userEmail).filter(Boolean);
+          if (serverPartnerEmails.length > 0) {
+            fetchProfilesForPartners(serverPartnerEmails);
+          }
           }
         }
+
       } catch (error) {
         console.error("Error loading chat history:", error);
       }
     };
 
     loadChatHistory();
-  }, [user]);
+  }, [user])
+        // Helper to fetch profiles for a list of partner emails
+        async function fetchProfilesForPartners(emails) {
+          if (!emails || emails.length === 0) return;
+          try {
+            const profilesRes = await fetch(`${API_URL}/api/users/profiles?emails=${encodeURIComponent(emails.join(","))}`);
+            const profilesData = await profilesRes.json();
+            if (profilesData.success && profilesData.profiles) {
+              const newLastSeen = {};
+              Object.entries(profilesData.profiles).forEach(([email, profile]) => {
+                if (profile.avatarUrl) {
+                  setUserProfiles(prev => ({ ...prev, [email]: profile.avatarUrl }));
+                }
+                if (profile.displayName) {
+                  setUserNames(prev => ({ ...prev, [email]: profile.displayName }));
+                }
+                if (profile.lastSeen) {
+                  newLastSeen[email] = profile.lastSeen;
+                }
+              });
+              if (Object.keys(newLastSeen).length > 0) {
+                setLastSeen(prev => ({ ...prev, ...newLastSeen }));
+              }
+            }
+          } catch (e) {
+            console.warn("Failed to load profiles for partners");
+          }
+        }
+;
 
   useEffect(() => {
     if (!user || !socket) return;
@@ -602,7 +186,9 @@ function Chat({ user: currentUser }) {
       console.log(`ðŸ“¨ Typing listener triggered: from=${normalizedFrom}, activeChat=${normalizedActiveChat}, match=${normalizedFrom === normalizedActiveChat}`);
       
       if (normalizedFrom && normalizedActiveChat && normalizedFrom === normalizedActiveChat) {
-        console.log(`âœ… Typing indicator set for ${normalizedFrom}`);
+        console.log(`âœ… Typing indicator set for ${normalizedFrom}
+        
+`);
         setTypingUser(normalizedFrom);
       } else {
         console.warn(`âŒ Typing mismatch or empty: normalizedFrom=[${normalizedFrom}], normalizedActiveChat=[${normalizedActiveChat}]`);

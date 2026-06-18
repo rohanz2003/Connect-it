@@ -21,6 +21,7 @@
     "node": "18.x || 20.x"
   },
   "dependencies": {
+    "framer-motion": "^12.40.0",
     "mongodb": "^7.2.0"
   }
 }
