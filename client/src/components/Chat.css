@@ -480,24 +480,22 @@ body {
   gap: 2px;
   padding: 8px;
   border-bottom: 1px solid var(--border-color);
+  justify-content: center;
 }
 
 .tab {
   flex: 1;
-  padding: 8px 10px;
+  height: 40px;
+  padding: 0;
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
   cursor: pointer;
   border-radius: var(--radius-sm);
   transition: var(--transition);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
 }
 
 .tab:hover {

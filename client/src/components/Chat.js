@@ -2097,38 +2097,44 @@ function Chat({ user: currentUser }) {
           <button
             className={`tab ${activeTab === "recent" ? "active" : ""}`}
             onClick={() => setActiveTab("recent")}
+            title="Recent Chats"
           >
-            <History size={14} />
-            <span>Recent</span>
+            <History size={18} />
             {totalUnread > 0 && <span className="tab-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
           </button>
           <button
             className={`tab ${activeTab === "online" ? "active" : ""}`}
             onClick={() => setActiveTab("online")}
+            title="Online Users"
           >
-            <span className="tab-online-dot" />
-            <span>Online</span>
-            <span className="tab-count">{filteredOnlineUsers.length}</span>
+            <div style={{ position: 'relative' }}>
+              <Users size={18} />
+              {filteredOnlineUsers.length > 0 && <span className="tab-online-dot" style={{ position: 'absolute', top: -2, right: -2, border: '2px solid var(--background-sidebar)' }} />}
+            </div>
           </button>
           <button
             className={`tab ${activeTab === "calls" ? "active" : ""}`}
             onClick={() => setActiveTab("calls")}
+            title="Call History"
           >
-            <PhoneCall size={14} />
-            <span>Calls</span>
-            {callHistory.filter(c => c.status === "missed").length > 0 && (
-              <span className="tab-badge missed-badge">
-                {callHistory.filter(c => c.status === "missed").length}
-              </span>
-            )}
+            <div style={{ position: 'relative' }}>
+              <PhoneCall size={18} />
+              {callHistory.filter(c => c.status === "missed").length > 0 && (
+                <span className="tab-badge missed-badge" style={{ position: 'absolute', top: -8, right: -12 }}>
+                  {callHistory.filter(c => c.status === "missed").length}
+                </span>
+              )}
+            </div>
           </button>
           <button
             className={`tab ${activeTab === "archive" ? "active" : ""}`}
             onClick={() => setActiveTab("archive")}
+            title="Archived Chats"
           >
-            <Archive size={14} />
-            <span>Archive</span>
-            {archivedChatsList.length > 0 && <span className="tab-count">{archivedChatsList.length}</span>}
+            <div style={{ position: 'relative' }}>
+              <Archive size={18} />
+              {archivedChatsList.length > 0 && <span className="tab-count" style={{ position: 'absolute', top: -8, right: -12, background: 'var(--text-light)', color: 'white', fontSize: '9px', padding: '2px 4px', borderRadius: '4px' }}>{archivedChatsList.length}</span>}
+            </div>
           </button>
         </div>
 
@@ -2287,23 +2293,20 @@ function Chat({ user: currentUser }) {
         )}
 
         <div className="sidebar-footer">
-          <button className="sidebar-footer-btn" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }} title="Invite team member">
-            <UserPlus size={16} />
-            <span>Invite</span>
-          </button>
-          <button className="sidebar-footer-btn" onClick={() => setShowSettings(true)} title="Settings">
-            <Settings size={16} />
-            <span>Settings</span>
-          </button>
-          <div className="sidebar-footer-divider" />
-          <button className="sidebar-footer-btn sidebar-footer-logout" onClick={() => setShowLogoutConfirm(true)} title="Logout">
-            <LogOut size={16} />
-            <span>Logout</span>
-          </button>
-          <button className="sidebar-footer-btn sidebar-footer-delete" onClick={() => setShowDeleteConfirm(true)} title="Delete account">
-            <Trash2 size={16} />
-            <span>Delete</span>
-          </button>
+          <div className="sidebar-footer-actions">
+            <button className="sidebar-footer-btn" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }} title="Invite team member">
+              <UserPlus size={18} />
+            </button>
+            <button className="sidebar-footer-btn" onClick={() => setShowSettings(true)} title="Settings">
+              <Settings size={18} />
+            </button>
+            <button className="sidebar-footer-btn sidebar-footer-logout" onClick={() => setShowLogoutConfirm(true)} title="Logout">
+              <LogOut size={18} />
+            </button>
+            <button className="sidebar-footer-btn sidebar-footer-delete" onClick={() => setShowDeleteConfirm(true)} title="Delete account">
+              <Trash2 size={18} />
+            </button>
+          </div>
         </div>
       </aside>
 
