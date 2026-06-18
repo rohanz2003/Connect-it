@@ -14,9 +14,14 @@ const socket = io(SOCKET_URL, {
   transports: ["websocket", "polling"],
 });
 
-let connectInProgress = false;
 let connectResolve = null;
 let connectReject = null;
+
+const freshToken = async () => {
+  let t = getAccessToken();
+  if (!t) t = await getAuthToken(true);
+  return t;
+};
 
 socket.on("connect", () => {
   console.log("✅ Socket Connected:", socket.id);
@@ -24,7 +29,6 @@ socket.on("connect", () => {
     connectResolve(socket);
     connectResolve = null;
     connectReject = null;
-    connectInProgress = false;
   }
 });
 
@@ -38,71 +42,49 @@ socket.on("connect_error", async (error) => {
     error.message === "Unauthorized socket" ||
     error.message === "Socket identity mismatch"
   ) {
-    socket.disconnect();
-    let newToken = getAccessToken();
-    if (!newToken) {
-      newToken = await getAuthToken(true);
-    }
+    const newToken = await freshToken();
     if (newToken) {
       socket.auth = { ...socket.auth, token: newToken };
-      setTimeout(() => {
-        socket.connect();
-      }, 1000);
     }
   }
-  if (connectReject && !socket.connected) {
+  if (connectReject) {
     connectReject(error);
     connectResolve = null;
     connectReject = null;
-    connectInProgress = false;
   }
 });
 
 export const connectSocket = async () => {
   if (socket.connected) return socket;
-  if (connectInProgress) {
+  if (connectResolve) {
     return new Promise((resolve, reject) => {
-      const check = setInterval(() => {
-        if (socket.connected) {
-          clearInterval(check);
-          resolve(socket);
-        }
-      }, 100);
-      setTimeout(() => {
-        clearInterval(check);
-        reject(new Error("Socket connection timeout"));
-      }, 15000);
+      const origReject = connectReject;
+      connectReject = (err) => { origReject && origReject(err); reject(err); };
+      const origResolve = connectResolve;
+      connectResolve = (s) => { origResolve && origResolve(s); resolve(s); };
     });
   }
-  connectInProgress = true;
-  let token = getAccessToken();
-  if (!token) {
-    const firebaseToken = await getAuthToken(true);
-    if (!firebaseToken) {
-      connectInProgress = false;
-      throw new Error("No auth token available for socket connection");
-    }
-    token = firebaseToken;
+  if (!socket.auth?.token) {
+    const token = await freshToken();
+    socket.auth = { token, deviceInfo: getDeviceInfo() };
   }
-  const deviceInfo = getDeviceInfo();
-  socket.auth = { token, deviceInfo };
   socket.connect();
   return new Promise((resolve, reject) => {
     connectResolve = resolve;
     connectReject = reject;
     setTimeout(() => {
-      if (connectInProgress) {
-        connectInProgress = false;
+      if (connectReject) {
+        connectReject(new Error("Socket connection timed out"));
         connectResolve = null;
-        connectReject && connectReject(new Error("Socket connection timed out"));
         connectReject = null;
       }
-    }, 15000);
+    }, 10000);
   });
 };
 
 export const disconnectSocket = () => {
-  connectInProgress = false;
+  connectResolve = null;
+  connectReject = null;
   socket.removeAllListeners();
   socket.disconnect();
 };
