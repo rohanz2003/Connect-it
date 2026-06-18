@@ -26,13 +26,13 @@ router.put("/profile", authenticateUser, validateUser, auditMiddleware("PROFILE_
 // Get single user profile (public - minimal auth)
 router.get("/profile", optionalAuth, getProfile);
 
-// Get multiple user profiles by emails (requires auth)
-router.get("/profiles", authenticateUser, getProfiles);
+// Get multiple user profiles by emails (optional auth - allows public profile lookups)
+router.get("/profiles", optionalAuth, getProfiles);
 
 // Delete user account and all associated data (requires auth)
 router.delete("/delete-account", authenticateUser, auditMiddleware("ACCOUNT_DELETED", "warning"), deleteAccount);
 
-// Get last seen for a user by email (requires auth)
-router.get("/:id/lastseen", authenticateUser, validateEmail, getLastSeen);
+// Get last seen for a user by email (optional auth - allows public lookups)
+router.get("/:id/lastseen", optionalAuth, validateEmail, getLastSeen);
 
 module.exports = router;
