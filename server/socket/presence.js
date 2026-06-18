@@ -27,8 +27,8 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
     
     socket.join(userId);
 
-    // Update lastSeen on join (login)
-    updateLastSeen(userId);
+    // NOTE: lastSeen is NOT updated on join — it should only be updated on disconnect/leave
+    // so other users see when you were truly last online (WhatsApp behavior).
 
     // Register device in userDeviceSockets mapping
     const devId = socketToDevice[socket.id];
