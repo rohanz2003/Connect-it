@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
 import EmojiPicker from "emoji-picker-react";
 import {
@@ -156,7 +156,7 @@ function Chat({ user: currentUser }) {
   const socket = useSocket();
   const navigate = useNavigate();
 
-  // Call system â€” from CallContext mounted in App.js
+  // Call system - from CallContext mounted in App.js
   const {
     callState,
     incomingCall,
@@ -508,7 +508,7 @@ function Chat({ user: currentUser }) {
           try {
             const parsed = normalizeChatHistoryKeys(JSON.parse(savedHistory));
             setChatHistory(parsed);
-            console.log("âœ… Loaded chat history from localStorage:", Object.keys(parsed).length, "conversations");
+            console.log("OK Loaded chat history from localStorage:", Object.keys(parsed).length, "conversations");
           } catch (e) {
             console.error("Failed to parse saved chat history", e);
           }
@@ -541,7 +541,7 @@ function Chat({ user: currentUser }) {
             persistHistory(merged, user.email);
             return merged;
           });
-          console.log("âœ… Loaded", recentChats.length, "recent chats from server");
+          console.log("OK Loaded", recentChats.length, "recent chats from server");
 
           // Fetch profiles (including lastSeen) for recent chat partners
           const partnerEmails = recentChats.map(c => c.userEmail).filter(Boolean);
@@ -589,7 +589,7 @@ function Chat({ user: currentUser }) {
         displayName: displayName || null,
         bio: bio || null
       };
-      console.log("ðŸ“¡ Joining socket with data:", { email: joinData.email, hasProfilePic: !!joinData.profilePic });
+      console.log("[socket] Joining socket with data:", { email: joinData.email, hasProfilePic: !!joinData.profilePic });
       socket.emit("join", joinData);
     };
 
@@ -615,13 +615,13 @@ function Chat({ user: currentUser }) {
       const activeChat = selectedUserRef.current;
       const normalizedFrom = normalizeEmail(from);
       const normalizedActiveChat = normalizeEmail(activeChat);
-      console.log(`ðŸ“¨ Typing listener triggered: from=${normalizedFrom}, activeChat=${normalizedActiveChat}, match=${normalizedFrom === normalizedActiveChat}`);
+      console.log(`[typing] Typing listener triggered: from=${normalizedFrom}, activeChat=${normalizedActiveChat}, match=${normalizedFrom === normalizedActiveChat}`);
       
       if (normalizedFrom && normalizedActiveChat && normalizedFrom === normalizedActiveChat) {
-        console.log(`âœ… Typing indicator set for ${normalizedFrom}`);
+        console.log(`OK Typing indicator set for ${normalizedFrom}`);
         setTypingUser(normalizedFrom);
       } else {
-        console.warn(`âŒ Typing mismatch or empty: normalizedFrom=[${normalizedFrom}], normalizedActiveChat=[${normalizedActiveChat}]`);
+        console.warn(`Error: Typing mismatch or empty: normalizedFrom=[${normalizedFrom}], normalizedActiveChat=[${normalizedActiveChat}]`);
       }
     });
 
@@ -629,16 +629,16 @@ function Chat({ user: currentUser }) {
       const activeChat = selectedUserRef.current;
       const normalizedFrom = normalizeEmail(from);
       const normalizedActiveChat = normalizeEmail(activeChat);
-      console.log(`ðŸ“¨ Stop-typing listener triggered: from=${normalizedFrom}, activeChat=${normalizedActiveChat}, match=${normalizedFrom === normalizedActiveChat}`);
+      console.log(`[typing] Stop-typing listener triggered: from=${normalizedFrom}, activeChat=${normalizedActiveChat}, match=${normalizedFrom === normalizedActiveChat}`);
       
       if (normalizedFrom && normalizedActiveChat && normalizedFrom === normalizedActiveChat) {
-        console.log(`âœ… Typing indicator cleared`);
+        console.log(`OK Typing indicator cleared`);
         setTypingUser(null);
         return;
       }
       setTypingUser((currentTypingUser) => {
         if (currentTypingUser && normalizeEmail(currentTypingUser) === normalizedFrom) {
-          console.log(`âœ… Fallback stop-typing cleared for ${normalizedFrom}`);
+          console.log(`OK Fallback stop-typing cleared for ${normalizedFrom}`);
           return null;
         }
         return currentTypingUser;
@@ -654,7 +654,7 @@ function Chat({ user: currentUser }) {
 
     // Listen for unread message updates from server
     socket.on("unread-update", (unreadData) => {
-      console.log("ðŸ“¬ Unread messages updated:", unreadData);
+      console.log("[unread] Unread messages updated:", unreadData);
       const myEmail = normalizeEmail(user.email);
       setUnreadMessages((prev) => {
         const next = { ...prev };
@@ -677,7 +677,7 @@ function Chat({ user: currentUser }) {
 
     // Listen for profile picture updates
     socket.on("user-profile-update", (data) => {
-      console.log("ðŸ‘¤ Profile update:", data);
+      console.log("[profile] Profile update:", data);
       const updatedEmail = data.email.toLowerCase();
       
       // Handle profile picture updates (including removal)
@@ -879,7 +879,7 @@ function Chat({ user: currentUser }) {
 
     // Listen for undelivered messages (status: sent) sent while user was offline
     socket.on("undelivered-messages", (msgs) => {
-      console.log("ðŸ”´ Undelivered messages received:", msgs.length);
+      console.log("[undelivered] Undelivered messages received:", msgs.length);
       const myEmail = normalizeEmail(user.email);
       const unreadByPartner = {};
 
@@ -926,7 +926,7 @@ function Chat({ user: currentUser }) {
       }
     });
 
-    // Listen for message-status-update (sent âœ“, delivered âœ“âœ“)
+    // Listen for message-status-update (sent ✓, delivered ✓✓)
     socket.on("message-status-update", ({ messageId, tempId, status }) => {
       const applyStatus = (list) =>
         list.map((m) =>
@@ -948,7 +948,7 @@ function Chat({ user: currentUser }) {
       }
     });
 
-    // Listen for messages-read (receiver read our messages â†’ âœ“âœ“ blue)
+    // Listen for messages-read (receiver read our messages -> ✓✓ blue)
     socket.on("messages-read", ({ sender, receiver }) => {
       const myEmail = normalizeEmail(user.email);
       if (normalizeEmail(sender) === myEmail) {
@@ -1081,7 +1081,7 @@ function Chat({ user: currentUser }) {
       if (!user || !selectedUser || !socket) return;
       const partner = normalizeEmail(selectedUser);
 
-      console.log(`ðŸ“ Joining room and fetching history: ${user.email} â†” ${partner}`);
+      console.log(`[chat] Joining room and fetching history: ${user.email} <-> ${partner}`);
 
       // 1. Join room
       socket.emit("join-room", { user1: user.email, user2: partner });
@@ -1133,15 +1133,15 @@ function Chat({ user: currentUser }) {
       const normalizedSelected = normalizeEmail(selectedUser);
       
       if (!normalizedUser || !normalizedSelected) {
-        console.warn("âŒ Stop-typing aborted: invalid email normalization");
+        console.warn("Error: Stop-typing aborted: invalid email normalization");
         return;
       }
       
       const stopPayload = { from: normalizedUser, to: normalizedSelected };
-      console.log("ðŸ“¤ Emitting stop-typing:", stopPayload);
+      console.log("[emit] Emitting stop-typing:", stopPayload);
       socket.emit("stop-typing", stopPayload);
     } else {
-      console.debug("âš ï¸ Stop-typing not sent: missing user, selectedUser, socket, or not connected");
+      console.debug("Warning: Stop-typing not sent: missing user, selectedUser, socket, or not connected");
     }
   };
 
@@ -1168,12 +1168,12 @@ function Chat({ user: currentUser }) {
     setMessage(val);
 
     if (!user || !selectedUser || !socket) {
-      console.warn("âŒ Typing aborted: missing user, selectedUser, or socket");
+      console.warn("Error: Typing aborted: missing user, selectedUser, or socket");
       return;
     }
 
     if (!socket.connected) {
-      console.warn("âŒ Socket not connected, typing not sent");
+      console.warn("Error: Socket not connected, typing not sent");
       return;
     }
 
@@ -1181,7 +1181,7 @@ function Chat({ user: currentUser }) {
     const normalizedSelected = normalizeEmail(selectedUser);
 
     if (!normalizedUser || !normalizedSelected) {
-      console.warn("âŒ Typing aborted: invalid email normalization", { user: user.email, selected: selectedUser });
+      console.warn("Error: Typing aborted: invalid email normalization", { user: user.email, selected: selectedUser });
       return;
     }
 
@@ -1191,7 +1191,7 @@ function Chat({ user: currentUser }) {
     }
 
     const typingPayload = { from: normalizedUser, to: normalizedSelected };
-    console.log("ðŸ“¤ Emitting typing:", typingPayload);
+    console.log("[emit] Emitting typing:", typingPayload);
     socket.emit("typing", typingPayload);
 
     if (typingTimeoutRef.current) {
@@ -1199,7 +1199,7 @@ function Chat({ user: currentUser }) {
     }
 
     typingTimeoutRef.current = setTimeout(() => {
-      console.log("â±ï¸ Typing timeout reached - auto stopping typing");
+      console.log("[timer] Typing timeout reached - auto stopping typing");
       stopTyping();
     }, 3000); // Timeout for better UX
   };
@@ -1209,7 +1209,7 @@ function Chat({ user: currentUser }) {
 
     // Check if socket is connected
     if (!socket.connected) {
-      alert("âŒ You are offline. Please check your connection.");
+      alert("Error: You are offline. Please check your connection.");
       return;
     }
 
@@ -1217,7 +1217,7 @@ function Chat({ user: currentUser }) {
 
     const msgText = message;
     const tempId = `${Date.now()}-${Math.random()}`;
-    console.log(`ðŸ“¤ Sending message from ${user.email} to ${selectedUser}: "${msgText}"`);
+    console.log(`[emit] Sending message from ${user.email} to ${selectedUser}: "${msgText}"`);
 
     // Create message object
     const newMsg = {
@@ -1268,7 +1268,7 @@ function Chat({ user: currentUser }) {
     if (!file || !user || !selectedUser || !socket) return;
 
     if (!socket.connected) {
-      alert("âŒ You are offline. Please check your connection.");
+      alert("Error: You are offline. Please check your connection.");
       e.target.value = null;
       return;
     }
@@ -1276,7 +1276,7 @@ function Chat({ user: currentUser }) {
     ensureSocketJoined();
 
     if (isMediaSending) {
-      alert("â³ File is already being sent. Please wait...");
+      alert("Please wait: File is already being sent. Please wait...");
       e.target.value = null;
       return;
     }
@@ -1364,8 +1364,8 @@ function Chat({ user: currentUser }) {
       });
 
     } catch (err) {
-      console.error("âŒ Error processing file:", err);
-      alert("âŒ Error sending file. Please try again.");
+      console.error("Error: Error processing file:", err);
+      alert("Error: Error sending file. Please try again.");
       setIsMediaSending(false);
       setUploadProgress(0);
     } finally {
@@ -2339,7 +2339,7 @@ function Chat({ user: currentUser }) {
       </div>
 
       <main className={`chat-panel ${activeTab !== "chat" ? "mobile-hidden" : ""}`}>
-        {/* Incoming call overlay â€” shown globally over the entire app */}
+        {/* Incoming call overlay - shown globally over the entire app */}
 
         <div className="chat-panel-header">
           <button className="mobile-menu-btn" onClick={() => { if (selectedUser) { setSelectedUser(null); setSidebarOpen(true); } else { setSidebarOpen(!sidebarOpen); } }} aria-label={selectedUser ? "Back" : "Open menu"}>
@@ -2509,7 +2509,7 @@ function Chat({ user: currentUser }) {
                                 <div className="media-file">
                                   <div className="media-file-header">
                                     <div className={`media-file-icon ${msg.text?.name?.endsWith('.pdf') ? 'pdf' : msg.text?.name?.endsWith('.doc') || msg.text?.name?.endsWith('.docx') ? 'doc' : 'other'}`}>
-                                      {msg.text?.name?.endsWith('.pdf') ? 'ðŸ“„' : msg.text?.name?.endsWith('.doc') || msg.text?.name?.endsWith('.docx') ? 'ðŸ“' : 'ðŸ“Ž'}
+                                      {msg.text?.name?.endsWith('.pdf') ? 'PDF' : msg.text?.name?.endsWith('.doc') || msg.text?.name?.endsWith('.docx') ? 'DOC' : 'FILE'}
                                     </div>
                                     <div className="media-file-info">
                                       <span className="media-file-name">{msg.text?.name || "Document"}</span>
@@ -2542,7 +2542,7 @@ function Chat({ user: currentUser }) {
                               {msg.text?.data && msg.mediaType !== "image" && msg.mediaType !== "video" && msg.mediaType !== "audio" && msg.mediaType !== "application" && (
                                 <div className="media-file">
                                   <div className="media-file-header">
-                                    <div className="media-file-icon other">ðŸ“Ž</div>
+                                    <div className="media-file-icon other">FILE</div>
                                     <div className="media-file-info">
                                       <span className="media-file-name">{msg.text?.name || "Attachment"}</span>
                                       <span className="media-file-size">{msg.text?.size ? `${(msg.text.size / 1024).toFixed(1)} KB` : "File"}</span>
@@ -2578,16 +2578,16 @@ function Chat({ user: currentUser }) {
                         </div>
                         <div className="message-meta">
                           <span>{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
-                          {msg.pending && <span className="message-status pending">â° Sendingâ€¦</span>}
-                          {msg.failed && <span className="message-status failed">âŒ Failed</span>}
+                          {msg.pending && <span className="message-status pending">Sending...</span>}
+                          {msg.failed && <span className="message-status failed">Failed</span>}
                           {normalizeEmail(msg.sender) === normalizeEmail(user.email) && !msg.pending && !msg.failed && (
                             <span className={`message-status-tick ${msg.status || 'sent'}`}>
                               {msg.status === "read" ? (
-                                <span className="double-tick read">âœ“âœ“</span>
+                                <span className="double-tick read">{"\u2713\u2713"}</span>
                               ) : msg.status === "delivered" ? (
-                                <span className="double-tick delivered">âœ“âœ“</span>
+                                <span className="double-tick delivered">{"\u2713\u2713"}</span>
                               ) : (
-                                <span className="single-tick sent">âœ“</span>
+                                <span className="single-tick sent">{"\u2713"}</span>
                               )}
                             </span>
                           )}

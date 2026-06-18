@@ -1,4 +1,4 @@
-﻿/* ============================================================================
+/* ============================================================================
    MODERN MESSENGER UI - PROFESSIONAL DESIGN SYSTEM
    ============================================================================ */
 
@@ -4457,7 +4457,7 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
 
 
 /* ============================================================================
-   ðŸ“ž CALL SYSTEM â€” WhatsApp-Style Voice & Video Calling
+   CALL SYSTEM - WhatsApp-Style Voice & Video Calling
    ============================================================================ */
 
 /* ---------------------------------------------------------------------------
@@ -4576,7 +4576,7 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
 }
 
 /* ---------------------------------------------------------------------------
-   TOP BAR â€” Name, Timer, Signal
+   TOP BAR - Name, Timer, Signal
    --------------------------------------------------------------------------- */
 
 .active-call-top-bar {
@@ -4627,7 +4627,7 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
 }
 
 /* ---------------------------------------------------------------------------
-   PIP â€” Self-View for Video Calls
+   PIP - Self-View for Video Calls
    --------------------------------------------------------------------------- */
 
 .active-call-pip {
@@ -5138,7 +5138,7 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
 }
 
 /* ---------------------------------------------------------------------------
-   CALL SYSTEM â€” Dark Mode
+   CALL SYSTEM - Dark Mode
    --------------------------------------------------------------------------- */
 
 body.dark-mode .call-history-panel,
@@ -5164,7 +5164,7 @@ body.dark-mode .incoming-call-card,
 }
 
 /* ---------------------------------------------------------------------------
-   CALL SYSTEM â€” Responsive
+   CALL SYSTEM - Responsive
    --------------------------------------------------------------------------- */
 
 /* Tablet and small desktop */
