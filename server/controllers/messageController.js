@@ -111,6 +111,9 @@ exports.getRecentChats = async (req, res) => {
           timestamp: msgTime,
           type: msg.type,
           messageId: msg._id,
+          sender: msg.sender,
+          receiver: msg.receiver,
+          status: msg.status,
         };
       }
     }

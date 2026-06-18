@@ -94,6 +94,21 @@ const upsertMessageInList = (list, msg) => {
   );
 };
 
+const normalizeChatHistoryKeys = (historyObj) => {
+  const normalized = {};
+  Object.entries(historyObj || {}).forEach(([key, value]) => {
+    const normalizedKey = normalizeEmail(key);
+    if (!normalizedKey) return;
+    normalized[normalizedKey] = [
+      ...(normalized[normalizedKey] || []),
+      ...(Array.isArray(value) ? value : []),
+    ].sort(
+      (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
+    );
+  });
+  return normalized;
+};
+
 const ImageCropModal = ({ src, onCrop, onCancel }) => {
   const [scale, setScale] = React.useState(1);
 
@@ -491,7 +506,7 @@ function Chat({ user: currentUser }) {
         const savedHistory = localStorage.getItem(`chatHistory_${user.email}`);
         if (savedHistory) {
           try {
-            const parsed = JSON.parse(savedHistory);
+            const parsed = normalizeChatHistoryKeys(JSON.parse(savedHistory));
             setChatHistory(parsed);
             console.log("âœ… Loaded chat history from localStorage:", Object.keys(parsed).length, "conversations");
           } catch (e) {
@@ -506,14 +521,15 @@ function Chat({ user: currentUser }) {
           const historyFromServer = {};
           recentChats.forEach(chat => {
             if (chat.userEmail) {
-              const emailKey = chat.userEmail.toLowerCase();
+              const emailKey = normalizeEmail(chat.userEmail);
               historyFromServer[emailKey] = [{
                 _id: chat.messageId,
-                sender: user.email,
-                receiver: chat.userEmail,
+                sender: normalizeEmail(chat.sender) || emailKey,
+                receiver: normalizeEmail(chat.receiver) || normalizeEmail(user.email),
                 text: chat.lastMessage,
                 type: chat.type,
                 timestamp: chat.timestamp,
+                status: chat.status,
                 seen: false
               }];
             }
@@ -521,7 +537,7 @@ function Chat({ user: currentUser }) {
 
           // Merge with existing localStorage data, preferring localStorage for full histories
           setChatHistory(prev => {
-            const merged = { ...historyFromServer, ...prev };
+            const merged = normalizeChatHistoryKeys({ ...historyFromServer, ...prev });
             persistHistory(merged, user.email);
             return merged;
           });
@@ -639,7 +655,24 @@ function Chat({ user: currentUser }) {
     // Listen for unread message updates from server
     socket.on("unread-update", (unreadData) => {
       console.log("ðŸ“¬ Unread messages updated:", unreadData);
-      setUnreadMessages(unreadData);
+      const myEmail = normalizeEmail(user.email);
+      setUnreadMessages((prev) => {
+        const next = { ...prev };
+        Object.entries(unreadData || {}).forEach(([key, count]) => {
+          if (!key.endsWith(`_${myEmail}`)) return;
+          if (count > 0) {
+            next[key] = count;
+          } else {
+            delete next[key];
+          }
+        });
+        try {
+          localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
+        } catch (e) {
+          console.error("Failed to persist unread counts", e);
+        }
+        return next;
+      });
     });
 
     // Listen for profile picture updates
@@ -848,15 +881,18 @@ function Chat({ user: currentUser }) {
     socket.on("undelivered-messages", (msgs) => {
       console.log("ðŸ”´ Undelivered messages received:", msgs.length);
       const myEmail = normalizeEmail(user.email);
+      const unreadByPartner = {};
 
       msgs.forEach((msg) => {
         const otherParty = getOtherParty(msg, myEmail);
         setChatHistory((prev) => {
           const currentHistory = prev[otherParty] || [];
-          return {
+          const updated = {
             ...prev,
             [otherParty]: upsertMessageInList(currentHistory, msg),
           };
+          persistHistory(updated, user.email);
+          return updated;
         });
 
         if (
@@ -864,8 +900,30 @@ function Chat({ user: currentUser }) {
           normalizeEmail(selectedUserRef.current) === otherParty
         ) {
           setMessages((prev) => upsertMessageInList(prev, msg));
+          socket.emit("mark-as-read", {
+            user1: myEmail,
+            user2: otherParty,
+          });
+        } else if (normalizeEmail(msg.sender) !== myEmail) {
+          unreadByPartner[otherParty] = (unreadByPartner[otherParty] || 0) + 1;
         }
       });
+
+      if (Object.keys(unreadByPartner).length > 0) {
+        setUnreadMessages((prev) => {
+          const next = { ...prev };
+          Object.entries(unreadByPartner).forEach(([partner, count]) => {
+            const key = `${partner}_${myEmail}`;
+            next[key] = Math.max(next[key] || 0, count);
+          });
+          try {
+            localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
+          } catch (e) {
+            console.error("Failed to persist unread counts", e);
+          }
+          return next;
+        });
+      }
     });
 
     // Listen for message-status-update (sent âœ“, delivered âœ“âœ“)
@@ -893,13 +951,13 @@ function Chat({ user: currentUser }) {
     // Listen for messages-read (receiver read our messages â†’ âœ“âœ“ blue)
     socket.on("messages-read", ({ sender, receiver }) => {
       const myEmail = normalizeEmail(user.email);
-      if (normalizeEmail(receiver) === myEmail) {
-        const otherParty = normalizeEmail(sender);
+      if (normalizeEmail(sender) === myEmail) {
+        const otherParty = normalizeEmail(receiver);
         setChatHistory((prev) => {
           const updated = { ...prev };
           if (updated[otherParty]) {
             updated[otherParty] = updated[otherParty].map((m) =>
-              m.sender === myEmail ? { ...m, status: "read" } : m
+              normalizeEmail(m.sender) === myEmail ? { ...m, status: "read" } : m
             );
           }
           return updated;
@@ -910,7 +968,7 @@ function Chat({ user: currentUser }) {
         ) {
           setMessages((prev) =>
             prev.map((m) =>
-              m.sender === myEmail ? { ...m, status: "read" } : m
+              normalizeEmail(m.sender) === myEmail ? { ...m, status: "read" } : m
             )
           );
         }
@@ -1021,20 +1079,25 @@ function Chat({ user: currentUser }) {
   useEffect(() => {
     const syncChat = async () => {
       if (!user || !selectedUser || !socket) return;
+      const partner = normalizeEmail(selectedUser);
 
-      console.log(`ðŸ“ Joining room and fetching history: ${user.email} â†” ${selectedUser}`);
+      console.log(`ðŸ“ Joining room and fetching history: ${user.email} â†” ${partner}`);
 
       // 1. Join room
-      socket.emit("join-room", { user1: user.email, user2: selectedUser });
+      socket.emit("join-room", { user1: user.email, user2: partner });
       
       // 2. Mark messages as read
-      socket.emit("mark-as-read", { user1: user.email, user2: selectedUser });
+      socket.emit("mark-as-read", { user1: user.email, user2: partner });
       
       // 3. Fetch full history from Database (Fixes the "no msg show" issue)
       try {
-        const history = await fetchMessages(user.email, selectedUser) || [];
+        const history = await fetchMessages(user.email, partner) || [];
         
-        setChatHistory(prev => ({ ...prev, [selectedUser]: history }));
+        setChatHistory(prev => {
+          const updated = { ...prev, [partner]: history };
+          persistHistory(updated, user.email);
+          return updated;
+        });
         setMessages(prev => {
           // Merge history with any new messages that arrived via socket while fetching
           const historyIds = new Set(history.map(m => m._id).filter(Boolean));
@@ -1046,7 +1109,6 @@ function Chat({ user: currentUser }) {
         });
       } catch (err) {
         console.error("Failed to fetch messages:", err);
-        const partner = normalizeEmail(selectedUser);
         const cached = chatHistoryRef.current[partner];
         if (cached?.length) {
           setMessages(
@@ -1712,24 +1774,27 @@ function Chat({ user: currentUser }) {
   };
 
   const handleUserSelect = (u) => {
-    setSelectedUser(u);
+    const partner = normalizeEmail(u);
+    setSelectedUser(partner);
     setSidebarOpen(false);
     
     // Update messages when user is selected, ensuring chronological order
-    if (chatHistory[u]) {
-      setMessages([...chatHistory[u]].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
+    if (chatHistory[partner]) {
+      setMessages([...chatHistory[partner]].sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)));
+    } else {
+      setMessages([]);
     }
 
     // Mark messages as read on server
     if (socket && socket.connected && user) {
-      socket.emit("mark-as-read", { user1: user.email, user2: u });
-      socket.emit("seen-message", { sender: u, receiver: user.email });
+      socket.emit("mark-as-read", { user1: user.email, user2: partner });
+      socket.emit("seen-message", { sender: partner, receiver: user.email });
     }
 
     // Clear unread badge for this chat immediately
     if (user) {
       setUnreadMessages(prev => {
-        const key = `${u.toLowerCase()}_${user.email.toLowerCase()}`;
+        const key = `${partner}_${normalizeEmail(user.email)}`;
         if (!prev[key]) return prev;
         const next = { ...prev };
         delete next[key];
@@ -2368,11 +2433,11 @@ function Chat({ user: currentUser }) {
                           <span>{formatDay(msg.timestamp || msg.createdAt)}</span>
                         </div>
                       )}
-                      <div className={`message ${msg.sender === user.email ? "sent" : "received"} message-animate`} onContextMenu={(e) => handleContextMenu(e, msg)}>
+                      <div className={`message ${normalizeEmail(msg.sender) === normalizeEmail(user.email) ? "sent" : "received"} message-animate`} onContextMenu={(e) => handleContextMenu(e, msg)}>
                         <div className="message-content">
                           {msg.replyTo && (
                             <div className="reply-quote">
-                              <small>{msg.replyTo.sender === user.email ? "You" : msg.replyTo.sender.split('@')[0]}</small>
+                              <small>{normalizeEmail(msg.replyTo.sender) === normalizeEmail(user.email) ? "You" : msg.replyTo.sender.split('@')[0]}</small>
                               <p>{msg.replyTo.text}</p>
                             </div>
                           )}
@@ -2515,7 +2580,7 @@ function Chat({ user: currentUser }) {
                           <span>{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
                           {msg.pending && <span className="message-status pending">â° Sendingâ€¦</span>}
                           {msg.failed && <span className="message-status failed">âŒ Failed</span>}
-                          {msg.sender === user.email && !msg.pending && !msg.failed && (
+                          {normalizeEmail(msg.sender) === normalizeEmail(user.email) && !msg.pending && !msg.failed && (
                             <span className={`message-status-tick ${msg.status || 'sent'}`}>
                               {msg.status === "read" ? (
                                 <span className="double-tick read">âœ“âœ“</span>

@@ -283,7 +283,7 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
     }
 
     Message.updateMany(
-      { sender: normalizedUser2, receiver: normalizedUser1, status: "delivered" },
+      { sender: normalizedUser2, receiver: normalizedUser1, status: { $in: ["sent", "delivered"] } },
       updateOp
     ).catch((err) => console.warn("mark-as-read DB update failed:", err.message));
 
@@ -328,7 +328,7 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
       }
 
       await Message.updateMany(
-        { sender: normalizeEmail(sender), receiver: normalizedReceiver, status: "delivered" },
+        { sender: normalizeEmail(sender), receiver: normalizedReceiver, status: { $in: ["sent", "delivered"] } },
         updateOp
       );
 

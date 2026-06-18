@@ -114,6 +114,27 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
         if (undelivered.length > 0) {
           const decrypted = undelivered.map(decryptMessageDoc);
           io.to(userId).emit("undelivered-messages", decrypted);
+
+          const deliveredUpdate = {
+            status: "delivered",
+          };
+          if (socketToDevice[socket.id]) {
+            deliveredUpdate.$addToSet = { deliveredDevices: socketToDevice[socket.id] };
+          }
+
+          await Message.updateMany(
+            { _id: { $in: undelivered.map((msg) => msg._id) }, status: "sent" },
+            deliveredUpdate
+          );
+
+          undelivered.forEach((msg) => {
+            io.to(msg.sender).emit("message-status-update", {
+              messageId: msg._id,
+              tempId: msg.tempId || null,
+              status: "delivered",
+              deliveredDevices: socketToDevice[socket.id] ? [socketToDevice[socket.id]] : [],
+            });
+          });
           console.log(`📨 ${undelivered.length} undelivered message(s) sent to ${userId}`);
         }
       } catch (err) {
