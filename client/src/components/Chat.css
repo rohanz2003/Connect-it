@@ -545,11 +545,12 @@ body {
 }
 
 .tab-online-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #22c55e;
   flex-shrink: 0;
+  box-shadow: 0 0 0 2px var(--background-sidebar);
 }
 
 .tab.active .tab-online-dot {
@@ -739,16 +740,17 @@ body {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   background: var(--warning-color);
-  border: 2px solid var(--background-sidebar);
+  border: 2.5px solid var(--background-sidebar);
   border-radius: var(--radius-full);
+  z-index: 1;
 }
 
 .status-dot.online {
-  background: var(--success-color);
-  animation: dot-pulse 2s infinite;
+  background: #22c55e;
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.3);
 }
 
 @keyframes dot-pulse {
@@ -2463,12 +2465,14 @@ body {
 
 .bottom-nav-green-dot {
   position: absolute;
-  top: -2px;
-  right: -4px;
-  width: 8px;
-  height: 8px;
+  top: -3px;
+  right: -5px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: #10b981;
+  background: #22c55e;
+  border: 2px solid var(--background-white);
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.3);
   border: 2px solid var(--background-white, #ffffff);
 }
 
