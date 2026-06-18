@@ -1,0 +1,82 @@
+.phone-auth-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+  position: relative;
+}
+
+.phone-auth-back {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: none;
+  border: none;
+  color: #667eea;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.phone-auth-back:hover {
+  color: #764ba2;
+}
+
+.phone-auth-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  margin-bottom: 12px;
+}
+
+.phone-auth-container h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.phone-auth-subtitle {
+  font-size: 13px;
+  color: #666;
+  margin: 0 0 16px;
+  text-align: center;
+}
+
+.phone-auth-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.phone-auth-resend {
+  font-size: 13px;
+  color: #666;
+  margin-top: 12px;
+}
+
+.phone-auth-resend span {
+  color: #667eea;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.phone-auth-resend span:hover {
+  text-decoration: underline;
+}
+
+#recaptcha-container {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}

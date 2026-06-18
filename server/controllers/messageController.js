@@ -1,7 +1,7 @@
 const Message = require("../models/Message");
 const ClearedChat = require("../models/ClearedChat");
-const { decryptMessageDoc } = require("../utils/messageCrypto");
 const { normalizeEmail } = require("../utils/socketAuth");
+const { writeAuditLog } = require("../services/auditService");
 
 const getClearedAt = async (user, partner) => {
   const record = await ClearedChat.findOne({
@@ -20,6 +20,9 @@ exports.getMessages = async (req, res) => {
 
     const u1 = normalizeEmail(user1);
     const u2 = normalizeEmail(user2);
+    if (req.user?.email !== u1 && req.user?.email !== u2) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
 
     const clearedAt = await getClearedAt(u1, u2);
     const query = {
@@ -27,18 +30,28 @@ exports.getMessages = async (req, res) => {
         { sender: u1, receiver: u2 },
         { sender: u2, receiver: u1 },
       ],
+      deletedFor: { $ne: req.user.email },
+      deletedForEveryone: { $ne: true },
     };
 
     if (clearedAt) {
       query.timestamp = { $gt: clearedAt };
     }
+    query.$and = [
+      {
+        $or: [
+          { expiresAt: null },
+          { expiresAt: { $gt: new Date() } },
+        ],
+      },
+    ];
 
     const messages = await Message.find(query)
       .sort({ timestamp: 1 })
       .limit(500)
       .lean();
 
-    res.json(messages.map(decryptMessageDoc));
+    res.json(messages);
   } catch (error) {
     console.error("getMessages error:", error);
     res.status(500).json({ error: "Failed to fetch messages", details: error.message });
@@ -51,11 +64,21 @@ exports.clearChat = async (req, res) => {
     if (!user || !partner) {
       return res.status(400).json({ error: "user and partner are required" });
     }
+    const normalizedUser = normalizeEmail(user);
+    if (req.user?.email !== normalizedUser) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     await ClearedChat.findOneAndUpdate(
-      { user: normalizeEmail(user), partner: normalizeEmail(partner) },
+      { user: normalizedUser, partner: normalizeEmail(partner) },
       { clearedAt: new Date() },
       { upsert: true, new: true }
     );
+    await writeAuditLog({
+      actor: normalizedUser,
+      action: "chat_deleted",
+      target: normalizeEmail(partner),
+      req,
+    });
     res.json({ success: true });
   } catch (error) {
     console.error("Error clearing chat:", error);
@@ -71,6 +94,9 @@ exports.getRecentChats = async (req, res) => {
     }
 
     const normalizedEmail = normalizeEmail(userEmail);
+    if (req.user?.email !== normalizedEmail) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
 
     const clearedRecords = await ClearedChat.find({ user: normalizedEmail }).lean();
     const clearedMap = Object.fromEntries(
@@ -79,6 +105,16 @@ exports.getRecentChats = async (req, res) => {
 
     const messages = await Message.find({
       $or: [{ sender: normalizedEmail }, { receiver: normalizedEmail }],
+      deletedFor: { $ne: normalizedEmail },
+      deletedForEveryone: { $ne: true },
+      $and: [
+        {
+          $or: [
+            { expiresAt: null },
+            { expiresAt: { $gt: new Date() } },
+          ],
+        },
+      ],
     })
       .sort({ timestamp: -1 })
       .limit(1000)
@@ -97,17 +133,11 @@ exports.getRecentChats = async (req, res) => {
       }
 
       if (!conversations[otherUser]) {
-        const decrypted = decryptMessageDoc(msg);
-        const preview =
-          decrypted.type === "media"
-            ? "[Media]"
-            : typeof decrypted.text === "string"
-              ? decrypted.text
-              : "[Message]";
-
         conversations[otherUser] = {
           userEmail: otherUser,
-          lastMessage: preview,
+          lastMessage: msg.type === "media" ? "[Encrypted media]" : "[Encrypted message]",
+          encrypted: true,
+          text: msg.text,
           timestamp: msgTime,
           type: msg.type,
           messageId: msg._id,

@@ -10,6 +10,7 @@ import Admin from "./components/Admin";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { CallProvider } from "./context/CallContext";
 import GlobalCallOverlay from "./components/call/GlobalCallOverlay";
+import { createSession } from "./services/authToken";
 
 // ✅ Protected Route
 const PrivateRoute = ({ children, loading, user }) => {
@@ -32,8 +33,20 @@ function App() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
+    let sessionCreated = false;
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser && !sessionCreated) {
+        sessionCreated = true;
+        try {
+          const sessionData = await createSession();
+          if (sessionData?.refreshToken) {
+            const { storeRefreshToken } = await import("./services/refreshTokenService");
+            storeRefreshToken(sessionData.refreshToken);
+          }
+        } catch (err) {
+          console.warn("Session creation failed (will retry on Chat mount):", err.message);
+        }
+
         const mappedUser = {
           email: currentUser.email,
           profilePic: currentUser.photoURL || localStorage.getItem(`profilePic_${currentUser.email.toLowerCase()}`),

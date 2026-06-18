@@ -22,8 +22,11 @@ import {
   Zap,
   Cloud,
   Camera,
+  Phone,
 } from "lucide-react";
 import "./Login.css";
+import PhoneAuth from "./PhoneAuth";
+import "./PhoneAuth.css";
 
 const validatePassword = (pwd) => {
   const errors = [];
@@ -75,6 +78,7 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showPhoneAuth, setShowPhoneAuth] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetSent, setResetSent] = useState(false);
   const fileInputRef = useRef(null);
@@ -318,7 +322,11 @@ function Login() {
 
       {/* Right form panel */}
       <div className="login-right-panel">
-        {showForgotPassword ? (
+        {showPhoneAuth ? (
+          <div className="login-form-wrap">
+            <PhoneAuth onBack={() => setShowPhoneAuth(false)} />
+          </div>
+        ) : showForgotPassword ? (
           <div className="login-form-wrap">
             <div className="login-logo-icon">
               <span>C</span>
@@ -483,6 +491,15 @@ function Login() {
                 )}
               </button>
             </form>
+
+            <button
+              type="button"
+              className="login-phone-btn"
+              onClick={() => setShowPhoneAuth(true)}
+            >
+              <Phone size={16} />
+              Sign in with Phone
+            </button>
 
             <p className="login-toggle">
               {isRegistering ? (

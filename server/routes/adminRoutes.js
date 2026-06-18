@@ -3,18 +3,19 @@ const router = express.Router();
 const { sendOtp, verifyOtp } = require('../controllers/adminAuthController');
 const adminAuthMiddleware = require('../middleware/adminAuthMiddleware');
 const adminController = require('../controllers/adminController');
+const { loginLimiter } = require("../middleware/security");
 
 // --- PUBLIC ROUTES (No Auth Required) ---
 
 // @route POST /api/admin/send-otp
 // @desc Send OTP to admin email
 // @access Public
-router.post('/send-otp', sendOtp);
+router.post('/send-otp', loginLimiter, sendOtp);
 
 // @route POST /api/admin/verify-otp
 // @desc Verify OTP and issue JWT
 // @access Public
-router.post('/verify-otp', verifyOtp);
+router.post('/verify-otp', loginLimiter, verifyOtp);
 
 // --- PROTECTED ROUTES (JWT Required) ---
 

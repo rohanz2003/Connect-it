@@ -1,6 +1,9 @@
 const mongoose = require("mongoose");
 const dns = require("dns");
 
+mongoose.set("sanitizeFilter", true);
+mongoose.set("strictQuery", true);
+
 /**
  * Fixes MONGO_URI if it contains unencoded special characters in the password.
  * Specifically handles the '@' character which is common in passwords and breaks parsing.
@@ -48,7 +51,7 @@ const connectDatabase = async () => {
     dns.setDefaultResultOrder("ipv4first");
   }
 
-  let mongoUri = process.env.MONGO_URI;
+  let mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
 
   if (!mongoUri) {
     throw new Error("MONGO_URI is not defined");

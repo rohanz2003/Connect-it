@@ -1,22 +1,44 @@
-const { normalizeEmail, registerSocket } = require("../utils/socketAuth");
+const { normalizeEmail, registerSocket, getAuthenticatedEmail } = require("../utils/socketAuth");
 const User = require("../modules/User");
 const Message = require("../models/Message");
 const ClearedChat = require("../models/ClearedChat");
 const Device = require("../models/Device");
-const { decryptMessageDoc } = require("../utils/messageCrypto");
 const { updateLastSeen } = require("../controllers/userController");
+const { writeAuditLog } = require("../services/auditService");
+
+const getVisibleOnlineUsers = async (users) => {
+  const onlineIds = Object.keys(users);
+  if (onlineIds.length === 0) return [];
+
+  const hiddenUsers = await User.find({
+    email: { $in: onlineIds },
+    "privacy.hideOnlineStatus": true,
+  })
+    .select("email")
+    .lean();
+  const hidden = new Set(hiddenUsers.map((u) => u.email));
+  return onlineIds.filter((id) => !hidden.has(id));
+};
+
+const broadcastOnlineUsers = async (io, users) => {
+  try {
+    io.emit("online-users", await getVisibleOnlineUsers(users));
+  } catch (err) {
+    console.warn("online user privacy filter failed:", err.message);
+    io.emit("online-users", Object.keys(users));
+  }
+};
 
 module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSockets) => {
   socket.on("join", async (data) => {
-    let userId = typeof data === 'string' ? data : data?.email;
-    const profilePic = typeof data === 'object' ? data?.profilePic : null;
-    const displayName = typeof data === 'object' ? data?.displayName : null;
-    const bio = typeof data === 'object' ? data?.bio : null;
-    
-    if (!userId || userId.trim() === "") {
-      return;
-    }
-    userId = userId.trim().toLowerCase();
+    let userId = typeof data === "string" ? data : data?.email;
+    const authUser = getAuthenticatedEmail(socket, users);
+    const profilePic = typeof data === "object" ? data?.profilePic : null;
+    const displayName = typeof data === "object" ? data?.displayName : null;
+    const bio = typeof data === "object" ? data?.bio : null;
+
+    userId = normalizeEmail(userId);
+    if (!userId || !authUser || authUser !== userId) return;
 
     registerSocket(socket.id, userId);
 
@@ -24,12 +46,8 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
       users[userId] = new Set();
     }
     users[userId].add(socket.id);
-    
     socket.join(userId);
 
-    // lastSeen is NOT updated on join — only on disconnect/leave (WhatsApp behavior)
-
-    // Register device in userDeviceSockets mapping
     const devId = socketToDevice[socket.id];
     if (devId) {
       if (!userDeviceSockets[userId]) {
@@ -37,10 +55,9 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
       }
       userDeviceSockets[userId][devId] = socket.id;
 
-      // Mark device active in DB
       try {
         await Device.findOneAndUpdate(
-          { deviceId: devId },
+          { deviceId: devId, userId },
           { isActive: true, socketId: socket.id, lastSeen: new Date() },
           { upsert: true }
         );
@@ -49,26 +66,20 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
       }
     }
 
-    // Only store in memory if a truthy value was provided (never overwrite with null)
-    if (typeof data === 'object' && data?.profilePic) {
+    if (typeof data === "object" && data?.profilePic) {
       userProfiles[userId] = profilePic;
     }
 
-    // Only broadcast fields that were actually provided
-    const profilePayload = {
-      email: userId,
-    };
-    if (typeof data === 'object' && data?.hasOwnProperty('profilePic')) {
+    const profilePayload = { email: userId };
+    if (typeof data === "object" && Object.prototype.hasOwnProperty.call(data, "profilePic")) {
       profilePayload.profilePic = profilePic || null;
     }
     if (displayName) profilePayload.displayName = displayName;
     if (bio) profilePayload.bio = bio;
 
-    // Only broadcast if we have profile data
-    if (typeof data === 'object' && data !== null) {
+    if (typeof data === "object" && data !== null) {
       io.emit("user-profile-update", profilePayload);
 
-      // Persist to database (only truthy values to avoid overwriting)
       try {
         const update = {};
         if (profilePic) update.avatarUrl = profilePic;
@@ -85,174 +96,147 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
         console.error("Error persisting profile on join:", err.message);
       }
     }
-    
-    io.emit("online-users", Object.keys(users));
 
-    // Fetch and send undelivered messages (status: sent) to this user
-    (async () => {
-      try {
-        // Get cleared chats to exclude messages from cleared conversations
-        const clearedRecords = await ClearedChat.find({ user: userId }).lean();
-        const clearedFilters = clearedRecords.map((r) => ({
-          sender: r.partner,
-          timestamp: { $lte: r.clearedAt },
-        }));
+    await broadcastOnlineUsers(io, users);
 
-        const query = {
-          receiver: userId,
-          status: "sent",
-        };
-        if (clearedFilters.length > 0) {
-          query.$nor = clearedFilters;
-        }
+    try {
+      const clearedRecords = await ClearedChat.find({ user: userId }).lean();
+      const clearedFilters = clearedRecords.map((r) => ({
+        sender: r.partner,
+        timestamp: { $lte: r.clearedAt },
+      }));
 
-        const undelivered = await Message.find(query)
-          .sort({ timestamp: 1 })
-          .limit(100)
-          .lean();
-
-        if (undelivered.length > 0) {
-          const decrypted = undelivered.map(decryptMessageDoc);
-          io.to(userId).emit("undelivered-messages", decrypted);
-
-          const deliveredUpdate = {
-            status: "delivered",
-          };
-          if (socketToDevice[socket.id]) {
-            deliveredUpdate.$addToSet = { deliveredDevices: socketToDevice[socket.id] };
-          }
-
-          await Message.updateMany(
-            { _id: { $in: undelivered.map((msg) => msg._id) }, status: "sent" },
-            deliveredUpdate
-          );
-
-          undelivered.forEach((msg) => {
-            io.to(msg.sender).emit("message-status-update", {
-              messageId: msg._id,
-              tempId: msg.tempId || null,
-              status: "delivered",
-              deliveredDevices: socketToDevice[socket.id] ? [socketToDevice[socket.id]] : [],
-            });
-          });
-          console.log(`📨 ${undelivered.length} undelivered message(s) sent to ${userId}`);
-        }
-      } catch (err) {
-        console.error("❌ Failed to fetch undelivered messages:", err.message);
+      const query = {
+        receiver: userId,
+        status: "sent",
+        deletedFor: { $ne: userId },
+        deletedForEveryone: { $ne: true },
+        $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
+      };
+      if (clearedFilters.length > 0) {
+        query.$nor = clearedFilters;
       }
-    })();
+
+      const undelivered = await Message.find(query)
+        .sort({ timestamp: 1 })
+        .limit(100)
+        .lean();
+
+      if (undelivered.length > 0) {
+        io.to(userId).emit("undelivered-messages", undelivered);
+
+        const deliveredUpdate = { status: "delivered" };
+        if (socketToDevice[socket.id]) {
+          deliveredUpdate.$addToSet = { deliveredDevices: socketToDevice[socket.id] };
+        }
+
+        await Message.updateMany(
+          { _id: { $in: undelivered.map((msg) => msg._id) }, status: "sent" },
+          deliveredUpdate
+        );
+
+        undelivered.forEach((msg) => {
+          io.to(msg.sender).emit("message-status-update", {
+            messageId: msg._id,
+            tempId: msg.tempId || null,
+            status: "delivered",
+            deliveredDevices: socketToDevice[socket.id] ? [socketToDevice[socket.id]] : [],
+          });
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch undelivered messages:", err.message);
+    }
   });
 
-  socket.on("leave", (data) => {
-    const userIdRaw = typeof data === 'string' ? data : data?.email;
-    if (!userIdRaw) return;
-
-    const userId = userIdRaw.toLowerCase().trim();
-    if (!users[userId]) return;
+  socket.on("leave", async (data) => {
+    const userId = normalizeEmail(typeof data === "string" ? data : data?.email);
+    const authUser = getAuthenticatedEmail(socket, users);
+    if (!userId || !authUser || authUser !== userId || !users[userId]) return;
 
     users[userId].delete(socket.id);
     socket.leave(userId);
 
     if (users[userId].size === 0) {
       delete users[userId];
-      // Update lastSeen on logout
       updateLastSeen(userId);
       io.emit("last-seen", { userId, time: new Date().toISOString() });
+      writeAuditLog({ actor: userId, action: "logout", socket });
     }
 
-    io.emit("online-users", Object.keys(users));
+    await broadcastOnlineUsers(io, users);
   });
 
   socket.on("update-profile", async (data) => {
-    const email = data?.email?.toLowerCase()?.trim();
-    if (!email) {
-      console.warn("update-profile: email is missing");
-      return;
-    }
+    const email = normalizeEmail(data?.email);
+    const authUser = getAuthenticatedEmail(socket, users);
+    if (!email || !authUser || authUser !== email) return;
 
-    // Update in-memory profiles
-    if (data.hasOwnProperty('profilePic')) {
+    if (Object.prototype.hasOwnProperty.call(data, "profilePic")) {
       userProfiles[email] = data.profilePic || null;
     }
 
-    // Prepare profile payload for broadcasting
-    const profilePayload = {
-      email,
-    };
-    
-    // Always include profilePic if it's being updated
-    if (data.hasOwnProperty('profilePic')) {
+    const profilePayload = { email };
+    if (Object.prototype.hasOwnProperty.call(data, "profilePic")) {
       profilePayload.profilePic = data.profilePic || null;
     } else {
-      // If not updating profilePic, send current value
       profilePayload.profilePic = userProfiles[email] || null;
     }
-    
-    if (data.hasOwnProperty('displayName')) {
+    if (Object.prototype.hasOwnProperty.call(data, "displayName")) {
       profilePayload.displayName = data.displayName || null;
     }
-    
-    if (data.hasOwnProperty('bio')) {
+    if (Object.prototype.hasOwnProperty.call(data, "bio")) {
       profilePayload.bio = data.bio || null;
     }
 
-    // Persist to database
     try {
       const update = {};
-      if (data.hasOwnProperty('profilePic')) {
+      if (Object.prototype.hasOwnProperty.call(data, "profilePic")) {
         update.avatarUrl = data.profilePic || null;
       }
-      if (data.hasOwnProperty('displayName')) {
+      if (Object.prototype.hasOwnProperty.call(data, "displayName")) {
         update.displayName = data.displayName || null;
       }
-      if (data.hasOwnProperty('bio')) {
+      if (Object.prototype.hasOwnProperty.call(data, "bio")) {
         update.bio = data.bio || null;
       }
-      
+
       if (Object.keys(update).length > 0) {
         await User.findOneAndUpdate(
           { email },
           { $set: update },
           { upsert: true }
         );
-        console.log(`✅ Profile updated in DB for ${email}:`, Object.keys(update));
       }
     } catch (err) {
       console.error("Error persisting profile update:", err.message);
     }
 
-    // Broadcast to ALL connected clients (including all devices of the user)
-    console.log(`📡 Broadcasting profile update for ${email} to all clients`);
     io.emit("user-profile-update", profilePayload);
+    writeAuditLog({ actor: email, action: "account_changed", socket, metadata: { fields: Object.keys(profilePayload) } });
   });
 
   socket.on("remove-profile-pic", async (data) => {
-    const email = data?.email?.toLowerCase()?.trim();
-    if (!email) {
-      console.warn("remove-profile-pic: email is missing");
-      return;
-    }
+    const email = normalizeEmail(data?.email);
+    const authUser = getAuthenticatedEmail(socket, users);
+    if (!email || !authUser || authUser !== email) return;
 
-    // Update in-memory profiles
     userProfiles[email] = null;
 
-    // Persist to database
     try {
       await User.findOneAndUpdate(
         { email },
         { $set: { avatarUrl: null } },
         { upsert: true }
       );
-      console.log(`✅ Profile picture removed from DB for ${email}`);
     } catch (err) {
       console.error("Error removing profile pic:", err.message);
     }
 
-    // Broadcast to ALL connected clients (including all devices of the user)
-    console.log(`📡 Broadcasting profile pic removal for ${email} to all clients`);
     io.emit("user-profile-update", {
       email,
       profilePic: null,
     });
+    writeAuditLog({ actor: email, action: "account_changed", socket, metadata: { field: "avatarUrl" } });
   });
 };

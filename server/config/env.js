@@ -38,8 +38,10 @@ const getCorsOrigins = () => {
 
 const logEnvironmentDiagnostics = () => {
   console.log("=== Environment Loaded ===");
-  console.log("Mongo URI Exists:", Boolean(process.env.MONGO_URI));
-  console.log("JWT Exists:", Boolean(process.env.JWT_SECRET));
+  console.log("Mongo URI Exists:", Boolean(process.env.MONGODB_URI || process.env.MONGO_URI));
+  console.log("JWT Secret Exists:", Boolean(process.env.JWT_SECRET));
+  console.log("JWT Refresh Secret Exists:", Boolean(process.env.JWT_REFRESH_SECRET));
+  console.log("Encryption Key Exists:", Boolean(process.env.MESSAGE_ENCRYPTION_KEY));
   console.log("Email Provider:", hasAnyEmailConfig() ? "configured ✅" : "NONE (log-only)");
   if (process.env.SENDGRID_API_KEY) console.log("  → SendGrid API");
   else if (process.env.SMTP_HOST) console.log(`  → SMTP (${process.env.SMTP_HOST})`);
@@ -50,7 +52,7 @@ const logEnvironmentDiagnostics = () => {
   console.log("Port:", process.env.PORT || "(default 5000)");
 
   if (process.env.RENDER === "true") {
-    const mongoUri = process.env.MONGO_URI || "";
+    const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI || "";
     if (!mongoUri) {
       console.error("❌ FATAL: MONGO_URI missing on Render. Set it in Environment tab.");
     } else if (mongoUri.includes("localhost") || mongoUri.includes("127.0.0.1")) {
@@ -61,8 +63,10 @@ const logEnvironmentDiagnostics = () => {
 
 const validateRequiredEnv = () => {
   const missing = [];
-  if (!process.env.MONGO_URI) missing.push("MONGO_URI");
+  if (!process.env.MONGODB_URI && !process.env.MONGO_URI) missing.push("MONGODB_URI");
   if (!process.env.JWT_SECRET) missing.push("JWT_SECRET");
+  if (!process.env.JWT_REFRESH_SECRET) missing.push("JWT_REFRESH_SECRET");
+  if (!process.env.MESSAGE_ENCRYPTION_KEY) missing.push("MESSAGE_ENCRYPTION_KEY");
   if (!hasAnyEmailConfig()) missing.push("EMAIL config (set SMTP_HOST/SMTP_USER/SMTP_PASS or SENDGRID_API_KEY or EMAIL_USER)");
   if (!process.env.ADMIN_EMAIL) missing.push("ADMIN_EMAIL");
 

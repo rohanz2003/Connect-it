@@ -13,6 +13,10 @@ const unregisterSocket = (socketId) => {
 };
 
 const getAuthenticatedEmail = (socket, users) => {
+  if (socket.user?.email) {
+    return normalizeEmail(socket.user.email);
+  }
+
   const cached = socketToUser.get(socket.id);
   if (cached) return cached;
 

@@ -4,13 +4,41 @@ const handleTyping = require("./typing");
 const handleMessages = require("./message");
 const handleCalls = require("./call");
 const { getCorsOrigins } = require("../config/env");
-const { registerSocket, unregisterSocket } = require("../utils/socketAuth");
+const { normalizeEmail, registerSocket, unregisterSocket } = require("../utils/socketAuth");
 const { updateLastSeen } = require("../controllers/userController");
 const Device = require("../models/Device");
+const User = require("../modules/User");
+const {
+  installSocketEventSecurity,
+  socketAuthMiddleware,
+} = require("../middleware/socketSecurity");
+const { writeAuditLog } = require("../services/auditService");
 
 const crypto = require("crypto");
 
 const generateDeviceId = () => `dev_${crypto.randomBytes(8).toString("hex")}`;
+
+const getVisibleOnlineUsers = async (users) => {
+  const onlineIds = Object.keys(users);
+  if (onlineIds.length === 0) return [];
+  const hiddenUsers = await User.find({
+    email: { $in: onlineIds },
+    "privacy.hideOnlineStatus": true,
+  })
+    .select("email")
+    .lean();
+  const hidden = new Set(hiddenUsers.map((u) => u.email));
+  return onlineIds.filter((id) => !hidden.has(id));
+};
+
+const emitOnlineUsers = async (io, users) => {
+  try {
+    io.emit("online-users", await getVisibleOnlineUsers(users));
+  } catch (err) {
+    console.warn("online user privacy filter failed:", err.message);
+    io.emit("online-users", Object.keys(users));
+  }
+};
 
 const initSocket = (server) => {
   const io = new Server(server, {
@@ -22,8 +50,10 @@ const initSocket = (server) => {
     transports: ["websocket", "polling"],
     pingTimeout: 60000,
     pingInterval: 25000,
-    maxHttpBufferSize: 50 * 1024 * 1024, // 50MB for audio/video uploads
+    maxHttpBufferSize: 10 * 1024 * 1024,
   });
+
+  io.use(socketAuthMiddleware);
 
   const users = {};
   const userProfiles = {};
@@ -32,8 +62,13 @@ const initSocket = (server) => {
   const userDeviceSockets = {};
 
   io.on("connection", async (socket) => {
+    installSocketEventSecurity(socket);
+    const authenticatedEmail = normalizeEmail(socket.user.email);
+    registerSocket(socket.id, authenticatedEmail);
+
     const auth = socket.handshake.auth || {};
     let deviceId = auth.deviceId;
+    const deviceInfo = auth.deviceInfo || {};
 
     // Register/update device in DB
     (async () => {
@@ -42,16 +77,54 @@ const initSocket = (server) => {
           deviceId = generateDeviceId();
         }
         let device = await Device.findOne({ deviceId });
-        if (device) {
-          device.socketId = socket.id;
-          device.isActive = true;
-          device.lastSeen = new Date();
-          await device.save();
+        if (device?.revokedAt || (device && device.userId !== authenticatedEmail)) {
+          deviceId = generateDeviceId();
+          device = null;
         }
+        const isNewDevice = !device;
+        device = await Device.findOneAndUpdate(
+          { deviceId },
+          {
+            userId: authenticatedEmail,
+            socketId: socket.id,
+            isActive: true,
+            lastSeen: new Date(),
+            loginTime: isNewDevice ? new Date() : device.loginTime || new Date(),
+            loggedInAt: isNewDevice ? new Date() : device.loggedInAt || new Date(),
+            deviceName: deviceInfo.deviceName || device?.deviceName || "Unknown Device",
+            deviceType: deviceInfo.deviceType || device?.deviceType || "desktop",
+            platform: deviceInfo.platform || deviceInfo.os || device?.platform || null,
+            browser: deviceInfo.browser || device?.browser || "Unknown",
+            os: deviceInfo.os || device?.os || "Unknown",
+            userAgent: socket.handshake.headers?.["user-agent"] || null,
+            revokedAt: null,
+          },
+          { upsert: true, new: true }
+        );
         socket.emit("device-registered", { deviceId });
         socketToDevice[socket.id] = deviceId;
+        await writeAuditLog({
+          actor: authenticatedEmail,
+          action: isNewDevice ? "device_registered" : "login",
+          target: deviceId,
+          socket,
+          metadata: {
+            browser: device.browser,
+            os: device.os,
+            deviceType: device.deviceType,
+          },
+        });
+
+        socket.to(authenticatedEmail).emit("login-notification", {
+          deviceId,
+          deviceName: device.deviceName,
+          browser: device.browser,
+          os: device.os,
+          loginTime: device.loginTime,
+        });
       } catch (err) {
         console.error("Device registration error:", err.message);
+        socket.disconnect(true);
       }
     })();
 
@@ -77,6 +150,14 @@ const initSocket = (server) => {
             { deviceId: devId },
             { isActive: false, socketId: null, lastSeen: new Date() }
           );
+          if (disconnectedUser) {
+            await writeAuditLog({
+              actor: disconnectedUser,
+              action: "logout",
+              target: devId,
+              socket,
+            });
+          }
         } catch (err) {
           console.error("Device disconnect error:", err.message);
         }
@@ -112,7 +193,7 @@ const initSocket = (server) => {
           io.emit("last-seen", { userId, time: new Date().toISOString() });
         }
       }
-      io.emit("online-users", Object.keys(users));
+      emitOnlineUsers(io, users);
     });
   });
 
@@ -141,7 +222,7 @@ const initSocket = (server) => {
           delete users[userId];
           delete lastHeartbeats[userId];
           updateLastSeen(userId);
-          io.emit("online-users", Object.keys(users));
+          emitOnlineUsers(io, users);
           io.emit("last-seen", { userId, time: new Date().toISOString() });
           console.log(`🧹 Marked user ${userId} as stale (no heartbeat)`);
         } else {

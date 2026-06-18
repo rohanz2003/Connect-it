@@ -1,14 +1,17 @@
 const express = require("express");
 const http = require("http");
 const mongoose = require("mongoose");
-const cors = require("cors");
 
 const {
-  getCorsOrigins,
   logEnvironmentDiagnostics,
   validateRequiredEnv,
 } = require("./config/env");
 const { connectDatabase, isDatabaseConnected } = require("./config/database");
+const {
+  apiLimiter,
+  applySecurityMiddleware,
+} = require("./middleware/security");
+const { requireAuth } = require("./middleware/auth");
 
 console.log("=== Server Starting ===");
 
@@ -26,10 +29,13 @@ const userRoutes = require("./routes/userRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const feedbackRoutes = require("./routes/feedbackRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const authRoutes = require("./routes/authRoutes");
+const backupRoutes = require("./routes/backupRoutes");
+const deviceRoutes = require("./routes/deviceRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
 const initSocket = require("./socket/socket");
 const { initPush } = require("./services/pushService");
 const PushSubscription = require("./models/PushSubscription");
-const Device = require("./models/Device");
 
 const app = express();
 const server = http.createServer(app);
@@ -39,59 +45,34 @@ console.log("Socket.IO Started ✅");
 
 initPush();
 
-app.use(
-  cors({
-    origin: getCorsOrigins(),
-    credentials: true,
-  })
-);
-
 app.use(express.json({ limit: "12mb" }));
+applySecurityMiddleware(app);
+app.use("/api", apiLimiter);
 
+app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/backups", backupRoutes);
+app.use("/api/devices", deviceRoutes);
+app.use("/api/uploads", uploadRoutes);
 
 // Push notification subscription endpoint
-app.post("/api/save-subscription", async (req, res) => {
+app.post("/api/save-subscription", requireAuth, async (req, res) => {
   try {
-    const { userId, subscription, deviceInfo } = req.body;
-    if (!userId || !subscription) {
-      return res.status(400).json({ error: "userId and subscription required" });
+    const { subscription, deviceInfo } = req.body;
+    if (!subscription) {
+      return res.status(400).json({ error: "subscription required" });
     }
     await PushSubscription.findOneAndUpdate(
-      { userId: userId.toLowerCase().trim() },
+      { userId: req.user.email },
       { subscription, deviceInfo: deviceInfo || "", updatedAt: new Date() },
       { upsert: true }
     );
     res.json({ success: true });
   } catch (err) {
     console.error("save-subscription error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get user's active devices
-app.get("/api/devices/:userId", async (req, res) => {
-  try {
-    const userId = req.params.userId.toLowerCase().trim();
-    const devices = await Device.find({ userId }).sort({ lastSeen: -1 }).lean();
-    res.json({
-      active: devices.filter((d) => d.isActive).length,
-      total: devices.length,
-      devices: devices.map((d) => ({
-        deviceId: d.deviceId,
-        deviceName: d.deviceName,
-        deviceType: d.deviceType,
-        browser: d.browser,
-        os: d.os,
-        isActive: d.isActive,
-        lastSeen: d.lastSeen,
-      })),
-    });
-  } catch (err) {
-    console.error("devices error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -110,8 +91,10 @@ app.get("/api/health", (req, res) => {
       mongoose.connection.readyState
     ] || "unknown",
     config: {
-      MONGO_URI_SET: Boolean(process.env.MONGO_URI),
+      MONGODB_URI_SET: Boolean(process.env.MONGODB_URI || process.env.MONGO_URI),
       JWT_SECRET_SET: Boolean(process.env.JWT_SECRET),
+      JWT_REFRESH_SECRET_SET: Boolean(process.env.JWT_REFRESH_SECRET),
+      MESSAGE_ENCRYPTION_KEY_SET: Boolean(process.env.MESSAGE_ENCRYPTION_KEY),
       EMAIL_USER_SET: Boolean(process.env.EMAIL_USER),
       EMAIL_PASSWORD_SET: Boolean(
         process.env.EMAIL_PASS ||

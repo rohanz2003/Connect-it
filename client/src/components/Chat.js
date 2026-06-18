@@ -54,6 +54,7 @@ import ErrorBoundary from "./ErrorBoundary";
 import { auth } from "../firebase";
 import { EmailAuthProvider, reauthenticateWithCredential, deleteUser } from "firebase/auth";
 import useSocket from "../hooks/useSocket";
+import { connectSocket } from "../services/socketService";
 import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
 import { validateImageFile, compressImage } from "../utils/imageUtils";
 import { getDeviceInfo } from "../utils/deviceDetector";
@@ -499,6 +500,12 @@ function Chat({ user: currentUser }) {
   // Load chat history from localStorage and fetch recent chats on mount
   useEffect(() => {
     if (!user) return;
+
+    if (!socket.connected) {
+      connectSocket().catch((err) =>
+        console.error("Socket connection failed:", err)
+      );
+    }
 
     const loadChatHistory = async () => {
       try {

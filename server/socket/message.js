@@ -1,9 +1,10 @@
 const Message = require("../models/Message");
 const ClearedChat = require("../models/ClearedChat");
-const { encryptPayload, decryptMessageDoc } = require("../utils/messageCrypto");
+const User = require("../modules/User");
 const { normalizeEmail, getAuthenticatedEmail, getRoomId } = require("../utils/socketAuth");
 const { isDatabaseConnected } = require("../config/database");
 const { sendPushNotification } = require("../services/pushService");
+const { writeAuditLog } = require("../services/auditService");
 
 const roomUsers = {};
 const unreadMessages = {};
@@ -13,6 +14,34 @@ const isUserOnline = (users, email) => {
   return entry instanceof Set ? entry.size > 0 : Boolean(entry);
 };
 
+const getUserPrivacy = async (email) => {
+  const user = await User.findOne({ email: normalizeEmail(email) })
+    .select("blockedUsers privacy")
+    .lean();
+  return {
+    blockedUsers: user?.blockedUsers || [],
+    privacy: user?.privacy || {},
+  };
+};
+
+const isBlocked = async (sender, receiver) => {
+  const [senderState, receiverState] = await Promise.all([
+    getUserPrivacy(sender),
+    getUserPrivacy(receiver),
+  ]);
+  return (
+    senderState.blockedUsers.includes(receiver) ||
+    receiverState.blockedUsers.includes(sender)
+  );
+};
+
+const getExpiryDate = async (sender) => {
+  const { privacy } = await getUserPrivacy(sender);
+  const disappearing = privacy?.disappearingMessages;
+  if (!disappearing?.enabled || !disappearing.durationSeconds) return null;
+  return new Date(Date.now() + disappearing.durationSeconds * 1000);
+};
+
 module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
   socket.on("join-room", ({ user1, user2 }) => {
     const authUser = getAuthenticatedEmail(socket, users);
@@ -20,21 +49,18 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
     const normalizedUser2 = normalizeEmail(user2);
 
     if (!authUser || authUser !== normalizedUser1) {
-      console.warn(`⚠️ Unauthenticated join-room attempt: ${socket.id} (auth: ${authUser}, requested: ${normalizedUser1})`);
       return;
     }
 
     const roomId = getRoomId(normalizedUser1, normalizedUser2);
 
-    // Only leave other chat rooms, keep personal and socket-id rooms
     for (const room of socket.rooms) {
-      if (room !== socket.id && room !== normalizedUser1 && room.includes('_')) {
+      if (room !== socket.id && room !== normalizedUser1 && room.includes("_")) {
         socket.leave(room);
       }
     }
 
     socket.join(roomId);
-    console.log(`✅ ${normalizedUser1} joined room: ${roomId}`);
 
     if (!roomUsers[roomId]) roomUsers[roomId] = [];
     if (!roomUsers[roomId].includes(normalizedUser1)) {
@@ -52,29 +78,13 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
 
   socket.on("send-message", async (data, callback) => {
     try {
-      let authSender = getAuthenticatedEmail(socket, users);
-      if (!authSender && data?.sender) {
-        authSender = normalizeEmail(data.sender);
-        // Auto-join this socket to the user's online sockets if it wasn't already
-        if (!users[authSender]) {
-          users[authSender] = new Set();
-        }
-        if (!users[authSender].has(socket.id)) {
-          users[authSender].add(socket.id);
-          socket.join(authSender);
-          console.log(`📡 Auto-authenticated socket ${socket.id} for ${authSender}`);
-          io.emit("online-users", Object.keys(users));
-        }
-      }
-
+      const authSender = getAuthenticatedEmail(socket, users);
       if (!authSender) {
-        console.warn(`❌ Message send blocked: Unauthenticated socket ${socket.id}. Data sender: ${data?.sender}`);
-        if (callback) callback({ ok: false, error: "Not authenticated. Reconnecting..." });
+        if (callback) callback({ ok: false, error: "Not authenticated" });
         return;
       }
 
       if (!isDatabaseConnected()) {
-        console.error("❌ Message send blocked: Database not connected");
         if (callback) callback({ ok: false, error: "Database not connected" });
         socket.emit("message-error", { tempId: data?.tempId, error: "Database not connected" });
         return;
@@ -95,7 +105,6 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
       const normalizedReceiver = normalizeEmail(receiver);
 
       if (authSender !== normalizedSender) {
-        console.warn(`❌ Message send blocked: Sender mismatch. Auth: ${authSender}, Data: ${normalizedSender}`);
         if (callback) callback({ ok: false, error: "Sender mismatch" });
         return;
       }
@@ -105,15 +114,18 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
         return;
       }
 
+      if (await isBlocked(normalizedSender, normalizedReceiver)) {
+        if (callback) callback({ ok: false, error: "Message blocked by user privacy settings" });
+        return;
+      }
+
       const roomId = getRoomId(normalizedSender, normalizedReceiver);
       const msgTimestamp = timestamp ? new Date(timestamp) : new Date();
 
       if (tempId) {
         const existing = await Message.findOne({ tempId }).lean();
         if (existing) {
-          const decrypted = decryptMessageDoc(existing);
-          // Emit to both room and receiver personal room for duplicates too
-          io.to(roomId).to(normalizedReceiver).emit("receive-message", decrypted);
+          io.to(roomId).to(normalizedReceiver).emit("receive-message", existing);
           io.to(roomId).to(normalizedReceiver).emit("message-saved", {
             tempId,
             _id: existing._id,
@@ -122,15 +134,6 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
           if (callback) callback({ ok: true, _id: existing._id, duplicate: true });
           return;
         }
-      }
-
-      let encryptedText;
-      try {
-        encryptedText = encryptPayload(text);
-      } catch (encErr) {
-        console.error("❌ Encryption failed:", encErr.message);
-        if (callback) callback({ ok: false, error: "Message encryption failed" });
-        return;
       }
 
       const receiverOnline = isUserOnline(users, normalizedReceiver);
@@ -150,15 +153,9 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
         pending: true,
       };
 
-      // Emit to all active device sockets of the receiver
-      const deviceIds = Object.keys(receiverDevices);
-      if (deviceIds.length > 0) {
-        deviceIds.forEach((devId) => {
-          const sid = receiverDevices[devId];
-          io.to(sid).emit("receive-message", optimisticMessage);
-        });
-      }
-      // Also emit to the personal room for backward compatibility
+      Object.values(receiverDevices).forEach((sid) => {
+        io.to(sid).emit("receive-message", optimisticMessage);
+      });
       io.to(normalizedReceiver).emit("receive-message", optimisticMessage);
 
       const unreadKey = `${normalizedSender}_${normalizedReceiver}`;
@@ -174,7 +171,7 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
         const saved = await Message.create({
           sender: normalizedSender,
           receiver: normalizedReceiver,
-          text: encryptedText,
+          text,
           type: type || "text",
           mediaType: mediaType || null,
           tempId: tempId || undefined,
@@ -183,20 +180,18 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
           status: "sent",
           deliveredDevices: [],
           readDevices: [],
+          expiresAt: await getExpiryDate(normalizedSender),
         });
 
-        // Emit message-status-update: sent (✓ gray)
         io.to(roomId).to(normalizedSender).emit("message-status-update", {
           messageId: saved._id,
           tempId: tempId || null,
           status: "sent",
         });
 
-        // Determine which devices received the message
         const deliveredDeviceIds = Object.keys(receiverDevices);
 
         if (deliveredDeviceIds.length > 0) {
-          // Update DB with delivered devices and status
           await Message.updateOne(
             { _id: saved._id },
             {
@@ -211,18 +206,14 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
             deliveredDevices: deliveredDeviceIds,
           });
         } else {
-          // Receiver offline → send push notification
-          const senderName = data?.senderDisplayName || normalizedSender;
           sendPushNotification(normalizedReceiver, {
-            title: senderName,
-            body: data?.textPreview || (typeof data?.text === "string" ? data.text.substring(0, 100) : "New message"),
+            title: "New message",
+            body: "New encrypted message",
             icon: "/logo192.png",
             badge: "/favicon.ico",
             data: {
               senderId: normalizedSender,
-              senderName,
               messageId: saved._id,
-              text: (typeof data?.text === "string" ? data.text.substring(0, 100) : "Media"),
               url: "/",
             },
           });
@@ -235,15 +226,15 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
           status: deliveredDeviceIds.length > 0 ? "delivered" : "sent",
         });
       } catch (dbErr) {
-        console.error(`❌ Failed to save message from ${normalizedSender} to ${normalizedReceiver}:`, dbErr.message);
+        console.error(`Failed to save message from ${normalizedSender} to ${normalizedReceiver}:`, dbErr.message);
         socket.emit("message-error", {
           tempId,
           error: "Failed to save message",
-          details: dbErr.message
+          details: dbErr.message,
         });
       }
     } catch (err) {
-      console.error("❌ Error sending message:", err.message);
+      console.error("Error sending message:", err.message);
       if (callback) callback({ ok: false, error: err.message });
     }
   });
@@ -259,6 +250,13 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
         sender: normalizedSender,
       });
 
+      await writeAuditLog({
+        actor: normalizedSender,
+        action: "message_deletion",
+        target: String(messageId),
+        socket,
+      });
+
       const roomId = getRoomId(normalizedSender, normalizeEmail(receiver));
       io.to(roomId).emit("message-deleted", {
         messageId,
@@ -266,21 +264,26 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
         receiver: normalizeEmail(receiver),
       });
     } catch (err) {
-      console.error("❌ Error deleting message:", err.message);
+      console.error("Error deleting message:", err.message);
     }
   });
 
-  socket.on("mark-as-read", ({ user1, user2 }) => {
+  socket.on("mark-as-read", async ({ user1, user2 }) => {
     const authUser = getAuthenticatedEmail(socket, users);
     const normalizedUser1 = normalizeEmail(user1);
     const normalizedUser2 = normalizeEmail(user2);
     if (!authUser || authUser !== normalizedUser1) return;
 
-    const readingDeviceId = socketToDevice ? socketToDevice[socket.id] : null;
+    const { privacy } = await getUserPrivacy(normalizedUser1);
+    const unreadKey = `${normalizedUser2}_${normalizedUser1}`;
+    unreadMessages[unreadKey] = 0;
+    if (isUserOnline(users, normalizedUser1)) {
+      io.to(normalizedUser1).emit("unread-update", unreadMessages);
+    }
+    if (privacy?.hideReadReceipts) return;
 
-    const updateOp = {
-      status: "read",
-    };
+    const readingDeviceId = socketToDevice ? socketToDevice[socket.id] : null;
+    const updateOp = { status: "read" };
     if (readingDeviceId) {
       updateOp.$addToSet = { readDevices: readingDeviceId, deliveredDevices: readingDeviceId };
     }
@@ -290,7 +293,6 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
       updateOp
     ).catch((err) => console.warn("mark-as-read DB update failed:", err.message));
 
-    // Notify ALL sender's device sockets that messages were read (✓✓ blue)
     const senderDevices = userDeviceSockets ? userDeviceSockets[normalizedUser2] : null;
     if (senderDevices) {
       Object.values(senderDevices).forEach((sid) => {
@@ -301,52 +303,46 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
         });
       });
     }
-    // Also emit to their personal room
     io.to(normalizedUser2).emit("messages-read", {
       sender: normalizedUser2,
       receiver: normalizedUser1,
       readOnDevice: readingDeviceId,
     });
-
-    const unreadKey = `${normalizedUser2}_${normalizedUser1}`;
-    unreadMessages[unreadKey] = 0;
-
-    if (isUserOnline(users, normalizedUser1)) {
-      io.to(normalizedUser1).emit("unread-update", unreadMessages);
-    }
   });
 
   socket.on("seen-message", async ({ sender, receiver }) => {
     try {
       const authUser = getAuthenticatedEmail(socket, users);
       const normalizedReceiver = normalizeEmail(receiver);
+      const normalizedSender = normalizeEmail(sender);
       if (!authUser || authUser !== normalizedReceiver) return;
 
+      const { privacy } = await getUserPrivacy(normalizedReceiver);
+      if (privacy?.hideReadReceipts) return;
+
       const readingDeviceId = socketToDevice ? socketToDevice[socket.id] : null;
-      const updateOp = {
-        status: "read",
-      };
+      const updateOp = { status: "read" };
       if (readingDeviceId) {
         updateOp.$addToSet = { readDevices: readingDeviceId, deliveredDevices: readingDeviceId };
       }
 
       await Message.updateMany(
-        { sender: normalizeEmail(sender), receiver: normalizedReceiver, status: { $in: ["sent", "delivered"] } },
+        { sender: normalizedSender, receiver: normalizedReceiver, status: { $in: ["sent", "delivered"] } },
         updateOp
       );
 
-      const senderDevices = userDeviceSockets ? userDeviceSockets[normalizeEmail(sender)] : null;
+      const senderDevices = userDeviceSockets ? userDeviceSockets[normalizedSender] : null;
       if (senderDevices) {
         Object.values(senderDevices).forEach((sid) => {
           io.to(sid).emit("messages-read", {
-            sender: normalizeEmail(sender),
+            sender: normalizedSender,
             receiver: normalizedReceiver,
             readOnDevice: readingDeviceId,
           });
         });
       }
-      io.to(normalizeEmail(sender)).emit("messages-read", {
-        sender: normalizeEmail(sender),
+      io.to(normalizedSender).emit("messages-read", {
+        sender: normalizedSender,
         receiver: normalizedReceiver,
         readOnDevice: readingDeviceId,
       });
@@ -355,7 +351,6 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
     }
   });
 
-  // Per-user soft clear (WhatsApp-style): only hides for the requesting user
   socket.on("clear-chat", async ({ user1, user2 }, callback) => {
     try {
       const authUser = getAuthenticatedEmail(socket, users);
@@ -374,6 +369,13 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
         { upsert: true, new: true }
       );
 
+      await writeAuditLog({
+        actor: normalizedUser1,
+        action: "chat_deleted",
+        target: normalizedUser2,
+        socket,
+      });
+
       io.to(normalizedUser1).emit("chat-cleared", {
         user1: normalizedUser1,
         user2: normalizedUser2,
@@ -383,7 +385,7 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
 
       if (callback) callback({ ok: true, clearedAt });
     } catch (err) {
-      console.error("❌ Error clearing chat:", err.message);
+      console.error("Error clearing chat:", err.message);
       if (callback) callback({ ok: false, error: err.message });
     }
   });
