@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { signInWithPopup, GoogleAuthProvider, signInWithPhoneNumber, RecaptchaVerifier } from "firebase/auth";
+import { 
+  signInWithPopup, 
+  signInWithRedirect, 
+  getRedirectResult, 
+  GoogleAuthProvider, 
+  signInWithPhoneNumber, 
+  RecaptchaVerifier 
+} from "firebase/auth";
 import { auth } from "../firebase";
 import apiClient, { getOrCreateDeviceId } from "../services/apiClient";
 import { generateKeyPair } from "../utils/cryptoEngine";
@@ -18,7 +25,22 @@ function Login() {
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    // Clear any leftover invisible recaptcha nodes on component mount
+    // 1. Handle incoming redirect results (for mobile browsers or popup-blocked sessions)
+    const handleRedirectData = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          setLoading(true);
+          await handleBackendVerificationSync(result.user);
+        }
+      } catch (err) {
+        console.error("Redirect auth error:", err);
+        setErrorMessage("Authentication failed during redirect process.");
+      }
+    };
+    handleRedirectData();
+
+    // 2. Clear any leftover invisible recaptcha nodes on component mount
     if (window.recaptchaVerifier) {
       try {
         window.recaptchaVerifier.clear();
