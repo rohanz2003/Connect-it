@@ -1,10 +1,12 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { signInWithPopup, GoogleAuthProvider, signInWithPhoneNumber, RecaptchaVerifier } from "firebase/auth";
 import { auth } from "../firebase";
 import apiClient, { getOrCreateDeviceId } from "../services/apiClient";
 import { generateKeyPair } from "../utils/cryptoEngine";
-import "../components/Login.css";
+import Header from "./Header";
+import Footer from "./Footer";
+import "./Login.css";
 
 function Login() {
   const navigate = useNavigate();
@@ -15,13 +17,23 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  useEffect(() => {
+    // Clear any leftover invisible recaptcha nodes on component mount
+    if (window.recaptchaVerifier) {
+      try {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      } catch (e) {
+        console.warn("Recaptcha cleanup minor issue", e);
+      }
+    }
+  }, []);
+
   /**
    * Browser IndexedDB or state fallback storage routine for Private Cryptographic parameters
    */
   const persistPrivateKeyLocally = async (email, privateKeyCryptoKey) => {
     try {
-      // In production platforms, store keys inside secure browser sandboxes like IndexedDB. 
-      // For cross-platform alignment, we cache public export references.
       const exportedRawPrivate = await window.crypto.subtle.exportKey("pkcs8", privateKeyCryptoKey);
       const b64Private = btoa(String.fromCharCode(...new Uint8Array(exportedRawPrivate)));
       localStorage.setItem(`e2ee_priv_${email.toLowerCase().trim()}`, b64Private);
@@ -38,42 +50,33 @@ function Login() {
       const idToken = await firebaseUser.getIdToken();
       const deviceId = getOrCreateDeviceId();
 
-      // Extract client browser platform details
       const userAgent = navigator.userAgent;
-      let browser = "Unknown Browser";
-      let platform = "Unknown Platform";
-      if (userAgent.includes("Chrome")) browser = "Chrome";
-      else if (userAgent.includes("Safari")) browser = "Safari";
-      else if (userAgent.includes("Firefox")) browser = "Firefox";
-      
-      if (userAgent.includes("Win")) platform = "Windows";
-      else if (userAgent.includes("Mac")) platform = "MacOS";
-      else if (userAgent.includes("Linux")) platform = "Linux";
+      let browser = "Chrome";
+      let platform = "Windows";
+      if (userAgent.includes("Safari") && !userAgent.includes("Chrome")) browser = "Safari";
+      if (userAgent.includes("Firefox")) browser = "Firefox";
+      if (userAgent.includes("Mac")) platform = "MacOS";
+      if (userAgent.includes("Linux")) platform = "Linux";
 
-      // 1. Submit for verification signature and secure session token allocation
       const response = await apiClient.post("/users/verify-login", {
         firebaseToken: idToken,
         deviceId,
         platform,
         browser,
-        displayName: firebaseUser.displayName,
-        profilePic: firebaseUser.photoURL
+        displayName: firebaseUser.displayName || "Secure Node",
+        profilePic: firebaseUser.photoURL || ""
       });
 
       const { accessToken, user } = response.data;
       localStorage.setItem("accessToken", accessToken);
       localStorage.setItem("user", JSON.stringify(user));
 
-      // 2. Continuous End-to-End Cryptographic Identity Safeguarding
       let localPrivateKeyExists = localStorage.getItem(`e2ee_priv_${user.email.toLowerCase().trim()}`);
       if (!user.publicKeyBase64 || !localPrivateKeyExists) {
         console.log("🛠️ Establishing enterprise cryptographic key pairs for E2EE layers...");
         const keyPairs = await generateKeyPair();
-        
-        // Cache private credential layer inside sandboxed browser storage
         await persistPrivateKeyLocally(user.email, keyPairs.privateKey);
         
-        // Broadcast public tracking key directly to corporate identity layer directory
         await apiClient.post("/users/keys/register", {
           publicKeyBase64: keyPairs.publicKeyBase64
         });
@@ -86,7 +89,7 @@ function Login() {
       navigate("/chat");
     } catch (err) {
       console.error("Login authorization flow interrupted:", err);
-      setErrorMessage(err.response?.data?.error || "Security authentication failed.");
+      setErrorMessage(err.response?.data?.error || "Security authentication failed mapping profile records.");
     } finally {
       setLoading(false);
     }
@@ -113,11 +116,20 @@ function Login() {
    * Phone OTP Recaptcha Handler Initializer
    */
   const setupRecaptchaVerifier = () => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-anchor-node", {
-        size: "invisible",
-        callback: (response) => {}
-      });
+    try {
+      if (!window.recaptchaVerifier) {
+        window.recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container-node", {
+          size: "invisible",
+          callback: (response) => {
+            console.log("reCAPTCHA solved implicitly.");
+          },
+          "expired-callback": () => {
+            console.warn("reCAPTCHA session expired.");
+          }
+        });
+      }
+    } catch (err) {
+      console.error("Failed to construct RecaptchaVerifier:", err);
     }
   };
 
@@ -126,20 +138,45 @@ function Login() {
    */
   const dispatchPhoneOtpCode = async (e) => {
     e.preventDefault();
-    if (!phoneNumber) return setErrorMessage("Provide phone input format.");
+    if (!phoneNumber) return setErrorMessage("Provide your full international phone number format.");
     
     setLoading(true);
     setErrorMessage("");
+    setupRecaptchaVerifier();
+
+    const appVerifier = window.recaptchaVerifier;
+    if (!appVerifier) {
+      setErrorMessage("Internal Recaptcha module fails initialization.");
+      setLoading(false);
+      return;
+    }
+
+    // Ensure user number has international code formatting
+    let formattedNumber = phoneNumber.trim();
+    if (!formattedNumber.startsWith("+")) {
+      console.log("Auto-prepending default country indicator reference code.");
+      formattedNumber = "+1" + formattedNumber; // Fallback default or instruct format
+    }
+
     try {
-      setupRecaptchaVerifier();
-      const appVerifier = window.recaptchaVerifier;
-      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+      console.log(`Attempting OTP dispatch via Firebase to: ${formattedNumber}`);
+      const confirmation = await signInWithPhoneNumber(auth, formattedNumber, appVerifier);
       setConfirmationResult(confirmation);
       setIsOtpSent(true);
-      console.log("OTP code safely dispatched to handset.");
+      console.log("OTP code successfully dispatched to handset.");
     } catch (err) {
-      console.error("OTP delivery failed:", err.message);
-      setErrorMessage("Handset OTP dispatch rejected. Format: +11234567890");
+      console.error("Firebase phone OTP delivery channel failed:", err);
+      setErrorMessage(`OTP Delivery Rejected: ${err.message}. Please verify phone format includes country code (e.g. +14155552671).`);
+      
+      // Clear recaptcha in case of instant error to allow clean reset click
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+          window.recaptchaVerifier = null;
+        } catch (clearErr) {
+          console.error(clearErr);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -150,68 +187,93 @@ function Login() {
    */
   const confirmHandsetOtp = async (e) => {
     e.preventDefault();
-    if (!otpCode) return setErrorMessage("Input OTP sequence digits.");
+    if (!otpCode) return setErrorMessage("Input the complete 6-digit OTP sequence digits.");
     
     setLoading(true);
     setErrorMessage("");
     try {
-      const result = await confirmationResult.confirm(otpCode);
+      console.log("Challenging Firebase confirmation payload with OTP token...");
+      const result = await confirmationResult.confirm(otpCode.trim());
       await handleBackendVerificationSync(result.user);
     } catch (err) {
-      console.error("OTP confirmation rejected:", err.message);
-      setErrorMessage("Invalid OTP challenge token supplied.");
+      console.error("OTP confirmation rejected:", err);
+      setErrorMessage(`Invalid OTP verification challenge code: ${err.message}`);
       setLoading(false);
     }
   };
 
   return (
-    <div className="login-container">
-      <div className="login-card">
-        <h1 className="login-title">🔒 Enterprise Secure Messaging</h1>
-        <p className="login-subtitle">Military-Grade End-to-End Encrypted Platform Base</p>
+    <div className="login-page-layout">
+      <Header />
+      
+      <main className="login-workspace-container">
+        <div className="login-glass-card">
+          <div className="login-card-header">
+            <span className="login-vault-icon">🔒</span>
+            <h1 className="login-title">Secure Authentication</h1>
+            <p className="login-subtitle">
+              Enterprise-grade end-to-end encrypted messaging gateway access
+            </p>
+          </div>
 
-        {errorMessage && <div className="login-error-toast">{errorMessage}</div>}
+          {errorMessage && <div className="login-error-alert-banner">{errorMessage}</div>}
 
-        {!isOtpSent ? (
-          <form onSubmit={dispatchPhoneOtpCode} className="login-form">
-            <label className="form-label">Phone Identity Authentication</label>
-            <input
-              type="tel"
-              className="form-input"
-              placeholder="+1234567890"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              disabled={loading}
-            />
-            <button type="submit" className="login-btn phone-btn" disabled={loading}>
-              {loading ? "Processing..." : "Send Secure OTP"}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={confirmHandsetOtp} className="login-form">
-            <label className="form-label">Input Handy Verification Token</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="123456"
-              value={otpCode}
-              onChange={(e) => setOtpCode(e.target.value)}
-              disabled={loading}
-            />
-            <button type="submit" className="login-btn verify-btn" disabled={loading}>
-              {loading ? "Verifying Token..." : "Authorize Workspace"}
-            </button>
-          </form>
-        )}
+          {!isOtpSent ? (
+            <form onSubmit={dispatchPhoneOtpCode} className="login-form-block">
+              <div className="login-input-wrapper">
+                <label className="login-input-label">Phone Identification</label>
+                <input
+                  type="tel"
+                  className="login-text-input"
+                  placeholder="+14155552671"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  disabled={loading}
+                />
+                <small className="login-input-hint">
+                  Always provide international prefix code (e.g. +91, +1, +44)
+                </small>
+              </div>
+              <button type="submit" className="login-primary-submit-btn" disabled={loading}>
+                {loading ? "Requesting Signature Token..." : "Send Secure OTP"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={confirmHandsetOtp} className="login-form-block">
+              <div className="login-input-wrapper">
+                <label className="login-input-label">Input Handy Verification Code</label>
+                <input
+                  type="text"
+                  className="login-text-input digit-spacing"
+                  placeholder="123456"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+              <button type="submit" className="login-primary-submit-btn verification-theme" disabled={loading}>
+                {loading ? "Authorizing Identity Session..." : "Verify & Unlock Vault"}
+              </button>
+            </form>
+          )}
 
-        <div className="divider-node">OR</div>
+          <div className="login-social-divider">
+            <span className="divider-line"></span>
+            <span className="divider-label">OR SECURE SINGLE SIGN-ON</span>
+            <span className="divider-line"></span>
+          </div>
 
-        <button onClick={handleGoogleLogin} className="login-btn google-btn" disabled={loading}>
-          {loading ? "Authorizing Security Node..." : "Continue with Google SSO"}
-        </button>
+          <button onClick={handleGoogleLogin} className="login-google-sso-btn" disabled={loading}>
+            <span className="google-glyph">🌐</span> Continue with Google Account
+          </button>
 
-        <div id="recaptcha-anchor-node"></div>
-      </div>
+          {/* Explicit reCAPTCHA anchoring tag */}
+          <div id="recaptcha-container-node"></div>
+        </div>
+      </main>
+
+      <Footer />
     </div>
   );
 }
