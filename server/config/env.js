@@ -1,10 +1,28 @@
 const path = require("path");
+const crypto = require("crypto");
 
 // Load server/.env in local dev. On Render, variables come from the dashboard (not .env file).
 require("dotenv").config({
   path: path.join(__dirname, "..", ".env"),
   quiet: Boolean(process.env.RENDER),
 });
+
+// Auto-generate derived secrets if only JWT_SECRET is provided (backward compat)
+if (!process.env.JWT_REFRESH_SECRET && process.env.JWT_SECRET) {
+  process.env.JWT_REFRESH_SECRET = crypto
+    .createHash("sha256")
+    .update(process.env.JWT_SECRET + "-refresh")
+    .digest("hex");
+  console.warn("⚠️ JWT_REFRESH_SECRET not set. Derived from JWT_SECRET (set explicitly for better security).");
+}
+
+if (!process.env.MESSAGE_ENCRYPTION_KEY && process.env.JWT_SECRET) {
+  process.env.MESSAGE_ENCRYPTION_KEY = crypto
+    .createHash("sha256")
+    .update(process.env.JWT_SECRET + "-encrypt")
+    .digest("hex");
+  console.warn("⚠️ MESSAGE_ENCRYPTION_KEY not set. Derived from JWT_SECRET (set explicitly for better security).");
+}
 
 const getEmailPassword = () =>
   process.env.SMTP_PASS ||
@@ -65,8 +83,6 @@ const validateRequiredEnv = () => {
   const missing = [];
   if (!process.env.MONGODB_URI && !process.env.MONGO_URI) missing.push("MONGODB_URI");
   if (!process.env.JWT_SECRET) missing.push("JWT_SECRET");
-  if (!process.env.JWT_REFRESH_SECRET) missing.push("JWT_REFRESH_SECRET");
-  if (!process.env.MESSAGE_ENCRYPTION_KEY) missing.push("MESSAGE_ENCRYPTION_KEY");
   if (!hasAnyEmailConfig()) missing.push("EMAIL config (set SMTP_HOST/SMTP_USER/SMTP_PASS or SENDGRID_API_KEY or EMAIL_USER)");
   if (!process.env.ADMIN_EMAIL) missing.push("ADMIN_EMAIL");
 
@@ -76,6 +92,9 @@ const validateRequiredEnv = () => {
     return false;
   }
   console.log("✅ All required environment variables are present.");
+  if (process.env.JWT_REFRESH_SECRET && process.env.MESSAGE_ENCRYPTION_KEY) {
+    console.log("✅ JWT_REFRESH_SECRET and MESSAGE_ENCRYPTION_KEY are explicitly set (recommended).");
+  }
   return true;
 };
 
