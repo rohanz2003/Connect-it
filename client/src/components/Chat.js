@@ -3450,10 +3450,6 @@ function Chat({ user: currentUser }) {
         </button>
         <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("archive"); setSidebarOpen(false); }}><Archive size={18} /><span>Archive</span></button>
         <button className={`bottom-nav-btn ${activeTab === "all" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("all"); setSidebarOpen(false); }}><UserPlus size={18} /><span>People</span></button>
-        <button className="bottom-nav-btn theme-mobile" onClick={(e) => { e.stopPropagation(); setIsDarkMode(prev => !prev); }} title={isDarkMode ? "Light mode" : "Dark mode"}>
-          {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-          <span>{isDarkMode ? "Light" : "Dark"}</span>
-        </button>
         <button className="bottom-nav-btn" onClick={(e) => { e.stopPropagation(); setShowSettings(true); setSidebarOpen(false); }}><Settings size={18} /><span>Settings</span></button>
       </nav>
 
@@ -3541,9 +3537,7 @@ function Chat({ user: currentUser }) {
                     className={`settings-toggle ${isDarkMode ? "active" : ""}`}
                     onClick={() => setIsDarkMode(!isDarkMode)}
                     aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-                  >
-                    <span className="toggle-thumb" />
-                  </button>
+                  />
                 </div>
               </div>
 
