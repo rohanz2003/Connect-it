@@ -162,6 +162,18 @@ exports.deleteAccount = async (req, res) => {
   }
 };
 
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find({})
+      .select("email displayName bio avatarUrl lastSeen")
+      .lean();
+    res.json({ success: true, users });
+  } catch (err) {
+    console.error("Error fetching all users:", err.message);
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
+};
+
 exports.heartbeat = async (req, res) => {
   try {
     const { email } = req.body;

@@ -3,6 +3,7 @@ const handlePresence = require("./presence");
 const handleTyping = require("./typing");
 const handleMessages = require("./message");
 const handleCalls = require("./call");
+const handleRequests = require("./requests");
 const { getCorsOrigins } = require("../config/env");
 const { registerSocket, unregisterSocket } = require("../utils/socketAuth");
 const { updateLastSeen } = require("../controllers/userController");
@@ -59,6 +60,7 @@ const initSocket = (server) => {
     handleTyping(io, socket, users);
     handleMessages(io, socket, users, socketToDevice, userDeviceSockets);
     handleCalls(io, socket, users);
+    handleRequests(io, socket, users);
 
     socket.on("heartbeat", (email) => {
       if (!email) return;

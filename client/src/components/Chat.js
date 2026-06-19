@@ -59,6 +59,8 @@ import { validateImageFile, compressImage } from "../utils/imageUtils";
 import { getDeviceInfo } from "../utils/deviceDetector";
 import { subscribeToPush } from "../utils/pushHelper";
 import { fetchMessages, fetchRecentChats } from "../services/messageService";
+import { fetchAllUsers, fetchPendingRequests, fetchSentRequests, sendRequest, respondToRequest } from "../services/requestService";
+import NotificationBell from "./NotificationBell";
 import { useNavigate } from "react-router-dom";
 import "./Chat.css";
 
@@ -239,6 +241,10 @@ function Chat({ user: currentUser }) {
     try { return JSON.parse(localStorage.getItem("user") || "{}").bio || ""; } catch { return ""; }
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [sentRequests, setSentRequests] = useState([]);
+  const [requestNotifications, setRequestNotifications] = useState([]);
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -401,6 +407,11 @@ function Chat({ user: currentUser }) {
   useEffect(() => {
     chatHistoryRef.current = chatHistory;
   }, [chatHistory]);
+
+  const userNamesRef = useRef({});
+  useEffect(() => {
+    userNamesRef.current = userNames;
+  }, [userNames]);
 
   const safeLocalStorageSet = (key, value) => {
     try {
@@ -577,6 +588,26 @@ function Chat({ user: currentUser }) {
     };
 
     loadChatHistory();
+  }, [user]);
+
+  // Load all users and pending requests
+  useEffect(() => {
+    if (!user) return;
+    const loadData = async () => {
+      try {
+        const [usersRes, pendingRes, sentRes] = await Promise.all([
+          fetchAllUsers(),
+          fetchPendingRequests(user.email),
+          fetchSentRequests(user.email),
+        ]);
+        if (usersRes.success) setAllUsers(usersRes.users);
+        if (pendingRes.success) setPendingRequests(pendingRes.requests);
+        if (sentRes.success) setSentRequests(sentRes.requests);
+      } catch (e) {
+        console.warn("Failed to load request data", e);
+      }
+    };
+    loadData();
   }, [user]);
 
   useEffect(() => {
@@ -776,6 +807,31 @@ function Chat({ user: currentUser }) {
     };
 
     socket.on("chat-cleared", handleChatCleared);
+
+    const handleNewRequest = (req) => {
+      setPendingRequests((prev) => {
+        if (prev.some((r) => r._id === req._id)) return prev;
+        return [req, ...prev];
+      });
+    };
+    socket.on("new-request", handleNewRequest);
+
+    const handleRequestResponse = (data) => {
+      const { status, from } = data;
+      const name = userNamesRef.current[from] || (from || "").split("@")[0];
+      const msg =
+        status === "accepted"
+          ? `${name} accepted your chat request`
+          : `${name} rejected your chat request`;
+      setRequestNotifications((prev) => [
+        ...prev,
+        { id: Date.now(), msg, type: status },
+      ]);
+      setTimeout(() => {
+        setRequestNotifications((prev) => prev.slice(1));
+      }, 5000);
+    };
+    socket.on("request-response", handleRequestResponse);
 
     const handleMessageSaved = ({ tempId, _id, timestamp, status }) => {
       const applySaved = (list) =>
@@ -985,6 +1041,8 @@ function Chat({ user: currentUser }) {
       socket.off("unread-update");
       socket.off("user-profile-update");
       socket.off("chat-cleared", handleChatCleared);
+      socket.off("new-request", handleNewRequest);
+      socket.off("request-response", handleRequestResponse);
       socket.off("message-saved", handleMessageSaved);
       socket.off("message-error", handleMessageError);
       socket.off("message-deleted");
@@ -1805,6 +1863,29 @@ function Chat({ user: currentUser }) {
     }
   };
 
+  const handleSendRequest = async (toEmail) => {
+    try {
+      const res = await sendRequest(user.email, toEmail);
+      if (res.success) {
+        setSentRequests((prev) => [res.request, ...prev]);
+      }
+    } catch (e) {
+      const msg = e.response?.data?.error || "Failed to send request";
+      alert(msg);
+    }
+  };
+
+  const handleRespondToRequest = async (requestId, action) => {
+    try {
+      const res = await respondToRequest(requestId, action);
+      if (res.success) {
+        setPendingRequests((prev) => prev.filter((r) => r._id !== requestId));
+      }
+    } catch (e) {
+      console.error("Failed to respond to request", e);
+    }
+  };
+
   // Filter out current user from the user list
   const otherOnlineUsers = onlineUsers.filter(u => 
     u.toLowerCase().trim() !== user?.email?.toLowerCase().trim()
@@ -1852,6 +1933,16 @@ function Chat({ user: currentUser }) {
     return (
       normalizedEmail.includes(searchValue) ||
       getDisplayName(u).includes(searchValue)
+    );
+  });
+
+  const filteredAllUsers = (allUsers || []).filter((u) => {
+    if (normalizeEmail(u.email) === normalizeEmail(user?.email)) return false;
+    const displayName = (u.displayName || "").toLowerCase();
+    const email = normalizeEmail(u.email);
+    return (
+      email.includes(searchValue) ||
+      displayName.includes(searchValue)
     );
   });
 
@@ -1910,6 +2001,53 @@ function Chat({ user: currentUser }) {
               </div>
             )) : (
               <div className="empty-list">No contacts are available right now.</div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    if (type === "mobile-all") {
+      return (
+        <div className="sidebar-section">
+          <div className="sidebar-section-title">All Users</div>
+          <div className="sidebar-list">
+            {filteredAllUsers.length > 0 ? filteredAllUsers.map((u, i) => {
+              const isOnline = isUserOnline(u.email);
+              const hasPendingReq = sentRequests.some(
+                (r) => r.to === u.email && r.status === "pending"
+              );
+              const isAccepted = sentRequests.some(
+                (r) => r.to === u.email && r.status === "accepted"
+              ) || pendingRequests.some(
+                (r) => r.from === u.email && r.status === "accepted"
+              );
+              return (
+                <div key={`ma-all-${i}`} className="user-item">
+                  <div className="avatar-wrap">
+                    <Avatar src={userProfiles[u.email] || u.avatarUrl} email={u.email} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u.email, false)} />
+                    {isOnline && <span className="status-dot online" />}
+                  </div>
+                  <div className="user-item-copy">
+                    <span className="user-name">{u.displayName || u.email.split("@")[0]}</span>
+                    <span className="user-last">{isOnline ? "Online" : "Offline"}</span>
+                  </div>
+                  <div className="user-item-actions">
+                    {isAccepted ? (
+                      <button className="chat-btn" onClick={() => { handleUserSelect(u.email); setActiveTab("chat"); }} title="Open chat">
+                        <MessageCircle size={16} />
+                      </button>
+                    ) : hasPendingReq ? (
+                      <span className="pending-badge">Pending</span>
+                    ) : (
+                      <button className="request-btn" onClick={() => handleSendRequest(u.email)} title="Send chat request">
+                        <UserPlus size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            }) : (
+              <div className="empty-list">No users found.</div>
             )}
           </div>
         </div>
@@ -2059,6 +2197,12 @@ function Chat({ user: currentUser }) {
             </div>
           </div>
           <div className="sidebar-top-actions">
+            <NotificationBell
+              requests={pendingRequests}
+              userProfiles={userProfiles}
+              getDisplayName={getDisplayName}
+              onRespond={handleRespondToRequest}
+            />
             <button
               className="theme-toggle"
               onClick={() => setIsDarkMode((prev) => !prev)}
@@ -2136,6 +2280,15 @@ function Chat({ user: currentUser }) {
               {archivedChatsList.length > 0 && <span className="tab-count" style={{ position: 'absolute', top: -8, right: -12, background: 'var(--text-light)', color: 'white', fontSize: '9px', padding: '2px 4px', borderRadius: '4px' }}>{archivedChatsList.length}</span>}
             </div>
           </button>
+          <button
+            className={`tab ${activeTab === "all" ? "active" : ""}`}
+            onClick={() => setActiveTab("all")}
+            title="All Users"
+          >
+            <div style={{ position: 'relative' }}>
+              <UserPlus size={18} />
+            </div>
+          </button>
         </div>
 
         <div className={`sidebar-search ${activeTab === "calls" ? "mobile-hidden" : ""}`}>
@@ -2144,7 +2297,7 @@ function Chat({ user: currentUser }) {
             type="search"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search online users" : activeTab === "calls" ? "Search call history" : "Search archived chats"}
+            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search online users" : activeTab === "calls" ? "Search call history" : activeTab === "all" ? "Search all users" : "Search archived chats"}
           />
         </div>
 
@@ -2292,6 +2445,70 @@ function Chat({ user: currentUser }) {
           />
         )}
 
+        {activeTab === "all" && (
+          <div className="sidebar-section">
+            <div className="sidebar-list">
+              {filteredAllUsers.length > 0 ? filteredAllUsers.map((u, i) => {
+                const isOnline = isUserOnline(u.email);
+                const hasPendingReq = sentRequests.some(
+                  (r) => r.to === u.email && r.status === "pending"
+                );
+                const isAccepted = sentRequests.some(
+                  (r) => r.to === u.email && r.status === "accepted"
+                ) || pendingRequests.some(
+                  (r) => r.from === u.email && r.status === "accepted"
+                );
+                return (
+                  <div
+                    key={`all-${i}`}
+                    className="user-item"
+                  >
+                    <div className="avatar-wrap">
+                      <Avatar
+                        src={userProfiles[u.email] || u.avatarUrl}
+                        email={u.email}
+                        size={40}
+                        className="user-avatar"
+                        onClick={(e) => handleAvatarClick(e, u.email, false)}
+                      />
+                      {isOnline && <span className="status-dot online" />}
+                    </div>
+                    <div className="user-item-copy">
+                      <span className="user-name">{u.displayName || u.email.split("@")[0]}</span>
+                      <span className="user-last">
+                        {isOnline ? "Online" : "Offline"}
+                      </span>
+                    </div>
+                    <div className="user-item-actions">
+                      {isAccepted ? (
+                        <button
+                          className="chat-btn"
+                          onClick={() => handleUserSelect(u.email)}
+                          title="Open chat"
+                        >
+                          <MessageCircle size={16} />
+                        </button>
+                      ) : hasPendingReq ? (
+                        <span className="pending-badge">Pending</span>
+                      ) : (
+                        <button
+                          className="request-btn"
+                          onClick={() => handleSendRequest(u.email)}
+                          title="Send chat request"
+                        >
+                          <UserPlus size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="empty-list">No users found.</div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="sidebar-footer">
           <div className="sidebar-footer-actions">
             <button className="sidebar-footer-btn" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }} title="Invite team member">
@@ -2310,18 +2527,28 @@ function Chat({ user: currentUser }) {
         </div>
       </aside>
 
+      {requestNotifications.length > 0 && (
+        <div className="request-notifications">
+          {requestNotifications.map((n) => (
+            <div key={n.id} className={`request-toast ${n.type}`}>
+              {n.msg}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Mobile page - full screen for Contacts & Archive on mobile */}
       <div className={`mobile-page ${activeTab === "chat" ? "mobile-hidden" : ""}`}>
         <div className="mobile-page-header">
           <button className="mobile-page-back" onClick={() => setActiveTab("chat")}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <h3>{activeTab === "online" ? "Online Users" : activeTab === "calls" ? "Call History" : activeTab === "analytics" ? "Analytics" : activeTab === "archive" ? "Archive" : "Recent Chats"}</h3>
+          <h3>{activeTab === "online" ? "Online Users" : activeTab === "calls" ? "Call History" : activeTab === "analytics" ? "Analytics" : activeTab === "archive" ? "Archive" : activeTab === "all" ? "All Users" : "Recent Chats"}</h3>
         </div>
         <div className={`sidebar-search ${activeTab === "analytics" ? "mobile-hidden" : ""}`}>
           <Search size={16} />
           <input type="search" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search contacts" : "Search archived chats"} />
+            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search contacts" : activeTab === "all" ? "Search all users" : "Search archived chats"} />
         </div>
         <div className="mobile-page-body">
           {activeTab === "recent" && renderTabContent("mobile-recent")}
@@ -2338,6 +2565,7 @@ function Chat({ user: currentUser }) {
             />
           )}
           {activeTab === "archive" && renderTabContent("mobile-archive")}
+          {activeTab === "all" && renderTabContent("mobile-all")}
           {activeTab === "analytics" && renderAnalytics()}
         </div>
       </div>
@@ -3025,6 +3253,7 @@ function Chat({ user: currentUser }) {
           <span>Calls</span>
         </button>
         <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("archive"); setSidebarOpen(false); }}><Archive size={18} /><span>Archive</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "all" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("all"); setSidebarOpen(false); }}><UserPlus size={18} /><span>People</span></button>
         <button className={`bottom-nav-btn ${activeTab === "analytics" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("analytics"); setSidebarOpen(false); }}><BarChart3 size={18} /><span>Analytics</span></button>
         <button className="bottom-nav-btn" onClick={(e) => { e.stopPropagation(); setShowSettings(true); setSidebarOpen(false); }}><Settings size={18} /><span>Settings</span></button>
       </nav>

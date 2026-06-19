@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { createOrUpdateUser, updateAvatar, updateProfile, getProfile, getProfiles, getLastSeen, heartbeat, deleteAccount } = require("../controllers/userController");
+const { createOrUpdateUser, updateAvatar, updateProfile, getProfile, getProfiles, getLastSeen, heartbeat, deleteAccount, getAllUsers } = require("../controllers/userController");
 
 // Health check
 router.get("/", (req, res) => {
@@ -27,6 +27,9 @@ router.get("/profiles", getProfiles);
 
 // Delete user account and all associated data
 router.delete("/delete-account", deleteAccount);
+
+// Get all registered users
+router.get("/all", getAllUsers);
 
 // Get last seen for a user by email
 router.get("/:id/lastseen", getLastSeen);
