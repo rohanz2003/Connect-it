@@ -2423,7 +2423,12 @@ function Chat({ user: currentUser }) {
   return (
     <div className={`chat-layout ${isDarkMode ? "dark" : ""} w-full h-screen max-w-screen overflow-hidden md:grid md:grid-cols-[280px_1fr]`}>
       <div className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`} onClick={() => setSidebarOpen(false)} />
-      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
+      <motion.aside
+        className={`sidebar ${sidebarOpen ? "open" : ""}`}
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+      >
         <div className="sidebar-top">
           <div className="brand-head">
             <div className="brand-mark">C</div>
@@ -2752,7 +2757,7 @@ function Chat({ user: currentUser }) {
             </button>
           </div>
         </div>
-      </aside>
+      </motion.aside>
 
       {requestNotifications.length > 0 && (
         <div className="request-notifications">
@@ -2765,7 +2770,12 @@ function Chat({ user: currentUser }) {
       )}
 
       {/* Mobile page - full screen for Contacts & Archive on mobile */}
-      <div className={`mobile-page ${activeTab === "chat" ? "mobile-hidden" : ""}`}>
+      <motion.div
+        className={`mobile-page ${activeTab === "chat" ? "mobile-hidden" : ""}`}
+        initial={{ opacity: 0, x: 30 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+      >
         <div className="mobile-page-header">
           <button className="mobile-page-back" onClick={() => setActiveTab("chat")}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -2796,9 +2806,14 @@ function Chat({ user: currentUser }) {
           {activeTab === "notifications" && renderTabContent("mobile-notifications")}
           {activeTab === "analytics" && renderAnalytics()}
         </div>
-      </div>
+      </motion.div>
 
-      <main className={`chat-panel ${activeTab !== "chat" ? "mobile-hidden" : ""}`}>
+      <motion.main
+        className={`chat-panel ${activeTab !== "chat" ? "mobile-hidden" : ""}`}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
+      >
         {/* Incoming call overlay - shown globally over the entire app */}
 
         <div className="chat-panel-header">
@@ -3298,7 +3313,7 @@ function Chat({ user: currentUser }) {
         <input id="attach-audio" type="file" accept="audio/*" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
         <input id="attach-document" type="file" accept=".pdf,.doc,.docx,.txt,.rtf" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
         <input id="attach-file" type="file" accept="*/*" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
-      </main>
+      </motion.main>
 
       {showLogoutConfirm && (
         <div className="logout-modal-overlay" onClick={() => setShowLogoutConfirm(false)}>
@@ -3588,7 +3603,12 @@ function Chat({ user: currentUser }) {
         />
       )}
 
-      <nav className="bottom-nav">
+      <motion.nav
+        className="bottom-nav"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.2 }}
+      >
         <button className={`bottom-nav-btn ${activeTab === "chat" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("chat"); setSidebarOpen(false); }}><MessageCircle size={18} /><span>Chat</span></button>
         <button className={`bottom-nav-btn ${activeTab === "recent" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("recent"); setSidebarOpen(false); }}>
           <span className="bottom-nav-icon-wrap">
@@ -3617,7 +3637,7 @@ function Chat({ user: currentUser }) {
         <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("archive"); setSidebarOpen(false); }}><Archive size={18} /><span>Archive</span></button>
         <button className={`bottom-nav-btn ${activeTab === "analytics" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("analytics"); setSidebarOpen(false); }}><BarChart3 size={18} /><span>Analytics</span></button>
         <button className="bottom-nav-btn" onClick={(e) => { e.stopPropagation(); setShowSettings(true); setSidebarOpen(false); }}><Settings size={18} /><span>Settings</span></button>
-      </nav>
+      </motion.nav>
 
       {showSettings && (
         <div className="settings-modal-overlay" onClick={() => setShowSettings(false)}>

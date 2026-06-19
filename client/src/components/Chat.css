@@ -43,6 +43,50 @@
   --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* ============================================================================
+   GLOBAL ANIMATIONS
+   ============================================================================ */
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeSlideDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeSlideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3); }
+  50%      { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+}
+
+@keyframes iconBounce {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.2); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+.animate-fade-up  { animation: fadeSlideUp 0.4s ease both; }
+.animate-fade-down { animation: fadeSlideDown 0.4s ease both; }
+.animate-scale     { animation: scaleIn 0.35s ease both; }
+.animate-slide-in  { animation: fadeSlideInRight 0.4s ease both; }
+
 body.dark-mode,
 .chat-layout.dark {
   --background-light: #1a1a1a;
@@ -496,16 +540,32 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  overflow: hidden;
 }
 
 .tab:hover {
   background: var(--border-light);
   color: var(--text-primary);
+  transform: scale(1.05);
+}
+
+.tab:active {
+  transform: scale(0.93);
 }
 
 .tab.active {
   background: var(--primary-color);
   color: white;
+  animation: iconBounce 0.4s ease;
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  animation: glowPulse 2s ease-in-out infinite;
 }
 
 .tab-badge {
@@ -706,10 +766,17 @@ body {
   font-family: inherit;
   text-align: left;
   position: relative;
+  animation: fadeSlideUp 0.35s ease both;
 }
 
 .user-item:hover {
   background: var(--border-light);
+  transform: translateX(4px);
+  border-left-color: var(--primary-color);
+}
+
+.user-item:active {
+  transform: scale(0.98);
 }
 
 .user-item.active {
@@ -2500,9 +2567,21 @@ body {
   position: relative;
 }
 
-.bottom-nav-btn:hover,
+.bottom-nav-btn:hover {
+  color: var(--primary-color);
+  transform: translateY(-2px);
+}
+
+.bottom-nav-btn:active {
+  transform: scale(0.92);
+}
+
 .bottom-nav-btn.active {
   color: var(--primary-color);
+}
+
+.bottom-nav-btn.active svg {
+  animation: iconBounce 0.4s ease;
 }
 
 .bottom-nav-btn svg {
@@ -3674,18 +3753,26 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
 
 /* CSS animations for components (replaces framer-motion) */
 .message-animate {
-  animation: messageIn 0.25s ease-out forwards;
+  animation: messageIn 0.3s ease-out both;
+}
+
+.message.sent.message-animate {
+  animation-name: messageInRight;
 }
 
 @keyframes messageIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes messageInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.message:hover {
+  transform: scale(1.01);
+  transition: transform 0.2s ease;
 }
 
 .typing-animate {
