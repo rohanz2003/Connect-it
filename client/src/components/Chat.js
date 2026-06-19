@@ -41,6 +41,7 @@ import {
   Eye,
   EyeOff,
   BarChart3,
+  Activity,
   History,
   UserPlus,
   Phone,
@@ -3094,15 +3095,16 @@ function Chat({ user: currentUser }) {
             <div className="dashboard-empty-state">
               <motion.div
                 className="welcome-panel"
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 transition={{ duration: 0.6, ease: "easeOut" }}
               >
                 <motion.div
                   className="welcome-brand"
-                  initial={{ opacity: 0, scale: 0.5 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
+                  initial={{ opacity: 0, scale: 0.5, rotate: -10 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
+                  whileHover={{ scale: 1.02 }}
                 >
                   <div className="welcome-logo">C</div>
                   <h1>Connect It</h1>
@@ -3116,6 +3118,87 @@ function Chat({ user: currentUser }) {
                   <h2>Welcome back, {getDisplayName(user.email)}</h2>
                   <p className="welcome-subtitle">Real-time messaging platform for seamless team collaboration</p>
                 </motion.div>
+
+                <div className="welcome-stats-grid">
+                  <motion.div
+                    className="welcome-stat-card"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.4 }}
+                    whileHover={{ y: -6, boxShadow: "0 12px 28px rgba(59,130,246,0.15)" }}
+                  >
+                    <div className="welcome-stat-icon" style={{ background: "#e8f5e9", color: "#2e7d32" }}>
+                      <MessageCircle size={18} />
+                    </div>
+                    <span className="welcome-stat-value">{analyticsActiveChats}</span>
+                    <span className="welcome-stat-label">Active Chats</span>
+                  </motion.div>
+                  <motion.div
+                    className="welcome-stat-card"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.5 }}
+                    whileHover={{ y: -6, boxShadow: "0 12px 28px rgba(59,130,246,0.15)" }}
+                  >
+                    <div className="welcome-stat-icon" style={{ background: "#ffebee", color: "#c62828" }}>
+                      <BellRing size={18} />
+                    </div>
+                    <span className="welcome-stat-value">{analyticsUnread}</span>
+                    <span className="welcome-stat-label">Unread</span>
+                  </motion.div>
+                  <motion.div
+                    className="welcome-stat-card"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.6 }}
+                    whileHover={{ y: -6, boxShadow: "0 12px 28px rgba(59,130,246,0.15)" }}
+                  >
+                    <div className="welcome-stat-icon" style={{ background: "#f3e5f5", color: "#7b1fa2" }}>
+                      <Send size={18} />
+                    </div>
+                    <span className="welcome-stat-value">{totalChatMessages}</span>
+                    <span className="welcome-stat-label">Messages</span>
+                  </motion.div>
+                  <motion.div
+                    className="welcome-stat-card"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.7 }}
+                    whileHover={{ y: -6, boxShadow: "0 12px 28px rgba(59,130,246,0.15)" }}
+                  >
+                    <div className="welcome-stat-icon" style={{ background: "#fff3e0", color: "#e65100" }}>
+                      <Image size={18} />
+                    </div>
+                    <span className="welcome-stat-value">{totalChatMedia}</span>
+                    <span className="welcome-stat-label">Media</span>
+                  </motion.div>
+                  <motion.div
+                    className="welcome-stat-card"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.8 }}
+                    whileHover={{ y: -6, boxShadow: "0 12px 28px rgba(59,130,246,0.15)" }}
+                  >
+                    <div className="welcome-stat-icon" style={{ background: "#e0f2f1", color: "#00695c" }}>
+                      <Activity size={18} />
+                    </div>
+                    <span className="welcome-stat-value">{responseRate}%</span>
+                    <span className="welcome-stat-label">Response Rate</span>
+                  </motion.div>
+                  <motion.div
+                    className="welcome-stat-card"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.9 }}
+                    whileHover={{ y: -6, boxShadow: "0 12px 28px rgba(59,130,246,0.15)" }}
+                  >
+                    <div className="welcome-stat-icon" style={{ background: "#e3f2fd", color: "#1565c0" }}>
+                      <Users size={18} />
+                    </div>
+                    <span className="welcome-stat-value">{otherOnlineUsers.length}</span>
+                    <span className="welcome-stat-label">Online Now</span>
+                  </motion.div>
+                </div>
               </motion.div>
             </div>
           )}
