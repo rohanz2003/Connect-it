@@ -839,6 +839,7 @@ function Chat({ user: currentUser }) {
         setRequestNotifications((prev) => prev.slice(1));
       }, 5000);
       refreshRequestStatuses();
+      refreshAcceptedChatPartners();
       if (status === "accepted") {
         setSelectedUser(from);
         setSidebarOpen(false);
@@ -1896,6 +1897,16 @@ function Chat({ user: currentUser }) {
     }
   };
 
+  const refreshAcceptedChatPartners = async () => {
+    if (!user) return;
+    try {
+      const acceptedRes = await fetchAcceptedChatsWithMessages(user.email);
+      if (Array.isArray(acceptedRes)) setAcceptedChatPartners(acceptedRes);
+    } catch (e) {
+      console.warn("Failed to refresh accepted partners", e);
+    }
+  };
+
   const handleSendRequest = async (toEmail) => {
     try {
       const res = await sendRequest(user.email, toEmail);
@@ -1937,6 +1948,7 @@ function Chat({ user: currentUser }) {
           ].slice(0, 50);
         });
         await refreshRequestStatuses();
+        if (action === "accepted") await refreshAcceptedChatPartners();
       }
     } catch (e) {
       console.error("Failed to respond to request", e);
@@ -3438,7 +3450,10 @@ function Chat({ user: currentUser }) {
         </button>
         <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("archive"); setSidebarOpen(false); }}><Archive size={18} /><span>Archive</span></button>
         <button className={`bottom-nav-btn ${activeTab === "all" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("all"); setSidebarOpen(false); }}><UserPlus size={18} /><span>People</span></button>
-        <button className={`bottom-nav-btn ${activeTab === "analytics" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("analytics"); setSidebarOpen(false); }}><BarChart3 size={18} /><span>Analytics</span></button>
+        <button className="bottom-nav-btn theme-mobile" onClick={(e) => { e.stopPropagation(); setIsDarkMode(prev => !prev); }} title={isDarkMode ? "Light mode" : "Dark mode"}>
+          {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+          <span>{isDarkMode ? "Light" : "Dark"}</span>
+        </button>
         <button className="bottom-nav-btn" onClick={(e) => { e.stopPropagation(); setShowSettings(true); setSidebarOpen(false); }}><Settings size={18} /><span>Settings</span></button>
       </nav>
 
@@ -3546,31 +3561,22 @@ function Chat({ user: currentUser }) {
               </div>
             </div>
             <div className="settings-footer">
-              <button className="settings-btn danger" onClick={() => { setShowSettings(false); setShowLogoutConfirm(true); }}>
-                <LogOut size={16} /> Logout
+              <button className="settings-icon-btn danger" onClick={() => { setShowSettings(false); setShowLogoutConfirm(true); }} title="Logout">
+                <LogOut size={18} />
               </button>
-              <button className="settings-btn delete" onClick={() => { setShowSettings(false); setShowDeleteConfirm(true); }}>
-                <Trash2 size={16} /> Delete
+              <button className="settings-icon-btn danger" onClick={() => { setShowSettings(false); setShowDeleteConfirm(true); }} title="Delete account">
+                <Trash2 size={18} />
               </button>
-              <button className="settings-btn secondary" onClick={() => setShowSettings(false)} disabled={isSaving}>
-                Cancel
+              <button className="settings-icon-btn secondary" onClick={() => setShowSettings(false)} disabled={isSaving} title="Cancel">
+                <X size={18} />
               </button>
               <button
-                className="settings-btn primary"
+                className="settings-icon-btn primary"
                 onClick={handleSaveSettings}
                 disabled={isSaving || (!displayName.trim() && !bio.trim())}
+                title={isSaving ? "Saving..." : "Save Changes"}
               >
-                {isSaving ? (
-                  <>
-                    <Loader2 size={16} className="btn-spinner" />
-                    <span>Saving...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save size={16} />
-                    <span>Save Changes</span>
-                  </>
-                )}
+                {isSaving ? <Loader2 size={18} className="btn-spinner" /> : <Save size={18} />}
               </button>
             </div>
           </div>

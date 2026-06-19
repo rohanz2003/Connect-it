@@ -3848,99 +3848,65 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   margin-top: 8px;
 }
 
-.settings-btn {
-  flex: 1;
+.settings-icon-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 12px 20px;
   border: none;
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  font-weight: 600;
-  font-family: inherit;
   cursor: pointer;
   transition: var(--transition);
+  flex-shrink: 0;
 }
 
-.settings-btn.primary {
+.settings-icon-btn.primary {
   background: var(--primary-color);
   color: white;
 }
 
-.settings-btn.primary:hover:not(:disabled) {
+.settings-icon-btn.primary:hover:not(:disabled) {
   background: var(--primary-hover);
-  transform: translateY(-1px);
 }
 
-.settings-btn.secondary {
+.settings-icon-btn.secondary {
   background: var(--border-light);
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
 }
 
-.settings-btn.secondary:hover:not(:disabled) {
+.settings-icon-btn.secondary:hover:not(:disabled) {
   background: var(--border-color);
   color: var(--text-primary);
 }
 
-.settings-btn.danger {
+.settings-icon-btn.danger {
   background: transparent;
   color: #ef4444;
   border: 1.5px solid #ef4444;
-  flex: 0.6;
-  font-size: 12px;
-  padding: 10px 14px;
 }
 
-.settings-btn.danger:hover:not(:disabled) {
+.settings-icon-btn.danger:hover:not(:disabled) {
   background: #fef2f2;
   color: #dc2626;
   border-color: #dc2626;
 }
 
-.dark .settings-btn.danger {
+.dark .settings-icon-btn.danger {
   color: #f87171;
   border-color: #f87171;
 }
 
-.dark .settings-btn.danger:hover:not(:disabled) {
+.dark .settings-icon-btn.danger:hover:not(:disabled) {
   background: rgba(239, 68, 68, 0.12);
   color: #fca5a5;
   border-color: #fca5a5;
 }
 
-.settings-btn.delete {
-  background: transparent;
-  color: #ef4444;
-  border: 1.5px solid #ef4444;
-  flex: 0.6;
-  font-size: 12px;
-  padding: 10px 14px;
-}
-
-.settings-btn.delete:hover:not(:disabled) {
-  background: #fef2f2;
-  color: #dc2626;
-  border-color: #dc2626;
-}
-
-.dark .settings-btn.delete {
-  color: #f87171;
-  border-color: #f87171;
-}
-
-.dark .settings-btn.delete:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.12);
-  color: #fca5a5;
-  border-color: #fca5a5;
-}
-
-.settings-btn:disabled {
+.settings-icon-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  transform: none !important;
 }
 
 .btn-spinner {
@@ -3950,12 +3916,6 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
-}
-
-/* Loader2 icon animation fix */
-.settings-btn .btn-spinner {
-  width: 16px;
-  height: 16px;
 }
 
 /* Settings overlay backdrop improvement */
@@ -4024,11 +3984,7 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   }
   
   .settings-footer {
-    flex-direction: column;
-  }
-  
-  .settings-btn {
-    width: 100%;
+    justify-content: center;
   }
 }
 
