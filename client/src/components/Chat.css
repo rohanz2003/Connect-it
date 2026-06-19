@@ -163,12 +163,19 @@ body {
   color: var(--text-primary, #1f2937);
 }
 
+/* Mobile-only: notification bell in chat header */
+.mobile-notif-btn {
+  display: none;
+  position: relative;
+}
+
 @media (max-width: 767px) {
-  .mobile-page-notif-btn {
+  .mobile-notif-btn {
     display: flex;
   }
 }
 
+.mobile-notif-btn .mobile-notif-badge,
 .mobile-page-notif-btn .mobile-notif-badge {
   position: absolute;
   top: -2px;
