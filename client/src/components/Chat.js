@@ -254,6 +254,16 @@ function Chat({ user: currentUser }) {
   const messagesEndRef = useRef(null);
   const [, setLastSeenTick] = useState(0);
   const [platformStats, setPlatformStats] = useState({ totalUsers: 0, totalMessages: 0, acceptedRequests: 0 });
+  const [dismissedRecent, setDismissedRecent] = useState(() => {
+    try {
+      const email = JSON.parse(localStorage.getItem("user") || "{}").email;
+      if (email) {
+        const stored = localStorage.getItem(`dismissedRecent_${email.toLowerCase()}`);
+        return stored ? JSON.parse(stored) : [];
+      }
+    } catch {}
+    return [];
+  });
 
   // Auto-refresh last seen display every 1 second
   useEffect(() => {
@@ -1562,6 +1572,12 @@ function Chat({ user: currentUser }) {
         setSelectedUser(null);
       }
 
+      setDismissedRecent((prev) => {
+        const next = [...prev, partner];
+        try { localStorage.setItem(`dismissedRecent_${user.email.toLowerCase()}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+
       setUnreadMessages((prev) => {
         const key = `${partner}_${normalizeEmail(user.email)}`;
         if (!prev[key]) return prev;
@@ -1981,14 +1997,15 @@ function Chat({ user: currentUser }) {
     if (c.lastMessage) acceptedLastMsg[normalizeEmail(c.userEmail)] = c;
   });
 
+  const dismissedSet = new Set(dismissedRecent.map(normalizeEmail));
   const recentChats = [
     // Users with chat history (filtered by accepted set)
     ...Object.keys(chatHistory)
-      .filter(u => u !== user?.email && !archivedSet.has(normalizeEmail(u)) && acceptedSet.has(normalizeEmail(u)))
+      .filter(u => u !== user?.email && !archivedSet.has(normalizeEmail(u)) && acceptedSet.has(normalizeEmail(u)) && !dismissedSet.has(normalizeEmail(u)))
       .map(u => ({ email: u, hasHistory: true })),
     // Accepted partners without chat history
     ...acceptedChatPartners
-      .filter(c => !chatHistory[normalizeEmail(c.userEmail)] && normalizeEmail(c.userEmail) !== user?.email)
+      .filter(c => !chatHistory[normalizeEmail(c.userEmail)] && normalizeEmail(c.userEmail) !== user?.email && !dismissedSet.has(normalizeEmail(c.userEmail)))
       .map(c => ({ email: normalizeEmail(c.userEmail), hasHistory: false })),
   ]
     .filter((v, i, a) => a.findIndex((x) => x.email === v.email) === i)

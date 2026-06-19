@@ -11,9 +11,12 @@ const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 const AnimatedCounter = ({ end, suffix = "" }) => {
   const [count, setCount] = useState(0);
   const prevRef = useRef(0);
+  const mountedRef = useRef(false);
   useEffect(() => {
-    if (!end) return;
+    if (end === undefined || end === null) return;
+    if (!mountedRef.current) { prevRef.current = end; setCount(end); mountedRef.current = true; return; }
     const start = prevRef.current;
+    if (start === end) return;
     const diff = end - start;
     const duration = 1200;
     const steps = Math.max(1, Math.floor(duration / 16));
