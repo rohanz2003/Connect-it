@@ -3842,7 +3842,8 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
 
 .settings-footer {
   display: flex;
-  gap: 12px;
+  justify-content: center;
+  gap: 24px;
   padding: 20px 24px 24px;
   border-top: 1px solid var(--border-color);
   margin-top: 8px;
