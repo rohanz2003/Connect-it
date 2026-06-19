@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { MessageCircle, Lock, Users, Zap, Phone, Video, UserPlus, MessageSquare, PhoneCall, Activity } from "lucide-react";
 import { motion } from "framer-motion";
@@ -10,15 +10,21 @@ const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const AnimatedCounter = ({ end, suffix = "" }) => {
   const [count, setCount] = useState(0);
+  const prevRef = useRef(0);
   useEffect(() => {
     if (!end) return;
-    let start = 0;
-    const duration = 2000;
-    const step = Math.ceil(end / (duration / 16));
+    const start = prevRef.current;
+    const diff = end - start;
+    const duration = 1200;
+    const steps = Math.max(1, Math.floor(duration / 16));
+    const step = diff / steps;
+    let current = start;
+    let i = 0;
     const timer = setInterval(() => {
-      start += step;
-      if (start >= end) { setCount(end); clearInterval(timer); }
-      else setCount(start);
+      i++;
+      current = start + step * i;
+      if (i >= steps) { setCount(end); prevRef.current = end; clearInterval(timer); }
+      else setCount(Math.round(current));
     }, 16);
     return () => clearInterval(timer);
   }, [end]);
@@ -28,11 +34,17 @@ const AnimatedCounter = ({ end, suffix = "" }) => {
 const Landing = () => {
   const [stats, setStats] = useState({ totalUsers: 0, totalMessages: 0, acceptedRequests: 0 });
 
-  useEffect(() => {
+  const fetchStats = () => {
     fetch(`${API_URL}/api/analytics`)
       .then(r => r.json())
       .then(d => { if (d.success) setStats(d); else console.warn("Analytics API error:", d); })
       .catch(e => console.warn("Analytics fetch failed:", e));
+  };
+
+  useEffect(() => {
+    fetchStats();
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const features = [
@@ -226,6 +238,7 @@ const Landing = () => {
           >
             <h2 className="section-title">Live Insights</h2>
             <p className="section-subtitle">
+              <span className="live-badge"><span className="live-dot" /> Live</span>
               Real-time platform analytics at a glance
             </p>
           </motion.div>
