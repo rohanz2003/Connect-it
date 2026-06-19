@@ -864,6 +864,10 @@ function Chat({ user: currentUser }) {
       refreshRequestStatuses();
       refreshAcceptedChatPartners();
       if (status === "accepted") {
+        setAcceptedChatPartners((prev) => {
+          if (prev.some((c) => normalizeEmail(c.userEmail) === normalizeEmail(from))) return prev;
+          return [...prev, { userEmail: normalizeEmail(from), lastMessage: null, timestamp: new Date().toISOString(), unread: 0 }];
+        });
         setSelectedUser(from);
         setSidebarOpen(false);
         setActiveTab("chat");
@@ -1967,15 +1971,21 @@ function Chat({ user: currentUser }) {
     try {
       const res = await respondToRequest(requestId, action);
       if (res.success) {
+        const req = pendingRequests.find((r) => r._id === requestId);
         setPendingRequests((prev) => prev.filter((r) => r._id !== requestId));
         setNotificationHistory((prev) => {
-          const req = pendingRequests.find((r) => r._id === requestId);
           if (!req) return prev;
           return [
             { ...req, respondedWith: action, respondedAt: new Date().toISOString() },
             ...prev,
           ].slice(0, 50);
         });
+        if (action === "accepted" && req) {
+          setAcceptedChatPartners((prev) => {
+            if (prev.some((c) => normalizeEmail(c.userEmail) === normalizeEmail(req.from))) return prev;
+            return [...prev, { userEmail: normalizeEmail(req.from), lastMessage: null, timestamp: new Date().toISOString(), unread: 0 }];
+          });
+        }
         await refreshRequestStatuses();
         if (action === "accepted") await refreshAcceptedChatPartners();
       }
@@ -2003,10 +2013,14 @@ function Chat({ user: currentUser }) {
     ...Object.keys(chatHistory)
       .filter(u => u !== user?.email && !archivedSet.has(normalizeEmail(u)) && acceptedSet.has(normalizeEmail(u)) && !dismissedSet.has(normalizeEmail(u)))
       .map(u => ({ email: u, hasHistory: true })),
-    // Accepted partners without chat history
+    // Accepted partners without chat history (from server list)
     ...acceptedChatPartners
       .filter(c => !chatHistory[normalizeEmail(c.userEmail)] && normalizeEmail(c.userEmail) !== user?.email && !dismissedSet.has(normalizeEmail(c.userEmail)))
       .map(c => ({ email: normalizeEmail(c.userEmail), hasHistory: false })),
+    // Also include accepted-from-requestStatuses that might not be in acceptedChatPartners yet
+    ...Object.entries(requestStatuses)
+      .filter(([email, s]) => s.status === "accepted" && normalizeEmail(email) !== user?.email && !chatHistory[normalizeEmail(email)] && !acceptedSet.has(normalizeEmail(email)) && !dismissedSet.has(normalizeEmail(email)))
+      .map(([email]) => ({ email: normalizeEmail(email), hasHistory: false })),
   ]
     .filter((v, i, a) => a.findIndex((x) => x.email === v.email) === i)
     .sort((a, b) => {
