@@ -8,16 +8,25 @@ exports.sendRequest = async (req, res) => {
     const { from, to } = req.body;
     if (!from || !to) return res.status(400).json({ error: "from and to are required" });
 
+    const normalizedFrom = from.toLowerCase();
+    const normalizedTo = to.toLowerCase();
+
     const existing = await ChatRequest.findOne({
-      from: from.toLowerCase(),
-      to: to.toLowerCase(),
+      from: normalizedFrom,
+      to: normalizedTo,
       status: { $in: ["pending", "accepted"] },
     });
     if (existing) return res.status(400).json({ error: "Request already exists" });
 
+    // Delete any rejected/removed request so a fresh one can be created (unique index)
+    await ChatRequest.deleteOne({
+      from: normalizedFrom,
+      to: normalizedTo,
+    });
+
     const request = await ChatRequest.create({
-      from: from.toLowerCase(),
-      to: to.toLowerCase(),
+      from: normalizedFrom,
+      to: normalizedTo,
     });
 
     const populated = await ChatRequest.findById(request._id).lean();

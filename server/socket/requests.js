@@ -12,9 +12,12 @@ const handleRequests = (io, socket, users) => {
         return;
       }
 
+      const normalizedFrom = from.toLowerCase();
+      const normalizedTo = to.toLowerCase();
+
       const existing = await ChatRequest.findOne({
-        from: from.toLowerCase(),
-        to: to.toLowerCase(),
+        from: normalizedFrom,
+        to: normalizedTo,
         status: { $in: ["pending", "accepted"] },
       });
       if (existing) {
@@ -22,9 +25,15 @@ const handleRequests = (io, socket, users) => {
         return;
       }
 
+      // Delete any rejected/removed request so a fresh one can be created (unique index)
+      await ChatRequest.deleteOne({
+        from: normalizedFrom,
+        to: normalizedTo,
+      });
+
       const request = await ChatRequest.create({
-        from: from.toLowerCase(),
-        to: to.toLowerCase(),
+        from: normalizedFrom,
+        to: normalizedTo,
       });
 
       io.to(to.toLowerCase()).emit("new-request", {

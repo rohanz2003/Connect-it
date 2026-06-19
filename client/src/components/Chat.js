@@ -3035,13 +3035,17 @@ function Chat({ user: currentUser }) {
                 </button>
               </>
             )}
-            <button className="icon-btn mobile-notif-btn" title="Notifications" onClick={() => setActiveTab("notifications")}>
-              <Bell size={18} />
-              {pendingRequests.length > 0 && <span className="mobile-notif-badge">{pendingRequests.length > 9 ? "9+" : pendingRequests.length}</span>}
-            </button>
-            <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
-              <Settings size={18} />
-            </button>
+            {!selectedUser && (
+              <>
+              <button className="icon-btn mobile-notif-btn" title="Notifications" onClick={() => setActiveTab("notifications")}>
+                <Bell size={18} />
+                {pendingRequests.length > 0 && <span className="mobile-notif-badge">{pendingRequests.length > 9 ? "9+" : pendingRequests.length}</span>}
+              </button>
+              <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
+                <Settings size={18} />
+              </button>
+              </>
+            )}
           </div>
         </div>
 
