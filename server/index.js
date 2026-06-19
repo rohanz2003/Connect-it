@@ -36,6 +36,7 @@ const app = express();
 const server = http.createServer(app);
 
 const io = initSocket(server);
+app.set("io", io);
 console.log("Socket.IO Started ✅");
 
 initPush();

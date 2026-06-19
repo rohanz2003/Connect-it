@@ -5997,6 +5997,16 @@ body.dark-mode .incoming-call-card,
   color: #fff;
 }
 
+.ig-icon-btn.cancel {
+  background: #fdecea;
+  color: #d32f2f;
+}
+
+.ig-icon-btn.cancel:hover {
+  background: #ef5350;
+  color: #fff;
+}
+
 .ig-requested-badge {
   display: inline-flex;
   align-items: center;
@@ -6077,6 +6087,16 @@ body.dark-mode .incoming-call-card,
 
 .dark-mode .ig-icon-btn.chat:hover {
   background: #4caf50;
+  color: #fff;
+}
+
+.dark-mode .ig-icon-btn.cancel {
+  background: rgba(211, 47, 47, 0.2);
+  color: #ef5350;
+}
+
+.dark-mode .ig-icon-btn.cancel:hover {
+  background: #d32f2f;
   color: #fff;
 }
 

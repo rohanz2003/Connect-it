@@ -838,6 +838,12 @@ function Chat({ user: currentUser }) {
       setTimeout(() => {
         setRequestNotifications((prev) => prev.slice(1));
       }, 5000);
+      refreshRequestStatuses();
+      if (status === "accepted") {
+        setSelectedUser(from);
+        setSidebarOpen(false);
+        setActiveTab("chat");
+      }
     };
     socket.on("request-response", handleRequestResponse);
 
@@ -2113,8 +2119,8 @@ function Chat({ user: currentUser }) {
                         <MessageCircle size={16} />
                       </button>
                     ) : action === "request_sent" ? (
-                      <button className="ig-icon-btn requested" onClick={() => handleUnsendRequest(u.email)} title="Click to unsend">
-                        <Check size={16} />
+                      <button className="ig-icon-btn cancel" onClick={() => handleUnsendRequest(u.email)} title="Cancel request">
+                        <X size={16} />
                       </button>
                     ) : action === "request_received" ? (
                       <span className="ig-requested-badge">R</span>
@@ -2160,6 +2166,31 @@ function Chat({ user: currentUser }) {
               <div className="empty-list">No pending requests</div>
             )}
           </div>
+          {sentRequests.length > 0 && (
+            <>
+              <div className="sidebar-section-title" style={{ marginTop: 16 }}>Sent Requests</div>
+              <div className="sidebar-list">
+                {sentRequests.map((req) => (
+                  <div key={req._id} className="user-item">
+                    <div className="avatar-wrap">
+                      <Avatar src={userProfiles[req.to]} email={req.to} size={40} className="user-avatar" />
+                    </div>
+                    <div className="user-item-copy">
+                      <span className="user-name">{getDisplayName(req.to)}</span>
+                      <span className="user-last">{req.status === "pending" ? "request sent" : req.status}</span>
+                    </div>
+                    <div className="user-item-actions">
+                      {req.status === "pending" && (
+                        <button className="ig-icon-btn cancel" onClick={() => handleUnsendRequest(req.to)} title="Cancel request">
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           {notificationHistory.length > 0 && (
             <>
               <div className="sidebar-section-title" style={{ marginTop: 16 }}>History</div>
@@ -2609,8 +2640,8 @@ function Chat({ user: currentUser }) {
                           <MessageCircle size={16} />
                         </button>
                       ) : action === "request_sent" ? (
-                        <button className="ig-icon-btn requested" onClick={() => handleUnsendRequest(u.email)} title="Click to unsend">
-                          <Check size={16} />
+                        <button className="ig-icon-btn cancel" onClick={() => handleUnsendRequest(u.email)} title="Cancel request">
+                          <X size={16} />
                         </button>
                       ) : action === "request_received" ? (
                         <span className="ig-requested-badge">R</span>

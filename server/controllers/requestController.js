@@ -87,6 +87,16 @@ exports.respondToRequest = async (req, res) => {
 
     if (!request) return res.status(404).json({ error: "Request not found" });
 
+    const io = req.app.get("io");
+    if (io) {
+      io.to(request.from).emit("request-response", {
+        status: action,
+        from: request.to,
+        to: request.from,
+        requestId: request._id,
+      });
+    }
+
     res.json({ success: true, request });
   } catch (err) {
     console.error("Error responding to request:", err.message);
