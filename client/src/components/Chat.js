@@ -252,6 +252,7 @@ function Chat({ user: currentUser }) {
   const [acceptedChatPartners, setAcceptedChatPartners] = useState([]);
   const [requestNotifications, setRequestNotifications] = useState([]);
   const [notificationHistory, setNotificationHistory] = useState([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -857,19 +858,28 @@ function Chat({ user: currentUser }) {
         status === "accepted"
           ? `${name} accepted your chat request`
           : `${name} rejected your chat request`;
+      const now = new Date().toISOString();
       setRequestNotifications((prev) => [
         ...prev,
-        { id: Date.now(), msg, type: status, time: new Date().toISOString() },
+        { id: Date.now(), msg, type: status, time: now },
       ]);
       setTimeout(() => {
         setRequestNotifications((prev) => prev.slice(1));
       }, 5000);
+
+      // Add to notification history
+      setNotificationHistory((prev) => [
+        { from, respondedWith: status, respondedAt: now },
+        ...prev,
+      ].slice(0, 50));
+      setUnreadNotifications((prev) => prev + 1);
+
       refreshRequestStatuses();
       refreshAcceptedChatPartners();
       if (status === "accepted") {
         setAcceptedChatPartners((prev) => {
           if (prev.some((c) => normalizeEmail(c.userEmail) === normalizeEmail(from))) return prev;
-          return [...prev, { userEmail: normalizeEmail(from), lastMessage: null, timestamp: new Date().toISOString(), unread: 0 }];
+          return [...prev, { userEmail: normalizeEmail(from), lastMessage: null, timestamp: now, unread: 0 }];
         });
         setSelectedUser(from);
         setSidebarOpen(false);
@@ -948,6 +958,7 @@ function Chat({ user: currentUser }) {
         { from: removedBy, respondedWith: "removed", respondedAt: now },
         ...prev,
       ].slice(0, 50));
+      setUnreadNotifications((prev) => prev + 1);
     };
     socket.on("friend-removed", handleFriendRemoved);
 
@@ -2589,6 +2600,8 @@ function Chat({ user: currentUser }) {
               getDisplayName={getDisplayName}
               onRespond={handleRespondToRequest}
               history={notificationHistory}
+              unreadCount={unreadNotifications}
+              onRead={() => setUnreadNotifications(0)}
             />
             <button
               className="theme-toggle"
@@ -3037,9 +3050,9 @@ function Chat({ user: currentUser }) {
             )}
             {!selectedUser && (
               <>
-              <button className="icon-btn mobile-notif-btn" title="Notifications" onClick={() => setActiveTab("notifications")}>
+              <button className="icon-btn mobile-notif-btn" title="Notifications" onClick={() => { setActiveTab("notifications"); setUnreadNotifications(0); }}>
                 <Bell size={18} />
-                {pendingRequests.length > 0 && <span className="mobile-notif-badge">{pendingRequests.length > 9 ? "9+" : pendingRequests.length}</span>}
+                {unreadNotifications > 0 && <span className="mobile-notif-badge">{unreadNotifications > 9 ? "9+" : unreadNotifications}</span>}
               </button>
               <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
                 <Settings size={18} />

@@ -14,7 +14,7 @@ const formatRelativeTime = (dateStr) => {
   return new Date(dateStr).toLocaleDateString();
 };
 
-function NotificationBell({ requests, userProfiles, getDisplayName, onRespond, history }) {
+function NotificationBell({ requests, userProfiles, getDisplayName, onRespond, history, unreadCount = 0, onRead }) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
   const [tab, setTab] = useState("pending");
@@ -30,18 +30,24 @@ function NotificationBell({ requests, userProfiles, getDisplayName, onRespond, h
   }, []);
 
   const pendingCount = requests.length;
+  const totalBadge = pendingCount + unreadCount;
+
+  const handleOpen = () => {
+    setOpen(true);
+    if (onRead && unreadCount > 0) onRead();
+  };
 
   return (
     <div className="notification-bell" ref={dropdownRef}>
       <button
         className="notification-bell-btn"
-        onClick={() => setOpen(!open)}
+        onClick={handleOpen}
         title="Notifications"
       >
         <Bell size={18} />
-        {pendingCount > 0 && (
+        {totalBadge > 0 && (
           <span className="notification-badge">
-            {pendingCount > 99 ? "99+" : pendingCount}
+            {totalBadge > 99 ? "99+" : totalBadge}
           </span>
         )}
       </button>
