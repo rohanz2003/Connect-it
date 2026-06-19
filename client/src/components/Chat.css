@@ -6018,6 +6018,23 @@ body.dark-mode .incoming-call-card,
   margin-top: 1px;
 }
 
+.notification-time {
+  font-size: 11px;
+  color: var(--text-light, #999);
+  margin-top: 0px;
+}
+
+.request-toast-msg {
+  display: block;
+}
+
+.request-toast-time {
+  display: block;
+  font-size: 11px;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
 /* Notification sidebar overlay */
 .notification-overlay {
   position: fixed;

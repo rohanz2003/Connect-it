@@ -857,7 +857,7 @@ function Chat({ user: currentUser }) {
           : `${name} rejected your chat request`;
       setRequestNotifications((prev) => [
         ...prev,
-        { id: Date.now(), msg, type: status },
+        { id: Date.now(), msg, type: status, time: new Date().toISOString() },
       ]);
       setTimeout(() => {
         setRequestNotifications((prev) => prev.slice(1));
@@ -932,13 +932,20 @@ function Chat({ user: currentUser }) {
 
       // Show notification
       const name = userNamesRef.current[removedBy] || (removedBy || "").split("@")[0];
+      const now = new Date().toISOString();
       setRequestNotifications((prev) => [
         ...prev,
-        { id: Date.now(), msg: `${name} removed you as a friend`, type: "removed" },
+        { id: Date.now(), msg: `${name} removed you as a friend`, type: "removed", time: now },
       ]);
       setTimeout(() => {
         setRequestNotifications((prev) => prev.slice(1));
       }, 5000);
+
+      // Also add to notification history
+      setNotificationHistory((prev) => [
+        { from: removedBy, respondedWith: "removed", respondedAt: now },
+        ...prev,
+      ].slice(0, 50));
     };
     socket.on("friend-removed", handleFriendRemoved);
 
@@ -2319,7 +2326,7 @@ function Chat({ user: currentUser }) {
     if (type === "mobile-notifications") {
       return (
         <div className="sidebar-section">
-          <div className="sidebar-section-title">Pending Requests</div>
+                <div className="sidebar-section-title">Pending Requests</div>
           <div className="sidebar-list">
             {pendingRequests.length > 0 ? pendingRequests.map((req) => (
               <div key={req._id} className="user-item">
@@ -2329,6 +2336,7 @@ function Chat({ user: currentUser }) {
                 <div className="user-item-copy">
                   <span className="user-name">{getDisplayName(req.from)}</span>
                   <span className="user-last">wants to chat with you</span>
+                  <span className="notification-time">{formatMessageTime(req.createdAt)}</span>
                 </div>
                 <div className="user-item-actions">
                   <button className="notification-accept-btn" onClick={() => { handleRespondToRequest(req._id, "accepted"); setActiveTab("chat"); }} title="Confirm"><Check size={16} /></button>
@@ -2351,6 +2359,7 @@ function Chat({ user: currentUser }) {
                     <div className="user-item-copy">
                       <span className="user-name">{getDisplayName(req.to)}</span>
                       <span className="user-last">{req.status === "pending" ? "request sent" : req.status}</span>
+                      <span className="notification-time">{formatMessageTime(req.createdAt)}</span>
                     </div>
                     <div className="user-item-actions">
                       {req.status === "pending" && (
@@ -2376,11 +2385,12 @@ function Chat({ user: currentUser }) {
                     <div className="user-item-copy">
                       <span className="user-name">{getDisplayName(item.from)}</span>
                       <span className="user-last">
-                        {item.respondedWith === "accepted" ? "accepted your request" : "rejected your request"}
+                        {item.respondedWith === "accepted" ? "accepted your request" : item.respondedWith === "removed" ? "removed you as a friend" : "rejected your request"}
                       </span>
+                      <span className="notification-time">{formatMessageTime(item.respondedAt)}</span>
                     </div>
                     <div className="user-item-actions">
-                      {item.respondedWith === "accepted" ? <Check size={16} className="accepted-icon" /> : <X size={16} className="rejected-icon" />}
+                      {item.respondedWith === "accepted" ? <Check size={16} className="accepted-icon" /> : item.respondedWith === "removed" ? <Minus size={16} className="rejected-icon" /> : <X size={16} className="rejected-icon" />}
                     </div>
                   </div>
                 ))}
@@ -2896,7 +2906,8 @@ function Chat({ user: currentUser }) {
         <div className="request-notifications">
           {requestNotifications.map((n) => (
             <div key={n.id} className={`request-toast ${n.type}`}>
-              {n.msg}
+              <span className="request-toast-msg">{n.msg}</span>
+              <span className="request-toast-time">{formatMessageTime(n.time)}</span>
             </div>
           ))}
         </div>

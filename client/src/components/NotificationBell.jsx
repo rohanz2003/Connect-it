@@ -133,6 +133,8 @@ function NotificationBell({ requests, userProfiles, getDisplayName, onRespond, h
                         <span className="notification-item-msg">
                           {item.respondedWith === "accepted"
                             ? "accepted your chat request"
+                            : item.respondedWith === "removed"
+                            ? "removed you as a friend"
                             : "rejected your chat request"}
                         </span>
                         <span className="notification-item-time">
@@ -142,6 +144,8 @@ function NotificationBell({ requests, userProfiles, getDisplayName, onRespond, h
                       <div className="notification-item-icon">
                         {item.respondedWith === "accepted" ? (
                           <Check size={16} className="accepted-icon" />
+                        ) : item.respondedWith === "removed" ? (
+                          <X size={16} className="rejected-icon" />
                         ) : (
                           <X size={16} className="rejected-icon" />
                         )}
