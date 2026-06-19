@@ -987,7 +987,6 @@ function Chat({ user: currentUser }) {
       }, 5000);
 
       // Also add to recent alerts
-      const name = userNamesRef.current[removedBy] || (removedBy || "").split("@")[0];
       setRecentAlerts((prev) => [
         { id: Date.now(), from: removedBy, type: "removed", msg: `${name} removed you as a friend`, time: now },
         ...prev,
