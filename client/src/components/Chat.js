@@ -3322,6 +3322,34 @@ function Chat({ user: currentUser }) {
                 <LastSeen userId={profilePreviewUser.email} />
               )}
             </p>
+            {!profilePreviewUser.isOwn && (() => {
+              const userCalls = callHistory.filter(c => normalizeEmail(c.with) === normalizeEmail(profilePreviewUser.email));
+              const totalCalls = userCalls.length;
+              const audioCalls = userCalls.filter(c => c.type === "audio").length;
+              const videoCalls = userCalls.filter(c => c.type === "video").length;
+              const missedCalls = userCalls.filter(c => c.status === "missed").length;
+              const reqStatus = requestStatuses[normalizeEmail(profilePreviewUser.email)];
+              const hasAnyInfo = totalCalls > 0 || reqStatus;
+              if (!hasAnyInfo) return null;
+              return (
+                <div className="profile-about-section">
+                  {totalCalls > 0 && (
+                    <div className="profile-about-stats">
+                      <span className="profile-about-stat"><Phone size={13} /> {audioCalls}</span>
+                      <span className="profile-about-stat"><Video size={13} /> {videoCalls}</span>
+                      <span className="profile-about-stat missed">{missedCalls > 0 && <><X size={13} /> {missedCalls}</>}</span>
+                    </div>
+                  )}
+                  {reqStatus && (
+                    <div className="profile-about-request">
+                      {reqStatus.status === "pending" && <span className="req-badge pending">Request Pending</span>}
+                      {reqStatus.status === "accepted" && <span className="req-badge accepted">Connected</span>}
+                      {reqStatus.status === "rejected" && <span className="req-badge rejected">Rejected</span>}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div className="profile-preview-actions">
               {userProfiles[normalizeEmail(profilePreviewUser.email)] && (
                 <button

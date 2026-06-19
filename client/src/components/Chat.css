@@ -3241,6 +3241,82 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   color: #22c55e;
 }
 
+.profile-about-section {
+  width: 100%;
+  padding: 12px 0;
+  margin-bottom: 8px;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-about-stats {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.profile-about-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.profile-about-stat.missed {
+  color: #ef4444;
+}
+
+.profile-about-request {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.req-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.req-badge.pending {
+  background: #fff8e1;
+  color: #f57f17;
+}
+
+.req-badge.accepted {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.req-badge.rejected {
+  background: #fdecea;
+  color: #d32f2f;
+}
+
+.dark .req-badge.pending {
+  background: rgba(245, 127, 23, 0.15);
+  color: #ffb74d;
+}
+
+.dark .req-badge.accepted {
+  background: rgba(46, 125, 50, 0.15);
+  color: #66bb6a;
+}
+
+.dark .req-badge.rejected {
+  background: rgba(211, 47, 47, 0.15);
+  color: #ef5350;
+}
+
 .profile-preview-actions {
   display: flex;
   flex-direction: column;
