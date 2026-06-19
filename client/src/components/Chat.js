@@ -2996,6 +2996,10 @@ function Chat({ user: currentUser }) {
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
           <h3>{activeTab === "online" ? "Online Users" : activeTab === "calls" ? "Call History" : activeTab === "analytics" ? "Analytics" : activeTab === "archive" ? "Archive" : activeTab === "all" ? "All Users" : activeTab === "notifications" ? "Notifications" : "Recent Chats"}</h3>
+          <button className="mobile-page-notif-btn" title="Notifications" onClick={() => setActiveTab("notifications")}>
+            <Bell size={18} />
+            {unreadNotifications > 0 && <span className="mobile-notif-badge">{unreadNotifications > 9 ? "9+" : unreadNotifications}</span>}
+          </button>
         </div>
         <div className={`sidebar-search ${activeTab === "analytics" ? "mobile-hidden" : ""}`}>
           <Search size={16} />

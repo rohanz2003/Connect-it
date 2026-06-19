@@ -155,6 +155,32 @@ body {
   }
 }
 
+.mobile-page-notif-btn {
+  display: none;
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--border-light, #f3f4f6);
+  color: var(--text-secondary, #6b7280);
+  border-radius: 50%;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mobile-page-notif-btn:hover {
+  background: var(--border-color, #e5e7eb);
+  color: var(--text-primary, #1f2937);
+}
+
+@media (max-width: 767px) {
+  .mobile-page-notif-btn {
+    display: flex;
+  }
+}
+
 .mobile-notif-btn .mobile-notif-badge {
   position: absolute;
   top: -2px;
@@ -6363,6 +6389,16 @@ body.dark-mode .incoming-call-card,
 .dark-mode .ig-icon-btn.cancel {
   background: rgba(211, 47, 47, 0.2);
   color: #ef5350;
+}
+
+.dark-mode .mobile-page-notif-btn {
+  background: #2d2d3f;
+  color: #9d9db5;
+}
+
+.dark-mode .mobile-page-notif-btn:hover {
+  background: #3d3d5c;
+  color: #e4e4ef;
 }
 
 .dark-mode .ig-icon-btn.cancel:hover {
