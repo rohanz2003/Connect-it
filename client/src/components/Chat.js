@@ -44,6 +44,7 @@ import {
   Activity,
   History,
   UserPlus,
+  UserMinus,
   Phone,
   Video,
   PhoneCall,
@@ -3018,7 +3019,7 @@ function Chat({ user: currentUser }) {
                   title="Remove as friend"
                   onClick={() => handleRemoveFriend(selectedUser)}
                 >
-                  <Minus size={16} />
+                  <UserMinus size={16} />
                 </button>
                 )}
                 <button 
