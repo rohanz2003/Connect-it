@@ -22,12 +22,29 @@ export const fetchAcceptedChats = async (email) => {
   return res.data;
 };
 
+export const fetchRequestStatuses = async (email) => {
+  const res = await axios.get(`${API_URL}/api/requests/statuses/${encodeURIComponent(email)}`);
+  return res.data;
+};
+
 export const sendRequest = async (from, to) => {
   const res = await axios.post(`${API_URL}/api/requests/send`, { from, to });
   return res.data;
 };
 
+export const unsendRequest = async (requestId) => {
+  const res = await axios.delete(`${API_URL}/api/requests/${requestId}`);
+  return res.data;
+};
+
 export const respondToRequest = async (requestId, action) => {
   const res = await axios.post(`${API_URL}/api/requests/respond`, { requestId, action });
+  return res.data;
+};
+
+export const fetchAcceptedChatsWithMessages = async (userEmail) => {
+  const res = await axios.get(`${API_URL}/api/messages/accepted`, {
+    params: { userEmail },
+  });
   return res.data;
 };

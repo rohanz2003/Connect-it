@@ -1,5 +1,6 @@
 const Message = require("../models/Message");
 const ClearedChat = require("../models/ClearedChat");
+const ChatRequest = require("../models/ChatRequest");
 const { decryptMessageDoc } = require("../utils/messageCrypto");
 const { normalizeEmail } = require("../utils/socketAuth");
 
@@ -42,6 +43,76 @@ exports.getMessages = async (req, res) => {
   } catch (error) {
     console.error("getMessages error:", error);
     res.status(500).json({ error: "Failed to fetch messages", details: error.message });
+  }
+};
+
+exports.getAcceptedChats = async (req, res) => {
+  try {
+    const { userEmail } = req.query;
+    if (!userEmail) return res.status(400).json({ error: "userEmail is required" });
+
+    const normalized = normalizeEmail(userEmail);
+
+    const acceptedRequests = await ChatRequest.find({
+      $or: [{ from: normalized, status: "accepted" }, { to: normalized, status: "accepted" }],
+    }).sort({ respondedAt: -1 }).lean();
+
+    const partners = acceptedRequests.map((r) =>
+      r.from === normalized ? r.to : r.from
+    );
+
+    const clearedRecords = await ClearedChat.find({ user: normalized }).lean();
+    const clearedMap = Object.fromEntries(
+      clearedRecords.map((r) => [r.partner, r.clearedAt])
+    );
+
+    const messages = await Message.find({
+      $or: [
+        { sender: { $in: partners }, receiver: normalized },
+        { sender: normalized, receiver: { $in: partners } },
+      ],
+    })
+      .sort({ timestamp: -1 })
+      .limit(2000)
+      .lean();
+
+    const chatMap = {};
+    for (const partner of partners) {
+      chatMap[partner] = { userEmail: partner, lastMessage: null, timestamp: null, unread: 0 };
+    }
+
+    for (const msg of messages) {
+      const other = msg.sender === normalized ? msg.receiver : msg.sender;
+      if (!chatMap[other]) continue;
+      const clearedAt = clearedMap[other];
+      const msgTime = msg.timestamp || msg.createdAt;
+
+      if (clearedAt && new Date(msgTime) <= new Date(clearedAt)) continue;
+
+      if (!chatMap[other].lastMessage) {
+        const decrypted = decryptMessageDoc(msg);
+        chatMap[other].lastMessage =
+          decrypted.type === "media"
+            ? "[Media]"
+            : typeof decrypted.text === "string"
+              ? decrypted.text.substring(0, 60)
+              : "[Message]";
+        chatMap[other].timestamp = msgTime;
+      }
+
+      if (msg.receiver === normalized && msg.status !== "read") {
+        chatMap[other].unread++;
+      }
+    }
+
+    const result = Object.values(chatMap).sort(
+      (a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0)
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error("getAcceptedChats error:", error);
+    res.status(500).json({ error: "Failed to fetch accepted chats" });
   }
 };
 

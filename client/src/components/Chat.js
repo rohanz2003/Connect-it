@@ -59,7 +59,7 @@ import { validateImageFile, compressImage } from "../utils/imageUtils";
 import { getDeviceInfo } from "../utils/deviceDetector";
 import { subscribeToPush } from "../utils/pushHelper";
 import { fetchMessages, fetchRecentChats } from "../services/messageService";
-import { fetchAllUsers, fetchPendingRequests, fetchSentRequests, sendRequest, respondToRequest } from "../services/requestService";
+import { fetchAllUsers, fetchPendingRequests, fetchSentRequests, fetchRequestStatuses, sendRequest, unsendRequest, respondToRequest, fetchAcceptedChatsWithMessages } from "../services/requestService";
 import NotificationBell from "./NotificationBell";
 import { useNavigate } from "react-router-dom";
 import "./Chat.css";
@@ -244,6 +244,8 @@ function Chat({ user: currentUser }) {
   const [allUsers, setAllUsers] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
+  const [requestStatuses, setRequestStatuses] = useState({});
+  const [acceptedChatPartners, setAcceptedChatPartners] = useState([]);
   const [requestNotifications, setRequestNotifications] = useState([]);
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -595,14 +597,18 @@ function Chat({ user: currentUser }) {
     if (!user) return;
     const loadData = async () => {
       try {
-        const [usersRes, pendingRes, sentRes] = await Promise.all([
+        const [usersRes, pendingRes, sentRes, statusesRes, acceptedRes] = await Promise.all([
           fetchAllUsers(),
           fetchPendingRequests(user.email),
           fetchSentRequests(user.email),
+          fetchRequestStatuses(user.email),
+          fetchAcceptedChatsWithMessages(user.email),
         ]);
         if (usersRes.success) setAllUsers(usersRes.users);
         if (pendingRes.success) setPendingRequests(pendingRes.requests);
         if (sentRes.success) setSentRequests(sentRes.requests);
+        if (statusesRes.success) setRequestStatuses(statusesRes.statuses);
+        if (Array.isArray(acceptedRes)) setAcceptedChatPartners(acceptedRes);
       } catch (e) {
         console.warn("Failed to load request data", e);
       }
@@ -833,6 +839,11 @@ function Chat({ user: currentUser }) {
     };
     socket.on("request-response", handleRequestResponse);
 
+    const handleRequestUnsent = () => {
+      refreshRequestStatuses();
+    };
+    socket.on("request-unsent", handleRequestUnsent);
+
     const handleMessageSaved = ({ tempId, _id, timestamp, status }) => {
       const applySaved = (list) =>
         list.map((m) =>
@@ -1043,6 +1054,7 @@ function Chat({ user: currentUser }) {
       socket.off("chat-cleared", handleChatCleared);
       socket.off("new-request", handleNewRequest);
       socket.off("request-response", handleRequestResponse);
+      socket.off("request-unsent", handleRequestUnsent);
       socket.off("message-saved", handleMessageSaved);
       socket.off("message-error", handleMessageError);
       socket.off("message-deleted");
@@ -1265,6 +1277,9 @@ function Chat({ user: currentUser }) {
 
   const sendMessage = () => {
     if (!user || !selectedUser || !message.trim() || !socket) return;
+    if (!isAcceptedChat(selectedUser)) {
+      return;
+    }
 
     // Check if socket is connected
     if (!socket.connected) {
@@ -1863,15 +1878,40 @@ function Chat({ user: currentUser }) {
     }
   };
 
+  const refreshRequestStatuses = async () => {
+    if (!user) return;
+    try {
+      const statusesRes = await fetchRequestStatuses(user.email);
+      if (statusesRes.success) setRequestStatuses(statusesRes.statuses);
+    } catch (e) {
+      console.warn("Failed to refresh statuses", e);
+    }
+  };
+
   const handleSendRequest = async (toEmail) => {
     try {
       const res = await sendRequest(user.email, toEmail);
       if (res.success) {
         setSentRequests((prev) => [res.request, ...prev]);
+        await refreshRequestStatuses();
       }
     } catch (e) {
       const msg = e.response?.data?.error || "Failed to send request";
       alert(msg);
+    }
+  };
+
+  const handleUnsendRequest = async (toEmail) => {
+    const status = requestStatuses[toEmail];
+    if (!status || !status.requestId) return;
+    try {
+      const res = await unsendRequest(status.requestId);
+      if (res.success) {
+        setSentRequests((prev) => prev.filter((r) => r._id !== status.requestId));
+        await refreshRequestStatuses();
+      }
+    } catch (e) {
+      console.error("Failed to unsend request", e);
     }
   };
 
@@ -1880,6 +1920,7 @@ function Chat({ user: currentUser }) {
       const res = await respondToRequest(requestId, action);
       if (res.success) {
         setPendingRequests((prev) => prev.filter((r) => r._id !== requestId));
+        await refreshRequestStatuses();
       }
     } catch (e) {
       console.error("Failed to respond to request", e);
@@ -1891,10 +1932,11 @@ function Chat({ user: currentUser }) {
     u.toLowerCase().trim() !== user?.email?.toLowerCase().trim()
   );
   
-  // Get recent chats sorted by latest message (exclude archived)
+  // Get recent chats sorted by latest message (exclude archived, only accepted)
+  const acceptedSet = new Set(acceptedChatPartners.map((c) => normalizeEmail(c.userEmail)));
   const archivedSet = new Set(archivedChats.map(a => normalizeEmail(a)));
   const recentChats = Object.keys(chatHistory)
-    .filter(u => u !== user?.email && !archivedSet.has(normalizeEmail(u)))
+    .filter(u => u !== user?.email && !archivedSet.has(normalizeEmail(u)) && acceptedSet.has(normalizeEmail(u)))
     .sort((a, b) => {
       const historyA = chatHistory[a] || [];
       const historyB = chatHistory[b] || [];
@@ -1912,6 +1954,12 @@ function Chat({ user: currentUser }) {
 
   const isUserOnline = (userEmail) =>
     onlineUsers.some((u) => normalizeEmail(u) === normalizeEmail(userEmail));
+
+  const isAcceptedChat = (email) => {
+    if (!email || !user) return false;
+    const status = requestStatuses[email];
+    return status?.status === "accepted";
+  };
 
   // Get unread count for a user
   const getUnreadCount = (otherUser) => {
@@ -1935,6 +1983,16 @@ function Chat({ user: currentUser }) {
       getDisplayName(u).includes(searchValue)
     );
   });
+
+  const getUserRequestAction = (email) => {
+    const status = requestStatuses[email];
+    if (!status) return "none";
+    if (status.status === "accepted") return "chat";
+    if (status.status === "pending" && status.direction === "sent") return "request_sent";
+    if (status.status === "pending" && status.direction === "received") return "request_received";
+    if (status.status === "rejected") return "rejected";
+    return "none";
+  };
 
   const filteredAllUsers = (allUsers || []).filter((u) => {
     if (normalizeEmail(u.email) === normalizeEmail(user?.email)) return false;
@@ -2013,14 +2071,7 @@ function Chat({ user: currentUser }) {
           <div className="sidebar-list">
             {filteredAllUsers.length > 0 ? filteredAllUsers.map((u, i) => {
               const isOnline = isUserOnline(u.email);
-              const hasPendingReq = sentRequests.some(
-                (r) => r.to === u.email && r.status === "pending"
-              );
-              const isAccepted = sentRequests.some(
-                (r) => r.to === u.email && r.status === "accepted"
-              ) || pendingRequests.some(
-                (r) => r.from === u.email && r.status === "accepted"
-              );
+              const action = getUserRequestAction(u.email);
               return (
                 <div key={`ma-all-${i}`} className="user-item">
                   <div className="avatar-wrap">
@@ -2032,15 +2083,23 @@ function Chat({ user: currentUser }) {
                     <span className="user-last">{isOnline ? "Online" : "Offline"}</span>
                   </div>
                   <div className="user-item-actions">
-                    {isAccepted ? (
-                      <button className="chat-btn" onClick={() => { handleUserSelect(u.email); setActiveTab("chat"); }} title="Open chat">
-                        <MessageCircle size={16} />
+                    {action === "chat" ? (
+                      <button className="ig-chat-btn" onClick={() => { handleUserSelect(u.email); setActiveTab("chat"); }} title="Chat">
+                        <MessageCircle size={16} /> Chat
                       </button>
-                    ) : hasPendingReq ? (
-                      <span className="pending-badge">Pending</span>
+                    ) : action === "request_sent" ? (
+                      <button className="ig-requested-btn" onClick={() => handleUnsendRequest(u.email)} title="Click to unsend">
+                        Requested
+                      </button>
+                    ) : action === "request_received" ? (
+                      <span className="ig-requested-badge">Requested</span>
+                    ) : action === "rejected" ? (
+                      <button className="ig-send-btn" onClick={() => handleSendRequest(u.email)} title="Send request again">
+                        Send Again
+                      </button>
                     ) : (
-                      <button className="request-btn" onClick={() => handleSendRequest(u.email)} title="Send chat request">
-                        <UserPlus size={16} />
+                      <button className="ig-send-btn" onClick={() => handleSendRequest(u.email)} title="Send chat request">
+                        Send Request
                       </button>
                     )}
                   </div>
@@ -2450,19 +2509,9 @@ function Chat({ user: currentUser }) {
             <div className="sidebar-list">
               {filteredAllUsers.length > 0 ? filteredAllUsers.map((u, i) => {
                 const isOnline = isUserOnline(u.email);
-                const hasPendingReq = sentRequests.some(
-                  (r) => r.to === u.email && r.status === "pending"
-                );
-                const isAccepted = sentRequests.some(
-                  (r) => r.to === u.email && r.status === "accepted"
-                ) || pendingRequests.some(
-                  (r) => r.from === u.email && r.status === "accepted"
-                );
+                const action = getUserRequestAction(u.email);
                 return (
-                  <div
-                    key={`all-${i}`}
-                    className="user-item"
-                  >
+                  <div key={`all-${i}`} className="user-item">
                     <div className="avatar-wrap">
                       <Avatar
                         src={userProfiles[u.email] || u.avatarUrl}
@@ -2480,23 +2529,23 @@ function Chat({ user: currentUser }) {
                       </span>
                     </div>
                     <div className="user-item-actions">
-                      {isAccepted ? (
-                        <button
-                          className="chat-btn"
-                          onClick={() => handleUserSelect(u.email)}
-                          title="Open chat"
-                        >
-                          <MessageCircle size={16} />
+                      {action === "chat" ? (
+                        <button className="ig-chat-btn" onClick={() => handleUserSelect(u.email)} title="Chat">
+                          <MessageCircle size={16} /> Chat
                         </button>
-                      ) : hasPendingReq ? (
-                        <span className="pending-badge">Pending</span>
+                      ) : action === "request_sent" ? (
+                        <button className="ig-requested-btn" onClick={() => handleUnsendRequest(u.email)} title="Click to unsend">
+                          Requested
+                        </button>
+                      ) : action === "request_received" ? (
+                        <span className="ig-requested-badge">Requested</span>
+                      ) : action === "rejected" ? (
+                        <button className="ig-send-btn" onClick={() => handleSendRequest(u.email)} title="Send request again">
+                          Send Again
+                        </button>
                       ) : (
-                        <button
-                          className="request-btn"
-                          onClick={() => handleSendRequest(u.email)}
-                          title="Send chat request"
-                        >
-                          <UserPlus size={16} />
+                        <button className="ig-send-btn" onClick={() => handleSendRequest(u.email)} title="Send chat request">
+                          Send Request
                         </button>
                       )}
                     </div>
@@ -2647,7 +2696,20 @@ function Chat({ user: currentUser }) {
         <div className="chat-panel-body">
           {selectedUser ? (
             <div className="chat-messages">
-              {messages.length === 0 ? (
+              {!isAcceptedChat(selectedUser) ? (
+                <div className="empty-chat-state locked-chat">
+                  <UserPlus size={32} />
+                  <h4>Chat not started yet</h4>
+                  <p>Send a chat request to start messaging.</p>
+                  <button
+                    className="ig-send-btn"
+                    onClick={() => handleSendRequest(selectedUser)}
+                    style={{ marginTop: 12 }}
+                  >
+                    Send Request
+                  </button>
+                </div>
+              ) : messages.length === 0 ? (
                 <div className="empty-chat-state">
                   <MessageCircle size={32} />
                   <h4>No messages yet</h4>
@@ -2879,7 +2941,14 @@ function Chat({ user: currentUser }) {
         </div>
         )}
 
-        {!isChatMinimized && (
+        {!isChatMinimized && selectedUser && !isAcceptedChat(selectedUser) ? (
+          <div className="chat-panel-footer locked-footer">
+            <div className="locked-chat-banner">
+              <UserPlus size={16} />
+              <span>Accept their chat request to start messaging</span>
+            </div>
+          </div>
+        ) : !isChatMinimized && (
         <div className="chat-panel-footer">
           {showEmojiPicker && (
             <div ref={emojiPickerRef} className="emoji-picker-wrapper">

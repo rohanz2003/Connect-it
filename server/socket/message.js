@@ -1,5 +1,6 @@
 const Message = require("../models/Message");
 const ClearedChat = require("../models/ClearedChat");
+const ChatRequest = require("../models/ChatRequest");
 const { encryptPayload, decryptMessageDoc } = require("../utils/messageCrypto");
 const { normalizeEmail, getAuthenticatedEmail, getRoomId } = require("../utils/socketAuth");
 const { isDatabaseConnected } = require("../config/database");
@@ -102,6 +103,23 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
 
       if (!normalizedReceiver || !text) {
         if (callback) callback({ ok: false, error: "Invalid message payload" });
+        return;
+      }
+
+      // Security check: verify chat request is accepted
+      const requestAccepted = await ChatRequest.findOne({
+        $or: [
+          { from: normalizedSender, to: normalizedReceiver, status: "accepted" },
+          { from: normalizedReceiver, to: normalizedSender, status: "accepted" },
+        ],
+      });
+      if (!requestAccepted) {
+        console.warn(`❌ Message blocked: No accepted request between ${normalizedSender} and ${normalizedReceiver}`);
+        socket.emit("message-error", {
+          tempId: data?.tempId,
+          error: "Chat not accepted yet. Send a chat request first.",
+        });
+        if (callback) callback({ ok: false, error: "Chat not accepted yet" });
         return;
       }
 

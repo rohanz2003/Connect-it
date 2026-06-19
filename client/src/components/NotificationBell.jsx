@@ -2,6 +2,18 @@ import React, { useState, useRef, useEffect } from "react";
 import { Bell, Check, X } from "lucide-react";
 import Avatar from "./Avatar";
 
+const formatRelativeTime = (dateStr) => {
+  if (!dateStr) return "";
+  const now = Date.now();
+  const date = new Date(dateStr).getTime();
+  const diff = Math.floor((now - date) / 1000);
+  if (diff < 60) return "Just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return new Date(dateStr).toLocaleDateString();
+};
+
 function NotificationBell({ requests, userProfiles, getDisplayName, onRespond }) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -45,7 +57,7 @@ function NotificationBell({ requests, userProfiles, getDisplayName, onRespond })
                   <Avatar
                     src={userProfiles[req.from]}
                     email={req.from}
-                    size={36}
+                    size={40}
                   />
                   <div className="notification-item-content">
                     <span className="notification-item-name">
@@ -54,21 +66,24 @@ function NotificationBell({ requests, userProfiles, getDisplayName, onRespond })
                     <span className="notification-item-msg">
                       wants to chat with you
                     </span>
+                    <span className="notification-item-time">
+                      {formatRelativeTime(req.createdAt)}
+                    </span>
                   </div>
                   <div className="notification-item-actions">
                     <button
                       className="notification-accept-btn"
                       onClick={() => onRespond(req._id, "accepted")}
-                      title="Accept"
+                      title="Confirm"
                     >
-                      <Check size={16} />
+                      <Check size={18} />
                     </button>
                     <button
                       className="notification-reject-btn"
                       onClick={() => onRespond(req._id, "rejected")}
-                      title="Reject"
+                      title="Delete"
                     >
-                      <X size={16} />
+                      <X size={18} />
                     </button>
                   </div>
                 </div>

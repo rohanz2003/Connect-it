@@ -12,10 +12,10 @@ const handleRequests = (io, socket, users) => {
       const existing = await ChatRequest.findOne({
         from: from.toLowerCase(),
         to: to.toLowerCase(),
-        status: "pending",
+        status: { $in: ["pending", "accepted"] },
       });
       if (existing) {
-        if (callback) callback({ error: "Request already sent" });
+        if (callback) callback({ error: "Request already exists" });
         return;
       }
 
@@ -24,10 +24,42 @@ const handleRequests = (io, socket, users) => {
         to: to.toLowerCase(),
       });
 
-      io.to(to.toLowerCase()).emit("new-request", request);
+      io.to(to.toLowerCase()).emit("new-request", {
+        _id: request._id,
+        from: request.from,
+        to: request.to,
+        status: request.status,
+        createdAt: request.createdAt,
+      });
       if (callback) callback({ success: true, request });
     } catch (err) {
       console.error("Socket send-request error:", err.message);
+      if (callback) callback({ error: err.message });
+    }
+  });
+
+  socket.on("unsend-request", async (data, callback) => {
+    try {
+      const { requestId } = data;
+      if (!requestId) {
+        if (callback) callback({ error: "requestId is required" });
+        return;
+      }
+
+      const request = await ChatRequest.findByIdAndDelete(requestId);
+      if (!request) {
+        if (callback) callback({ error: "Request not found" });
+        return;
+      }
+
+      io.to(request.to).emit("request-unsent", {
+        requestId,
+        from: request.from,
+      });
+
+      if (callback) callback({ success: true });
+    } catch (err) {
+      console.error("Socket unsend-request error:", err.message);
       if (callback) callback({ error: err.message });
     }
   });
