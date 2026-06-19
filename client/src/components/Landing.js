@@ -31,8 +31,8 @@ const Landing = () => {
   useEffect(() => {
     fetch(`${API_URL}/api/analytics`)
       .then(r => r.json())
-      .then(d => { if (d.success) setStats(d); })
-      .catch(() => {});
+      .then(d => { if (d.success) setStats(d); else console.warn("Analytics API error:", d); })
+      .catch(e => console.warn("Analytics fetch failed:", e));
   }, []);
 
   const features = [

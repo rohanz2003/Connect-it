@@ -33,6 +33,7 @@ const PushSubscription = require("./models/PushSubscription");
 const Device = require("./models/Device");
 const ChatRequest = require("./models/ChatRequest");
 const Message = require("./models/Message");
+const User = require("./modules/User");
 
 const app = express();
 const server = http.createServer(app);
