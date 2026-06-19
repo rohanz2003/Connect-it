@@ -6031,6 +6031,12 @@ body.dark-mode .incoming-call-card,
   border-left: 4px solid #e65100;
 }
 
+.request-toast.cancelled {
+  background: #f3f4f6;
+  color: #6b7280;
+  border-left: 4px solid #9ca3af;
+}
+
 @keyframes slideInRight {
   from {
     transform: translateX(100%);
@@ -6318,6 +6324,12 @@ body.dark-mode .incoming-call-card,
 .dark-mode .request-toast.removed {
   background: #3d2b1b;
   color: #ff9800;
+}
+
+.dark-mode .request-toast.cancelled {
+  background: #2d2d3f;
+  color: #9d9db5;
+  border-left: 4px solid #6b6b82;
 }
 
 .dark-mode .ig-icon-btn.send {

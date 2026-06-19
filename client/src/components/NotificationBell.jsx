@@ -152,6 +152,8 @@ function NotificationBell({ requests, userProfiles, getDisplayName, onRespond, h
                       <div className="notification-item-icon">
                         {alert.type === "accepted" ? (
                           <Check size={16} className="accepted-icon" />
+                        ) : alert.type === "cancelled" ? (
+                          <X size={16} className="rejected-icon" />
                         ) : (
                           <X size={16} className="rejected-icon" />
                         )}

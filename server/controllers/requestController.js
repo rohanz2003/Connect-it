@@ -55,6 +55,16 @@ exports.unsendRequest = async (req, res) => {
     const { requestId } = req.params;
     const request = await ChatRequest.findByIdAndDelete(requestId);
     if (!request) return res.status(404).json({ error: "Request not found" });
+
+    // Notify the recipient that the request was cancelled
+    const io = req.app.get("io");
+    if (io) {
+      io.to(request.to).emit("request-unsent", {
+        requestId,
+        from: request.from,
+      });
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error("Error unsending request:", err.message);

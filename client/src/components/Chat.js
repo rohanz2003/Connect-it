@@ -251,7 +251,16 @@ function Chat({ user: currentUser }) {
   const [requestStatuses, setRequestStatuses] = useState({});
   const [acceptedChatPartners, setAcceptedChatPartners] = useState([]);
   const [requestNotifications, setRequestNotifications] = useState([]);
-  const [notificationHistory, setNotificationHistory] = useState([]);
+  const [notificationHistory, setNotificationHistory] = useState(() => {
+    try {
+      const email = JSON.parse(localStorage.getItem("user") || "{}").email;
+      if (email) {
+        const stored = localStorage.getItem(`notifHistory_${email.toLowerCase()}`);
+        return stored ? JSON.parse(stored) : [];
+      }
+    } catch {}
+    return [];
+  });
   const [recentAlerts, setRecentAlerts] = useState([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const emojiPickerRef = useRef(null);
@@ -538,6 +547,16 @@ function Chat({ user: currentUser }) {
     };
     loadProfiles();
   }, [user]);
+
+  // Persist notificationHistory to localStorage
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem(`notifHistory_${user.email.toLowerCase()}`, JSON.stringify(notificationHistory));
+    } catch (e) {
+      console.warn("Failed to persist notification history", e);
+    }
+  }, [user, notificationHistory]);
 
   // Load chat history from localStorage and fetch recent chats on mount
   useEffect(() => {
@@ -885,7 +904,24 @@ function Chat({ user: currentUser }) {
     };
     socket.on("request-response", handleRequestResponse);
 
-    const handleRequestUnsent = () => {
+    const handleRequestUnsent = (data) => {
+      const { from } = data;
+      const name = userNamesRef.current[from] || (from || "").split("@")[0];
+      const now = new Date().toISOString();
+      setRequestNotifications((prev) => [
+        ...prev,
+        { id: Date.now(), msg: `${name} cancelled their request`, type: "rejected", time: now },
+      ]);
+      setTimeout(() => {
+        setRequestNotifications((prev) => prev.slice(1));
+      }, 5000);
+      setRecentAlerts((prev) => [
+        { id: Date.now(), from, type: "cancelled", msg: `${name} cancelled their request`, time: now },
+        ...prev,
+      ].slice(0, 20));
+      setUnreadNotifications((prev) => prev + 1);
+      // Remove from pending list
+      setPendingRequests((prev) => prev.filter((r) => normalizeEmail(r.from) !== normalizeEmail(from)));
       refreshRequestStatuses();
     };
     socket.on("request-unsent", handleRequestUnsent);
