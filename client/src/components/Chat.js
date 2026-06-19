@@ -3865,6 +3865,13 @@ function Chat({ user: currentUser }) {
           <span>Calls</span>
         </button>
         <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("archive"); setSidebarOpen(false); }}><Archive size={18} /><span>Archive</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "notifications" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("notifications"); setSidebarOpen(false); }}>
+          <span className="bottom-nav-icon-wrap">
+            <Bell size={18} />
+            {unreadNotifications > 0 && <span className="bottom-nav-badge">{unreadNotifications > 99 ? "99+" : unreadNotifications}</span>}
+          </span>
+          <span>Alerts</span>
+        </button>
         <button className={`bottom-nav-btn ${activeTab === "analytics" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("analytics"); setSidebarOpen(false); }}><BarChart3 size={18} /><span>Analytics</span></button>
         <button className="bottom-nav-btn" onClick={(e) => { e.stopPropagation(); setShowSettings(true); setSidebarOpen(false); }}><Settings size={18} /><span>Settings</span></button>
       </motion.nav>

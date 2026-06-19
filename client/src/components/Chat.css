@@ -2602,6 +2602,8 @@ body {
     left: 0;
     right: 0;
     padding-bottom: env(safe-area-inset-bottom, 0);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
