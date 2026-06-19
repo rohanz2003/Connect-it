@@ -3108,7 +3108,7 @@ function Chat({ user: currentUser }) {
                 </button>
               </>
             )}
-            {!selectedUser && (
+            {!selectedUser && !showSettings && (
               <>
               <button className="icon-btn mobile-notif-btn" title="Notifications" onClick={() => setActiveTab("notifications")}>
                 <Bell size={18} />
