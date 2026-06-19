@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import EmojiPicker from "emoji-picker-react";
 import {
   Search,
@@ -3092,35 +3092,31 @@ function Chat({ user: currentUser }) {
             </div>
           ) : (
             <div className="dashboard-empty-state">
-              <div className="welcome-panel">
-                <div className="welcome-brand">
+              <motion.div
+                className="welcome-panel"
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+              >
+                <motion.div
+                  className="welcome-brand"
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
+                >
                   <div className="welcome-logo">C</div>
                   <h1>Connect It</h1>
-                </div>
-                <div className="welcome-greeting">
+                </motion.div>
+                <motion.div
+                  className="welcome-greeting"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, ease: "easeOut", delay: 0.3 }}
+                >
                   <h2>Welcome back, {getDisplayName(user.email)}</h2>
                   <p className="welcome-subtitle">Real-time messaging platform for seamless team collaboration</p>
-                </div>
-                <div className="welcome-features">
-                  <div className="welcome-feature">
-                    <MessageCircle size={18} />
-                    <span>Instant messaging with real-time delivery</span>
-                  </div>
-                  <div className="welcome-feature">
-                    <Users size={18} />
-                    <span>Connect with online team members</span>
-                  </div>
-                  <div className="welcome-feature">
-                    <Image size={18} />
-                    <span>Share images, videos & documents</span>
-                  </div>
-                  <div className="welcome-feature">
-                    <Archive size={18} />
-                    <span>Archive conversations for later</span>
-                  </div>
-                </div>
-                <p className="welcome-tip">Select a conversation from the sidebar to start chatting</p>
-              </div>
+                </motion.div>
+              </motion.div>
             </div>
           )}
         </div>
