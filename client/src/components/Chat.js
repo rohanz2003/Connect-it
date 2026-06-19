@@ -2880,12 +2880,6 @@ function Chat({ user: currentUser }) {
                 </button>
               </>
             )}
-            <button className="icon-btn header-alerts-btn" title="Alerts" onClick={() => { setActiveTab("notifications"); setSidebarOpen(false); }}>
-              <span className="bottom-nav-icon-wrap">
-                <BellRing size={18} />
-                {pendingRequests.length > 0 && <span className="bottom-nav-badge header-alerts-badge">{pendingRequests.length > 99 ? "99+" : pendingRequests.length}</span>}
-              </span>
-            </button>
             <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
               <Settings size={18} />
             </button>
