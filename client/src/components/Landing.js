@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { MessageCircle, Lock, Users, Zap } from "lucide-react";
+import { MessageCircle, Lock, Users, Zap, Phone, Video, UserPlus } from "lucide-react";
 import { motion } from "framer-motion";
 import Header from "./Header";
 import Footer from "./Footer";
@@ -13,6 +13,24 @@ const Landing = () => {
       title: "Real-time Messaging",
       description:
         "Send and receive messages instantly with users online. Experience seamless communication like never before.",
+    },
+    {
+      icon: Phone,
+      title: "Voice Calls",
+      description:
+        "Make crystal-clear voice calls directly inside the app. Stay connected with high-quality audio, speaker support, and mute controls.",
+    },
+    {
+      icon: Video,
+      title: "Video Calls",
+      description:
+        "Face-to-face conversations anytime, anywhere. Enjoy seamless video calls with full-screen mode and picture-in-picture support.",
+    },
+    {
+      icon: UserPlus,
+      title: "Chat Requests",
+      description:
+        "Control who can message you with chat requests. Accept, reject, or manage pending requests — full privacy over your conversations.",
     },
     {
       icon: Lock,
@@ -30,7 +48,7 @@ const Landing = () => {
       icon: Zap,
       title: "Instant Notifications",
       description:
-        "Get notified immediately when you receive new messages. Never miss an important conversation.",
+        "Get notified immediately when you receive new messages and chat requests. Never miss an important update.",
     },
   ];
 
