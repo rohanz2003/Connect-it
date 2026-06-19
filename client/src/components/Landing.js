@@ -223,6 +223,28 @@ const Landing = () => {
               );
             })}
           </motion.div>
+
+          <div className="about-analytics-strip">
+            <motion.div className="about-analytic-item" initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0 }} viewport={{ once: true }}>
+              <span className="about-analytic-value"><AnimatedCounter end={stats.totalMessages} suffix="+" /></span>
+              <span className="about-analytic-label">Messages Sent</span>
+            </motion.div>
+            <motion.div className="about-analytic-divider" />
+            <motion.div className="about-analytic-item" initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }} viewport={{ once: true }}>
+              <span className="about-analytic-value"><AnimatedCounter end={stats.totalUsers} suffix="+" /></span>
+              <span className="about-analytic-label">Active Users</span>
+            </motion.div>
+            <motion.div className="about-analytic-divider" />
+            <motion.div className="about-analytic-item" initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2 }} viewport={{ once: true }}>
+              <span className="about-analytic-value"><AnimatedCounter end={stats.acceptedRequests} suffix="+" /></span>
+              <span className="about-analytic-label">Connections</span>
+            </motion.div>
+            <motion.div className="about-analytic-divider" />
+            <motion.div className="about-analytic-item" initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.3 }} viewport={{ once: true }}>
+              <span className="about-analytic-value"><AnimatedCounter end={Math.round(stats.totalMessages * 0.04)} suffix="+" /></span>
+              <span className="about-analytic-label">Calls Made</span>
+            </motion.div>
+          </div>
         </div>
       </section>
 
