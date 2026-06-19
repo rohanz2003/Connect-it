@@ -2278,6 +2278,29 @@ body {
   gap: 16px;
 }
 
+.analytics-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+.analytics-section-label:first-child {
+  margin-top: 0;
+}
+
+.platform-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 768px) {
+  .platform-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .analytics-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
