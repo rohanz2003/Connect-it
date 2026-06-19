@@ -1354,6 +1354,13 @@ function Chat({ user: currentUser }) {
     const optimisticMsg = { ...newMsg, pending: true, status: 'sent', _id: tempId };
     const partner = normalizeEmail(selectedUser);
 
+    setDismissedRecent((prev) => {
+      if (!prev.some(e => normalizeEmail(e) === partner)) return prev;
+      const next = prev.filter(e => normalizeEmail(e) !== partner);
+      try { localStorage.setItem(`dismissedRecent_${user.email.toLowerCase()}`, JSON.stringify(next)); } catch {}
+      return next;
+    });
+
     setChatHistory((prev) => ({
       ...prev,
       [partner]: upsertMessageInList(prev[partner] || [], optimisticMsg),
@@ -1454,6 +1461,13 @@ function Chat({ user: currentUser }) {
 
       const optimisticMsg = { ...newMsg, pending: true, status: 'sent', _id: tempId };
       const partner = normalizeEmail(selectedUser);
+
+      setDismissedRecent((prev) => {
+        if (!prev.some(e => normalizeEmail(e) === partner)) return prev;
+        const next = prev.filter(e => normalizeEmail(e) !== partner);
+        try { localStorage.setItem(`dismissedRecent_${user.email.toLowerCase()}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
 
       setChatHistory((prev) => ({
         ...prev,
