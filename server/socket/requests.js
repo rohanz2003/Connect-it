@@ -1,5 +1,7 @@
 const ChatRequest = require("../models/ChatRequest");
 const Message = require("../models/Message");
+const User = require("../modules/User");
+const { sendPushNotification } = require("../services/pushService");
 
 const handleRequests = (io, socket, users) => {
   socket.on("send-request", async (data, callback) => {
@@ -97,6 +99,17 @@ const handleRequests = (io, socket, users) => {
         by: normalizedUser,
       });
 
+      // Send push notification
+      const remover = await User.findOne({ email: normalizedUser }).lean();
+      const removerName = remover?.displayName || normalizedUser.split("@")[0];
+      sendPushNotification(normalizedFriend, {
+        title: "Friend Removed",
+        body: `${removerName} removed you as a friend`,
+        icon: "/logo192.png",
+        badge: "/favicon.ico",
+        data: { by: normalizedUser, type: "friend-removed" },
+      });
+
       if (callback) callback({ success: true });
     } catch (err) {
       console.error("Socket remove-friend error:", err.message);
@@ -129,6 +142,18 @@ const handleRequests = (io, socket, users) => {
         to: request.from,
         requestId: request._id,
       });
+
+      if (action === "accepted") {
+        const responder = await User.findOne({ email: request.to }).lean();
+        const responderName = responder?.displayName || request.to.split("@")[0];
+        sendPushNotification(request.from, {
+          title: "Chat Request Accepted",
+          body: `${responderName} accepted your chat request`,
+          icon: "/logo192.png",
+          badge: "/favicon.ico",
+          data: { from: request.to, type: "request-accepted" },
+        });
+      }
 
       if (callback) callback({ success: true, request });
     } catch (err) {
