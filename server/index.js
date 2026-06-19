@@ -31,6 +31,8 @@ const initSocket = require("./socket/socket");
 const { initPush } = require("./services/pushService");
 const PushSubscription = require("./models/PushSubscription");
 const Device = require("./models/Device");
+const ChatRequest = require("./models/ChatRequest");
+const Message = require("./models/Message");
 
 const app = express();
 const server = http.createServer(app);
@@ -103,6 +105,20 @@ console.log("Routes Loaded ✅");
 
 app.get("/", (req, res) => {
   res.send("Chat Server Running 🚀");
+});
+
+app.get("/api/analytics", async (req, res) => {
+  try {
+    const [totalUsers, totalMessages, acceptedRequests] = await Promise.all([
+      mongoose.connection.readyState === 1 ? User.countDocuments() : 0,
+      mongoose.connection.readyState === 1 ? Message.countDocuments() : 0,
+      mongoose.connection.readyState === 1 ? ChatRequest.countDocuments({ status: "accepted" }) : 0,
+    ]);
+    res.json({ success: true, totalUsers, totalMessages, acceptedRequests });
+  } catch (err) {
+    console.error("Analytics error:", err.message);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
 });
 
 app.get("/api/health", (req, res) => {
