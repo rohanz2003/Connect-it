@@ -1575,44 +1575,13 @@ function Chat({ user: currentUser }) {
     e.stopPropagation();
     if (!user || !partnerEmail) return;
 
-    if (window.confirm(`Remove ${partnerEmail} from your recent chats?`)) {
-      const partner = normalizeEmail(partnerEmail);
-      
-      setChatHistory((prev) => {
-        const updated = { ...prev };
-        delete updated[partner];
-        persistHistory(updated, user.email);
-        return updated;
-      });
-
-      if (selectedUser && normalizeEmail(selectedUser) === partner) {
-        setMessages([]);
-        setSelectedUser(null);
-      }
-
-      setDismissedRecent((prev) => {
-        const next = [...prev, partner];
-        try { localStorage.setItem(`dismissedRecent_${user.email.toLowerCase()}`, JSON.stringify(next)); } catch {}
-        return next;
-      });
-
-      setUnreadMessages((prev) => {
-        const key = `${partner}_${normalizeEmail(user.email)}`;
-        if (!prev[key]) return prev;
-        const next = { ...prev };
-        delete next[key];
-        try {
-          localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
-        } catch (e) {}
-        return next;
-      });
-
-      fetch(`${API_URL}/api/messages/clear`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user: user.email, partner }),
-      }).catch(() => {});
-    }
+    const partner = normalizeEmail(partnerEmail);
+    setDismissedRecent((prev) => {
+      if (prev.some(e => normalizeEmail(e) === partner)) return prev;
+      const next = [...prev, partner];
+      try { localStorage.setItem(`dismissedRecent_${user.email.toLowerCase()}`, JSON.stringify(next)); } catch {}
+      return next;
+    });
   };
 
   const handleArchiveChat = (e, partnerEmail) => {
