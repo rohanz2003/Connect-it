@@ -43,6 +43,7 @@ import {
   BarChart3,
   Activity,
   History,
+  Bell,
   UserPlus,
   UserMinus,
   Phone,
@@ -251,6 +252,7 @@ function Chat({ user: currentUser }) {
   const [acceptedChatPartners, setAcceptedChatPartners] = useState([]);
   const [requestNotifications, setRequestNotifications] = useState([]);
   const [notificationHistory, setNotificationHistory] = useState([]);
+  const [showMobileNotifications, setShowMobileNotifications] = useState(false);
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -3034,11 +3036,92 @@ function Chat({ user: currentUser }) {
                 </button>
               </>
             )}
+            <button className="icon-btn mobile-notif-btn" title="Notifications" onClick={() => setShowMobileNotifications(true)}>
+              <Bell size={18} />
+              {totalUnread > 0 && <span className="mobile-notif-badge">{totalUnread > 9 ? "9+" : totalUnread}</span>}
+            </button>
             <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
               <Settings size={18} />
             </button>
           </div>
         </div>
+
+        {showMobileNotifications && (
+          <div className="mobile-notif-overlay" onClick={() => setShowMobileNotifications(false)}>
+            <div className="mobile-notif-panel" onClick={(e) => e.stopPropagation()}>
+              <div className="mobile-notif-header">
+                <h3>Notifications</h3>
+                <button className="mobile-notif-close" onClick={() => setShowMobileNotifications(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="mobile-notif-body">
+                {pendingRequests.length > 0 && (
+                  <>
+                    <div className="mobile-notif-section-title">Pending Requests</div>
+                    {pendingRequests.map((req) => (
+                      <div key={req._id} className="mobile-notif-item">
+                        <Avatar src={userProfiles[req.from]} email={req.from} size={36} className="mobile-notif-avatar" />
+                        <div className="mobile-notif-content">
+                          <span className="mobile-notif-name">{getDisplayName(req.from)}</span>
+                          <span className="mobile-notif-text">wants to chat with you</span>
+                          <span className="notification-time">{formatMessageTime(req.createdAt)}</span>
+                        </div>
+                        <div className="mobile-notif-actions">
+                          <button className="notification-accept-btn" onClick={() => { handleRespondToRequest(req._id, "accepted"); setShowMobileNotifications(false); setActiveTab("chat"); }} title="Accept"><Check size={16} /></button>
+                          <button className="notification-reject-btn" onClick={() => handleRespondToRequest(req._id, "rejected")} title="Reject"><X size={16} /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+                {sentRequests.length > 0 && (
+                  <>
+                    <div className="mobile-notif-section-title">Sent Requests</div>
+                    {sentRequests.map((req) => (
+                      <div key={req._id} className="mobile-notif-item">
+                        <Avatar src={userProfiles[req.to]} email={req.to} size={36} className="mobile-notif-avatar" />
+                        <div className="mobile-notif-content">
+                          <span className="mobile-notif-name">{getDisplayName(req.to)}</span>
+                          <span className="mobile-notif-text">{req.status === "pending" ? "request sent" : req.status}</span>
+                          <span className="notification-time">{formatMessageTime(req.createdAt)}</span>
+                        </div>
+                        <div className="mobile-notif-actions">
+                          {req.status === "pending" && (
+                            <button className="ig-icon-btn cancel" onClick={() => { handleUnsendRequest(req.to); }} title="Cancel"><X size={14} /></button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+                {notificationHistory.length > 0 && (
+                  <>
+                    <div className="mobile-notif-section-title">History</div>
+                    {notificationHistory.map((item, i) => (
+                      <div key={item._id || i} className="mobile-notif-item">
+                        <Avatar src={userProfiles[item.from]} email={item.from} size={36} className="mobile-notif-avatar" />
+                        <div className="mobile-notif-content">
+                          <span className="mobile-notif-name">{getDisplayName(item.from)}</span>
+                          <span className="mobile-notif-text">
+                            {item.respondedWith === "accepted" ? "accepted your request" : item.respondedWith === "removed" ? "removed you as a friend" : "rejected your request"}
+                          </span>
+                          <span className="notification-time">{formatMessageTime(item.respondedAt)}</span>
+                        </div>
+                        <div className="mobile-notif-actions">
+                          {item.respondedWith === "accepted" ? <Check size={16} className="accepted-icon" /> : <X size={16} className="rejected-icon" />}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+                {pendingRequests.length === 0 && sentRequests.length === 0 && notificationHistory.length === 0 && (
+                  <div className="empty-list">No notifications</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {!isChatMinimized && (
         <div className="chat-panel-body">
