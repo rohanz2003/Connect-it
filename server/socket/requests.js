@@ -1,4 +1,5 @@
 const ChatRequest = require("../models/ChatRequest");
+const Message = require("../models/Message");
 
 const handleRequests = (io, socket, users) => {
   socket.on("send-request", async (data, callback) => {
@@ -60,6 +61,45 @@ const handleRequests = (io, socket, users) => {
       if (callback) callback({ success: true });
     } catch (err) {
       console.error("Socket unsend-request error:", err.message);
+      if (callback) callback({ error: err.message });
+    }
+  });
+
+  socket.on("remove-friend", async (data, callback) => {
+    try {
+      const { user, friend } = data;
+      if (!user || !friend) {
+        if (callback) callback({ error: "user and friend are required" });
+        return;
+      }
+
+      const normalizedUser = user.toLowerCase();
+      const normalizedFriend = friend.toLowerCase();
+
+      // Delete the accepted chat request
+      await ChatRequest.findOneAndDelete({
+        $or: [
+          { from: normalizedUser, to: normalizedFriend, status: "accepted" },
+          { from: normalizedFriend, to: normalizedUser, status: "accepted" },
+        ],
+      });
+
+      // Delete all messages between the two users
+      await Message.deleteMany({
+        $or: [
+          { sender: normalizedUser, receiver: normalizedFriend },
+          { sender: normalizedFriend, receiver: normalizedUser },
+        ],
+      });
+
+      // Notify the other user
+      io.to(normalizedFriend).emit("friend-removed", {
+        by: normalizedUser,
+      });
+
+      if (callback) callback({ success: true });
+    } catch (err) {
+      console.error("Socket remove-friend error:", err.message);
       if (callback) callback({ error: err.message });
     }
   });

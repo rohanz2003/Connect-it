@@ -8,6 +8,7 @@ const {
   respondToRequest,
   getAcceptedChats,
   getRequestStatuses,
+  removeFriend,
 } = require("../controllers/requestController");
 
 router.get("/", (req, res) => res.send("Request routes working"));
@@ -17,6 +18,7 @@ router.delete("/:requestId", unsendRequest);
 router.get("/pending/:email", getPendingRequests);
 router.get("/sent/:email", getSentRequests);
 router.post("/respond", respondToRequest);
+router.post("/remove-friend", removeFriend);
 router.get("/accepted/:email", getAcceptedChats);
 router.get("/statuses/:email", getRequestStatuses);
 

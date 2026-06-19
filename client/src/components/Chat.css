@@ -1303,6 +1303,11 @@ body {
   white-space: nowrap;
 }
 
+.remove-friend-btn:hover {
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+
 .delete-account-btn {
   background: transparent !important;
   color: #ef4444 !important;
@@ -5989,6 +5994,12 @@ body.dark-mode .incoming-call-card,
   border-left: 4px solid #c62828;
 }
 
+.request-toast.removed {
+  background: #fff3e0;
+  color: #e65100;
+  border-left: 4px solid #e65100;
+}
+
 @keyframes slideInRight {
   from {
     transform: translateX(100%);
@@ -6254,6 +6265,11 @@ body.dark-mode .incoming-call-card,
 .dark-mode .request-toast.rejected {
   background: #3d1b1b;
   color: #ef5350;
+}
+
+.dark-mode .request-toast.removed {
+  background: #3d2b1b;
+  color: #ff9800;
 }
 
 .dark-mode .ig-icon-btn.send {

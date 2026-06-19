@@ -42,6 +42,11 @@ export const respondToRequest = async (requestId, action) => {
   return res.data;
 };
 
+export const removeFriend = async (user, friend) => {
+  const res = await axios.post(`${API_URL}/api/requests/remove-friend`, { user, friend });
+  return res.data;
+};
+
 export const fetchAcceptedChatsWithMessages = async (userEmail) => {
   const res = await axios.get(`${API_URL}/api/messages/accepted`, {
     params: { userEmail },

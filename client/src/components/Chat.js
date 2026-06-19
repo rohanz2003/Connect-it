@@ -61,7 +61,7 @@ import { validateImageFile, compressImage } from "../utils/imageUtils";
 import { getDeviceInfo } from "../utils/deviceDetector";
 import { subscribeToPush } from "../utils/pushHelper";
 import { fetchMessages, fetchRecentChats } from "../services/messageService";
-import { fetchAllUsers, fetchPendingRequests, fetchSentRequests, fetchRequestStatuses, sendRequest, unsendRequest, respondToRequest, fetchAcceptedChatsWithMessages } from "../services/requestService";
+import { fetchAllUsers, fetchPendingRequests, fetchSentRequests, fetchRequestStatuses, sendRequest, unsendRequest, respondToRequest, fetchAcceptedChatsWithMessages, removeFriend } from "../services/requestService";
 import NotificationBell from "./NotificationBell";
 import { useNavigate } from "react-router-dom";
 import "./Chat.css";
@@ -880,6 +880,67 @@ function Chat({ user: currentUser }) {
       refreshRequestStatuses();
     };
     socket.on("request-unsent", handleRequestUnsent);
+
+    const handleFriendRemoved = (data) => {
+      const removedBy = normalizeEmail(data.by);
+      const myEmail = normalizeEmail(user.email);
+
+      // Clear chat history for this user
+      setChatHistory((prev) => {
+        const updated = { ...prev };
+        delete updated[removedBy];
+        persistHistory(updated, myEmail);
+        return updated;
+      });
+
+      // Clear unread messages
+      setUnreadMessages((prev) => {
+        const next = { ...prev };
+        const key1 = `${removedBy}_${myEmail}`;
+        const key2 = `${myEmail}_${removedBy}`;
+        delete next[key1];
+        delete next[key2];
+        try {
+          localStorage.setItem(`unread_${myEmail}`, JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+
+      // Remove from dismissed recent
+      setDismissedRecent((prev) => {
+        const next = prev.filter(e => normalizeEmail(e) !== removedBy);
+        try { localStorage.setItem(`dismissedRecent_${myEmail.toLowerCase()}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+
+      // Remove from archived chats
+      setArchivedChats((prev) => {
+        const next = prev.filter(e => normalizeEmail(e) !== removedBy);
+        try { localStorage.setItem(`archivedChats_${myEmail}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+
+      // Clear selected user if it's the one who removed us
+      if (selectedUserRef.current && normalizeEmail(selectedUserRef.current) === removedBy) {
+        setMessages([]);
+        setSelectedUser(null);
+      }
+
+      // Refresh data
+      refreshRequestStatuses();
+      refreshAcceptedChatPartners();
+
+      // Show notification
+      const name = userNamesRef.current[removedBy] || (removedBy || "").split("@")[0];
+      setRequestNotifications((prev) => [
+        ...prev,
+        { id: Date.now(), msg: `${name} removed you as a friend`, type: "removed" },
+      ]);
+      setTimeout(() => {
+        setRequestNotifications((prev) => prev.slice(1));
+      }, 5000);
+    };
+    socket.on("friend-removed", handleFriendRemoved);
 
     const handleMessageSaved = ({ tempId, _id, timestamp, status }) => {
       const applySaved = (list) =>
@@ -1978,6 +2039,78 @@ function Chat({ user: currentUser }) {
     }
   };
 
+  const handleRemoveFriend = async (friendEmail) => {
+    if (!user || !friendEmail) return;
+    const name = getDisplayName(friendEmail);
+    if (!window.confirm(`Are you sure you want to remove ${name} as a friend?\n\nThis will delete all chat history and cannot be undone.`)) return;
+
+    try {
+      // Emit via socket for real-time updates
+      if (socket?.connected) {
+        socket.emit("remove-friend", { user: user.email, friend: friendEmail }, (ack) => {
+          if (!ack?.success) {
+            console.error("Socket remove-friend failed, trying REST API");
+            // Fallback to REST
+            removeFriend(user.email, friendEmail).catch(e => console.error(e));
+          }
+        });
+      } else {
+        await removeFriend(user.email, friendEmail);
+      }
+
+      // Clear local state immediately (optimistic)
+      const partner = normalizeEmail(friendEmail);
+
+      // Remove from chat history
+      setChatHistory((prev) => {
+        const updated = { ...prev };
+        delete updated[partner];
+        persistHistory(updated, user.email);
+        return updated;
+      });
+
+      // Remove unread messages
+      setUnreadMessages((prev) => {
+        const next = { ...prev };
+        const key1 = `${partner}_${normalizeEmail(user.email)}`;
+        const key2 = `${normalizeEmail(user.email)}_${partner}`;
+        delete next[key1];
+        delete next[key2];
+        try {
+          localStorage.setItem(`unread_${user.email}`, JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+
+      // Remove from dismissed recent list
+      setDismissedRecent((prev) => {
+        const next = prev.filter(e => normalizeEmail(e) !== partner);
+        try { localStorage.setItem(`dismissedRecent_${user.email.toLowerCase()}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+
+      // Remove from archived chats
+      setArchivedChats((prev) => {
+        const next = prev.filter(e => normalizeEmail(e) !== partner);
+        try { localStorage.setItem(`archivedChats_${user.email}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+
+      // Clear selected user if it's the removed friend
+      if (selectedUser && normalizeEmail(selectedUser) === partner) {
+        setMessages([]);
+        setSelectedUser(null);
+      }
+
+      // Refresh statuses and accepted partners
+      await refreshRequestStatuses();
+      await refreshAcceptedChatPartners();
+    } catch (e) {
+      console.error("Failed to remove friend", e);
+      alert("Failed to remove friend. Please try again.");
+    }
+  };
+
   // Filter out current user from the user list
   const otherOnlineUsers = onlineUsers.filter(u => 
     u.toLowerCase().trim() !== user?.email?.toLowerCase().trim()
@@ -2868,6 +3001,15 @@ function Chat({ user: currentUser }) {
                 >
                   <Trash2 size={16} />
                 </button>
+                {isAcceptedChat(selectedUser) && (
+                <button
+                  className="icon-btn remove-friend-btn"
+                  title="Remove as friend"
+                  onClick={() => handleRemoveFriend(selectedUser)}
+                >
+                  <Minus size={16} />
+                </button>
+                )}
                 <button 
                   className="icon-btn close-btn" 
                   title="Close chat"

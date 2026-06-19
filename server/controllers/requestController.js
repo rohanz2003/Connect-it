@@ -1,4 +1,5 @@
 const ChatRequest = require("../models/ChatRequest");
+const Message = require("../models/Message");
 const User = require("../modules/User");
 
 exports.sendRequest = async (req, res) => {
@@ -133,6 +134,45 @@ exports.getAcceptedChats = async (req, res) => {
   } catch (err) {
     console.error("Error fetching accepted chats:", err.message);
     res.status(500).json({ error: "Failed to fetch accepted chats" });
+  }
+};
+
+exports.removeFriend = async (req, res) => {
+  try {
+    const { user, friend } = req.body;
+    if (!user || !friend) return res.status(400).json({ error: "user and friend are required" });
+
+    const normalizedUser = user.toLowerCase();
+    const normalizedFriend = friend.toLowerCase();
+
+    // Delete the accepted chat request
+    await ChatRequest.findOneAndDelete({
+      $or: [
+        { from: normalizedUser, to: normalizedFriend, status: "accepted" },
+        { from: normalizedFriend, to: normalizedUser, status: "accepted" },
+      ],
+    });
+
+    // Delete all messages between the two users
+    await Message.deleteMany({
+      $or: [
+        { sender: normalizedUser, receiver: normalizedFriend },
+        { sender: normalizedFriend, receiver: normalizedUser },
+      ],
+    });
+
+    // Notify the other user via socket
+    const io = req.app.get("io");
+    if (io) {
+      io.to(normalizedFriend).emit("friend-removed", {
+        by: normalizedUser,
+      });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error removing friend:", err.message);
+    res.status(500).json({ error: "Failed to remove friend" });
   }
 };
 
