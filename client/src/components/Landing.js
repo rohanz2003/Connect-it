@@ -1,10 +1,26 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { MessageCircle, Lock, Users, Zap, Phone, Video, UserPlus } from "lucide-react";
+import { MessageCircle, Lock, Users, Zap, Phone, Video, UserPlus, MessageSquare, PhoneCall, Activity } from "lucide-react";
 import { motion } from "framer-motion";
 import Header from "./Header";
 import Footer from "./Footer";
 import "../styles/Landing.css";
+
+const AnimatedCounter = ({ end, suffix = "" }) => {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let start = 0;
+    const duration = 2000;
+    const step = Math.ceil(end / (duration / 16));
+    const timer = setInterval(() => {
+      start += step;
+      if (start >= end) { setCount(end); clearInterval(timer); }
+      else setCount(start);
+    }, 16);
+    return () => clearInterval(timer);
+  }, [end]);
+  return <>{count.toLocaleString()}{suffix}</>;
+};
 
 const Landing = () => {
   const features = [
@@ -183,6 +199,50 @@ const Landing = () => {
               );
             })}
           </motion.div>
+        </div>
+      </section>
+
+      {/* Live Insights Section */}
+      <section className="insights-section">
+        <div className="insights-container">
+          <motion.div
+            className="section-header"
+            initial={{ opacity: 0, y: -20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            viewport={{ once: true }}
+          >
+            <h2 className="section-title">Live Insights</h2>
+            <p className="section-subtitle">
+              Real-time platform analytics at a glance
+            </p>
+          </motion.div>
+
+          <div className="insights-grid">
+            <motion.div className="insight-card" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0 }} viewport={{ once: true }}>
+              <div className="insight-icon" style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}><MessageSquare size={24} /></div>
+              <div className="insight-value"><AnimatedCounter end={128500} suffix="+" /></div>
+              <div className="insight-label">Messages Sent</div>
+            </motion.div>
+
+            <motion.div className="insight-card" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }} viewport={{ once: true }}>
+              <div className="insight-icon" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}><Users size={24} /></div>
+              <div className="insight-value"><AnimatedCounter end={12400} suffix="+" /></div>
+              <div className="insight-label">Active Users</div>
+            </motion.div>
+
+            <motion.div className="insight-card" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }} viewport={{ once: true }}>
+              <div className="insight-icon" style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }}><PhoneCall size={24} /></div>
+              <div className="insight-value"><AnimatedCounter end={8200} suffix="+" /></div>
+              <div className="insight-label">Calls Made</div>
+            </motion.div>
+
+            <motion.div className="insight-card" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }} viewport={{ once: true }}>
+              <div className="insight-icon" style={{ background: "linear-gradient(135deg, #8b5cf6, #7c3aed)" }}><Activity size={24} /></div>
+              <div className="insight-value"><AnimatedCounter end={5600} suffix="+" /></div>
+              <div className="insight-label">Connections Made</div>
+            </motion.div>
+          </div>
         </div>
       </section>
 
