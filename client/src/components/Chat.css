@@ -143,18 +143,6 @@ body {
   }
 }
 
-/* Mobile notification bell - hidden on desktop */
-.mobile-notif-btn {
-  display: none;
-  position: relative;
-}
-
-@media (max-width: 767px) {
-  .mobile-notif-btn {
-    display: flex;
-  }
-}
-
 .mobile-page-notif-btn {
   display: none;
   position: relative;

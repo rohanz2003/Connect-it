@@ -3109,15 +3109,9 @@ function Chat({ user: currentUser }) {
               </>
             )}
             {!selectedUser && (
-              <>
-              <button className="icon-btn mobile-notif-btn" title="Notifications" onClick={() => { setActiveTab("notifications"); setUnreadNotifications(0); }}>
-                <Bell size={18} />
-                {unreadNotifications > 0 && <span className="mobile-notif-badge">{unreadNotifications > 9 ? "9+" : unreadNotifications}</span>}
-              </button>
               <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
                 <Settings size={18} />
               </button>
-              </>
             )}
           </div>
         </div>
