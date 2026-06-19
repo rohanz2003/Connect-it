@@ -76,11 +76,11 @@ const handleRequests = (io, socket, users) => {
       const normalizedUser = user.toLowerCase();
       const normalizedFriend = friend.toLowerCase();
 
-      // Delete the accepted chat request
-      await ChatRequest.findOneAndDelete({
+      // Delete all chat request records between the two users
+      await ChatRequest.deleteMany({
         $or: [
-          { from: normalizedUser, to: normalizedFriend, status: "accepted" },
-          { from: normalizedFriend, to: normalizedUser, status: "accepted" },
+          { from: normalizedUser, to: normalizedFriend },
+          { from: normalizedFriend, to: normalizedUser },
         ],
       });
 
