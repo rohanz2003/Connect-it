@@ -252,6 +252,7 @@ function Chat({ user: currentUser }) {
   const [acceptedChatPartners, setAcceptedChatPartners] = useState([]);
   const [requestNotifications, setRequestNotifications] = useState([]);
   const [notificationHistory, setNotificationHistory] = useState([]);
+  const [recentAlerts, setRecentAlerts] = useState([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -867,11 +868,10 @@ function Chat({ user: currentUser }) {
         setRequestNotifications((prev) => prev.slice(1));
       }, 5000);
 
-      // Add to notification history
-      setNotificationHistory((prev) => [
-        { from, respondedWith: status, respondedAt: now },
+      setRecentAlerts((prev) => [
+        { id: Date.now(), from, type: status, msg, time: now },
         ...prev,
-      ].slice(0, 50));
+      ].slice(0, 20));
       setUnreadNotifications((prev) => prev + 1);
 
       refreshRequestStatuses();
@@ -950,11 +950,12 @@ function Chat({ user: currentUser }) {
         setRequestNotifications((prev) => prev.slice(1));
       }, 5000);
 
-      // Also add to notification history
-      setNotificationHistory((prev) => [
-        { from: removedBy, respondedWith: "removed", respondedAt: now },
+      // Also add to recent alerts
+      const name = userNamesRef.current[removedBy] || (removedBy || "").split("@")[0];
+      setRecentAlerts((prev) => [
+        { id: Date.now(), from: removedBy, type: "removed", msg: `${name} removed you as a friend`, time: now },
         ...prev,
-      ].slice(0, 50));
+      ].slice(0, 20));
       setUnreadNotifications((prev) => prev + 1);
     };
     socket.on("friend-removed", handleFriendRemoved);
@@ -2383,6 +2384,28 @@ function Chat({ user: currentUser }) {
               </div>
             </>
           )}
+          {recentAlerts.length > 0 && (
+            <>
+              <div className="sidebar-section-title" style={{ marginTop: 16 }}>Recent Alerts</div>
+              <div className="sidebar-list">
+                {recentAlerts.map((alert) => (
+                  <div key={alert.id} className="user-item">
+                    <div className="avatar-wrap">
+                      <Avatar src={userProfiles[alert.from]} email={alert.from} size={40} className="user-avatar" />
+                    </div>
+                    <div className="user-item-copy">
+                      <span className="user-name">{getDisplayName(alert.from)}</span>
+                      <span className="user-last">{alert.msg}</span>
+                      <span className="notification-time">{formatMessageTime(alert.time)}</span>
+                    </div>
+                    <div className="user-item-actions">
+                      {alert.type === "accepted" ? <Check size={16} className="accepted-icon" /> : alert.type === "removed" ? <Minus size={16} className="rejected-icon" /> : <X size={16} className="rejected-icon" />}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           {notificationHistory.length > 0 && (
             <>
               <div className="sidebar-section-title" style={{ marginTop: 16 }}>History</div>
@@ -2597,6 +2620,7 @@ function Chat({ user: currentUser }) {
               getDisplayName={getDisplayName}
               onRespond={handleRespondToRequest}
               history={notificationHistory}
+              recentAlerts={recentAlerts}
               unreadCount={unreadNotifications}
               onRead={() => setUnreadNotifications(0)}
             />

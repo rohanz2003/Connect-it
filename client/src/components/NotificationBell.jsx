@@ -14,7 +14,7 @@ const formatRelativeTime = (dateStr) => {
   return new Date(dateStr).toLocaleDateString();
 };
 
-function NotificationBell({ requests, userProfiles, getDisplayName, onRespond, history, unreadCount = 0, onRead }) {
+function NotificationBell({ requests, userProfiles, getDisplayName, onRespond, history, recentAlerts = [], unreadCount = 0, onRead }) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
   const [tab, setTab] = useState("pending");
@@ -70,6 +70,12 @@ function NotificationBell({ requests, userProfiles, getDisplayName, onRespond, h
                 Pending {pendingCount > 0 && `(${pendingCount})`}
               </button>
               <button
+                className={`notification-tab ${tab === "alerts" ? "active" : ""}`}
+                onClick={() => setTab("alerts")}
+              >
+                Alerts {recentAlerts.length > 0 && `(${recentAlerts.length})`}
+              </button>
+              <button
                 className={`notification-tab ${tab === "history" ? "active" : ""}`}
                 onClick={() => setTab("history")}
               >
@@ -121,6 +127,39 @@ function NotificationBell({ requests, userProfiles, getDisplayName, onRespond, h
                 )
               )}
 
+              {tab === "alerts" && (
+                recentAlerts.length === 0 ? (
+                  <div className="notification-empty">No recent alerts</div>
+                ) : (
+                  recentAlerts.map((alert) => (
+                    <div key={alert.id} className="notification-item">
+                      <Avatar
+                        src={userProfiles[alert.from]}
+                        email={alert.from}
+                        size={40}
+                      />
+                      <div className="notification-item-content">
+                        <span className="notification-item-name">
+                          {getDisplayName(alert.from)}
+                        </span>
+                        <span className="notification-item-msg">
+                          {alert.msg}
+                        </span>
+                        <span className="notification-item-time">
+                          {formatRelativeTime(alert.time)}
+                        </span>
+                      </div>
+                      <div className="notification-item-icon">
+                        {alert.type === "accepted" ? (
+                          <Check size={16} className="accepted-icon" />
+                        ) : (
+                          <X size={16} className="rejected-icon" />
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )
+              )}
               {tab === "history" && (
                 !history || history.length === 0 ? (
                   <div className="notification-empty">No notification history</div>
