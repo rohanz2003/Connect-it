@@ -141,6 +141,32 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
         console.error("❌ Failed to fetch undelivered messages:", err.message);
       }
     })();
+
+    // Fetch and send pending chat requests to this user
+    (async () => {
+      try {
+        const ChatRequest = require("../models/ChatRequest");
+        const pendingRequests = await ChatRequest.find({
+          to: userId,
+          status: "pending",
+        }).sort({ createdAt: -1 }).lean();
+
+        if (pendingRequests.length > 0) {
+          pendingRequests.forEach((req) => {
+            io.to(userId).emit("new-request", {
+              _id: req._id,
+              from: req.from,
+              to: req.to,
+              status: req.status,
+              createdAt: req.createdAt,
+            });
+          });
+          console.log(`📨 ${pendingRequests.length} pending request(s) sent to ${userId}`);
+        }
+      } catch (err) {
+        console.error("❌ Failed to fetch pending requests:", err.message);
+      }
+    })();
   });
 
   socket.on("leave", (data) => {

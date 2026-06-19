@@ -20,6 +20,17 @@ exports.sendRequest = async (req, res) => {
 
     const populated = await ChatRequest.findById(request._id).lean();
 
+    const io = req.app.get("io");
+    if (io) {
+      io.to(to.toLowerCase()).emit("new-request", {
+        _id: request._id,
+        from: request.from,
+        to: request.to,
+        status: request.status,
+        createdAt: request.createdAt,
+      });
+    }
+
     res.json({ success: true, request: populated });
   } catch (err) {
     console.error("Error sending request:", err.message);
