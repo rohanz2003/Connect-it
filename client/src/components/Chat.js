@@ -18,6 +18,7 @@ import {
   Moon,
   ChevronDown,
   X,
+  Check,
   Minus,
   LogOut,
   Archive,
@@ -247,6 +248,7 @@ function Chat({ user: currentUser }) {
   const [requestStatuses, setRequestStatuses] = useState({});
   const [acceptedChatPartners, setAcceptedChatPartners] = useState([]);
   const [requestNotifications, setRequestNotifications] = useState([]);
+  const [notificationHistory, setNotificationHistory] = useState([]);
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -1920,6 +1922,14 @@ function Chat({ user: currentUser }) {
       const res = await respondToRequest(requestId, action);
       if (res.success) {
         setPendingRequests((prev) => prev.filter((r) => r._id !== requestId));
+        setNotificationHistory((prev) => {
+          const req = pendingRequests.find((r) => r._id === requestId);
+          if (!req) return prev;
+          return [
+            { ...req, respondedWith: action, respondedAt: new Date().toISOString() },
+            ...prev,
+          ].slice(0, 50);
+        });
         await refreshRequestStatuses();
       }
     } catch (e) {
@@ -1932,20 +1942,35 @@ function Chat({ user: currentUser }) {
     u.toLowerCase().trim() !== user?.email?.toLowerCase().trim()
   );
   
-  // Get recent chats sorted by latest message (exclude archived, only accepted)
-  const acceptedSet = new Set(acceptedChatPartners.map((c) => normalizeEmail(c.userEmail)));
+  // Get recent chats (only accepted partners) - include those with and without messages
   const archivedSet = new Set(archivedChats.map(a => normalizeEmail(a)));
-  const recentChats = Object.keys(chatHistory)
-    .filter(u => u !== user?.email && !archivedSet.has(normalizeEmail(u)) && acceptedSet.has(normalizeEmail(u)))
+  const acceptedSet = new Set(acceptedChatPartners.map((c) => normalizeEmail(c.userEmail)));
+  const acceptedLastMsg = {};
+  acceptedChatPartners.forEach((c) => {
+    if (c.lastMessage) acceptedLastMsg[normalizeEmail(c.userEmail)] = c;
+  });
+
+  const recentChats = [
+    // Users with chat history (filtered by accepted set)
+    ...Object.keys(chatHistory)
+      .filter(u => u !== user?.email && !archivedSet.has(normalizeEmail(u)) && acceptedSet.has(normalizeEmail(u)))
+      .map(u => ({ email: u, hasHistory: true })),
+    // Accepted partners without chat history
+    ...acceptedChatPartners
+      .filter(c => !chatHistory[normalizeEmail(c.userEmail)] && normalizeEmail(c.userEmail) !== user?.email)
+      .map(c => ({ email: normalizeEmail(c.userEmail), hasHistory: false })),
+  ]
+    .filter((v, i, a) => a.findIndex((x) => x.email === v.email) === i)
     .sort((a, b) => {
-      const historyA = chatHistory[a] || [];
-      const historyB = chatHistory[b] || [];
+      const historyA = chatHistory[a.email] || [];
+      const historyB = chatHistory[b.email] || [];
       const lastA = historyA[historyA.length - 1];
       const lastB = historyB[historyB.length - 1];
-      const timeA = new Date(lastA?.timestamp || lastA?.createdAt || 0);
-      const timeB = new Date(lastB?.timestamp || lastB?.createdAt || 0);
+      const timeA = lastA ? new Date(lastA.timestamp || lastA.createdAt || 0) : acceptedLastMsg[a.email]?.timestamp ? new Date(acceptedLastMsg[a.email].timestamp) : 0;
+      const timeB = lastB ? new Date(lastB.timestamp || lastB.createdAt || 0) : acceptedLastMsg[b.email]?.timestamp ? new Date(acceptedLastMsg[b.email].timestamp) : 0;
       return new Date(timeB) - new Date(timeA);
-    });
+    })
+    .map((item) => item.email);
 
   // Archived chats list
   const archivedChatsList = archivedChats.filter(a => {
@@ -2084,22 +2109,22 @@ function Chat({ user: currentUser }) {
                   </div>
                   <div className="user-item-actions">
                     {action === "chat" ? (
-                      <button className="ig-chat-btn" onClick={() => { handleUserSelect(u.email); setActiveTab("chat"); }} title="Chat">
-                        <MessageCircle size={16} /> Chat
+                      <button className="ig-icon-btn chat" onClick={() => { handleUserSelect(u.email); setActiveTab("chat"); }} title="Open chat">
+                        <MessageCircle size={16} />
                       </button>
                     ) : action === "request_sent" ? (
-                      <button className="ig-requested-btn" onClick={() => handleUnsendRequest(u.email)} title="Click to unsend">
-                        Requested
+                      <button className="ig-icon-btn requested" onClick={() => handleUnsendRequest(u.email)} title="Click to unsend">
+                        <Check size={16} />
                       </button>
                     ) : action === "request_received" ? (
-                      <span className="ig-requested-badge">Requested</span>
+                      <span className="ig-requested-badge">R</span>
                     ) : action === "rejected" ? (
-                      <button className="ig-send-btn" onClick={() => handleSendRequest(u.email)} title="Send request again">
-                        Send Again
+                      <button className="ig-icon-btn send" onClick={() => handleSendRequest(u.email)} title="Send request">
+                        <UserPlus size={16} />
                       </button>
                     ) : (
-                      <button className="ig-send-btn" onClick={() => handleSendRequest(u.email)} title="Send chat request">
-                        Send Request
+                      <button className="ig-icon-btn send" onClick={() => handleSendRequest(u.email)} title="Send chat request">
+                        <UserPlus size={16} />
                       </button>
                     )}
                   </div>
@@ -2109,6 +2134,55 @@ function Chat({ user: currentUser }) {
               <div className="empty-list">No users found.</div>
             )}
           </div>
+        </div>
+      );
+    }
+    if (type === "mobile-notifications") {
+      return (
+        <div className="sidebar-section">
+          <div className="sidebar-section-title">Pending Requests</div>
+          <div className="sidebar-list">
+            {pendingRequests.length > 0 ? pendingRequests.map((req) => (
+              <div key={req._id} className="user-item">
+                <div className="avatar-wrap">
+                  <Avatar src={userProfiles[req.from]} email={req.from} size={40} className="user-avatar" />
+                </div>
+                <div className="user-item-copy">
+                  <span className="user-name">{getDisplayName(req.from)}</span>
+                  <span className="user-last">wants to chat with you</span>
+                </div>
+                <div className="user-item-actions">
+                  <button className="notification-accept-btn" onClick={() => { handleRespondToRequest(req._id, "accepted"); setActiveTab("chat"); }} title="Confirm"><Check size={16} /></button>
+                  <button className="notification-reject-btn" onClick={() => handleRespondToRequest(req._id, "rejected")} title="Delete"><X size={16} /></button>
+                </div>
+              </div>
+            )) : (
+              <div className="empty-list">No pending requests</div>
+            )}
+          </div>
+          {notificationHistory.length > 0 && (
+            <>
+              <div className="sidebar-section-title" style={{ marginTop: 16 }}>History</div>
+              <div className="sidebar-list">
+                {notificationHistory.map((item, i) => (
+                  <div key={item._id || i} className="user-item">
+                    <div className="avatar-wrap">
+                      <Avatar src={userProfiles[item.from]} email={item.from} size={40} className="user-avatar" />
+                    </div>
+                    <div className="user-item-copy">
+                      <span className="user-name">{getDisplayName(item.from)}</span>
+                      <span className="user-last">
+                        {item.respondedWith === "accepted" ? "accepted your request" : "rejected your request"}
+                      </span>
+                    </div>
+                    <div className="user-item-actions">
+                      {item.respondedWith === "accepted" ? <Check size={16} className="accepted-icon" /> : <X size={16} className="rejected-icon" />}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       );
     }
@@ -2261,6 +2335,7 @@ function Chat({ user: currentUser }) {
               userProfiles={userProfiles}
               getDisplayName={getDisplayName}
               onRespond={handleRespondToRequest}
+              history={notificationHistory}
             />
             <button
               className="theme-toggle"
@@ -2530,22 +2605,22 @@ function Chat({ user: currentUser }) {
                     </div>
                     <div className="user-item-actions">
                       {action === "chat" ? (
-                        <button className="ig-chat-btn" onClick={() => handleUserSelect(u.email)} title="Chat">
-                          <MessageCircle size={16} /> Chat
+                        <button className="ig-icon-btn chat" onClick={() => handleUserSelect(u.email)} title="Open chat">
+                          <MessageCircle size={16} />
                         </button>
                       ) : action === "request_sent" ? (
-                        <button className="ig-requested-btn" onClick={() => handleUnsendRequest(u.email)} title="Click to unsend">
-                          Requested
+                        <button className="ig-icon-btn requested" onClick={() => handleUnsendRequest(u.email)} title="Click to unsend">
+                          <Check size={16} />
                         </button>
                       ) : action === "request_received" ? (
-                        <span className="ig-requested-badge">Requested</span>
+                        <span className="ig-requested-badge">R</span>
                       ) : action === "rejected" ? (
-                        <button className="ig-send-btn" onClick={() => handleSendRequest(u.email)} title="Send request again">
-                          Send Again
+                        <button className="ig-icon-btn send" onClick={() => handleSendRequest(u.email)} title="Send request">
+                          <UserPlus size={16} />
                         </button>
                       ) : (
-                        <button className="ig-send-btn" onClick={() => handleSendRequest(u.email)} title="Send chat request">
-                          Send Request
+                        <button className="ig-icon-btn send" onClick={() => handleSendRequest(u.email)} title="Send chat request">
+                          <UserPlus size={16} />
                         </button>
                       )}
                     </div>
@@ -2592,7 +2667,7 @@ function Chat({ user: currentUser }) {
           <button className="mobile-page-back" onClick={() => setActiveTab("chat")}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <h3>{activeTab === "online" ? "Online Users" : activeTab === "calls" ? "Call History" : activeTab === "analytics" ? "Analytics" : activeTab === "archive" ? "Archive" : activeTab === "all" ? "All Users" : "Recent Chats"}</h3>
+          <h3>{activeTab === "online" ? "Online Users" : activeTab === "calls" ? "Call History" : activeTab === "analytics" ? "Analytics" : activeTab === "archive" ? "Archive" : activeTab === "all" ? "All Users" : activeTab === "notifications" ? "Notifications" : "Recent Chats"}</h3>
         </div>
         <div className={`sidebar-search ${activeTab === "analytics" ? "mobile-hidden" : ""}`}>
           <Search size={16} />
@@ -2615,6 +2690,7 @@ function Chat({ user: currentUser }) {
           )}
           {activeTab === "archive" && renderTabContent("mobile-archive")}
           {activeTab === "all" && renderTabContent("mobile-all")}
+          {activeTab === "notifications" && renderTabContent("mobile-notifications")}
           {activeTab === "analytics" && renderAnalytics()}
         </div>
       </div>
@@ -2702,11 +2778,12 @@ function Chat({ user: currentUser }) {
                   <h4>Chat not started yet</h4>
                   <p>Send a chat request to start messaging.</p>
                   <button
-                    className="ig-send-btn"
+                    className="ig-icon-btn send"
                     onClick={() => handleSendRequest(selectedUser)}
                     style={{ marginTop: 12 }}
+                    title="Send chat request"
                   >
-                    Send Request
+                    <UserPlus size={16} />
                   </button>
                 </div>
               ) : messages.length === 0 ? (
@@ -3311,6 +3388,13 @@ function Chat({ user: currentUser }) {
             {filteredOnlineUsers.length > 0 && <span className="bottom-nav-green-dot" />}
           </span>
           <span>Online</span>
+        </button>
+        <button className={`bottom-nav-btn ${activeTab === "notifications" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("notifications"); setSidebarOpen(false); }}>
+          <span className="bottom-nav-icon-wrap">
+            <BellRing size={18} />
+            {pendingRequests.length > 0 && <span className="bottom-nav-badge">{pendingRequests.length > 99 ? "99+" : pendingRequests.length}</span>}
+          </span>
+          <span>Alerts</span>
         </button>
         <button className={`bottom-nav-btn ${activeTab === "calls" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("calls"); setSidebarOpen(false); }}>
           <span className="bottom-nav-icon-wrap">

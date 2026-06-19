@@ -5661,17 +5661,7 @@ body.dark-mode .incoming-call-card,
 }
 
 .notification-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  width: 320px;
-  max-height: 400px;
-  background: var(--card-bg, #fff);
-  border: 1px solid var(--border-color, #e0e0e0);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
-  z-index: 1000;
-  overflow: hidden;
+  display: none;
 }
 
 .notification-dropdown-header {
@@ -5823,48 +5813,186 @@ body.dark-mode .incoming-call-card,
   margin-top: 1px;
 }
 
-/* Instagram-style buttons for All Users tab */
-.ig-send-btn,
-.ig-requested-btn,
-.ig-chat-btn {
-  display: inline-flex;
+/* Notification sidebar overlay */
+.notification-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 999;
+  display: flex;
+}
+
+.notification-sidebar {
+  width: 380px;
+  max-width: 90vw;
+  height: 100%;
+  background: var(--card-bg, #fff);
+  box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  animation: slideInLeft 0.2s ease;
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.notification-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color, #dbdbdb);
+}
+
+.notification-sidebar-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color, #262626);
+}
+
+.notification-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-color, #555);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 5px 14px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
+}
+
+.notification-close-btn:hover {
+  background: var(--hover-bg, rgba(0,0,0,0.05));
+}
+
+.notification-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color, #dbdbdb);
+}
+
+.notification-tab {
+  flex: 1;
+  padding: 12px;
+  background: none;
   border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-light, #8e8e8e);
+  cursor: pointer;
   transition: all 0.15s;
 }
 
-.ig-send-btn {
+.notification-tab.active {
+  color: var(--text-color, #262626);
+  border-bottom-color: var(--primary-color, #0095f6);
+}
+
+.notification-sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.notification-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.accepted-icon {
+  color: #2e7d32;
+}
+
+.rejected-icon {
+  color: #c62828;
+}
+
+.notification-item-actions .notification-accept-btn,
+.notification-item-actions .notification-reject-btn {
+  width: 36px;
+  height: 36px;
+}
+
+/* Dark mode for notification overlay */
+.dark-mode .notification-overlay {
+  background: rgba(0,0,0,0.5);
+}
+
+.dark-mode .notification-sidebar {
+  background: #1e1e1e;
+}
+
+.dark-mode .notification-sidebar-header {
+  border-color: #333;
+}
+
+.dark-mode .notification-tabs {
+  border-color: #333;
+}
+
+.dark-mode .notification-tab {
+  color: #888;
+}
+
+.dark-mode .notification-tab.active {
+  color: #e0e0e0;
+  border-bottom-color: #5b8def;
+}
+
+.dark-mode .accepted-icon {
+  color: #66bb6a;
+}
+
+.dark-mode .rejected-icon {
+  color: #ef5350;
+}
+
+/* Instagram-style icon buttons for All Users tab */
+.ig-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.ig-icon-btn.send {
   background: #0095f6;
   color: #fff;
 }
 
-.ig-send-btn:hover {
+.ig-icon-btn.send:hover {
   background: #1877f2;
 }
 
-.ig-requested-btn {
+.ig-icon-btn.requested {
   background: #efefef;
   color: #262626;
 }
 
-.ig-requested-btn:hover {
+.ig-icon-btn.requested:hover {
   background: #dbdbdb;
 }
 
-.ig-chat-btn {
+.ig-icon-btn.chat {
   background: #e8f5e9;
   color: #2e7d32;
 }
 
-.ig-chat-btn:hover {
+.ig-icon-btn.chat:hover {
   background: #4caf50;
   color: #fff;
 }
@@ -5872,10 +6000,12 @@ body.dark-mode .incoming-call-card,
 .ig-requested-badge {
   display: inline-flex;
   align-items: center;
-  padding: 5px 14px;
-  border-radius: 6px;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   background: #efefef;
   color: #8e8e8e;
 }
@@ -5922,30 +6052,30 @@ body.dark-mode .incoming-call-card,
   color: #ef5350;
 }
 
-.dark-mode .ig-send-btn {
+.dark-mode .ig-icon-btn.send {
   background: #0095f6;
   color: #fff;
 }
 
-.dark-mode .ig-send-btn:hover {
+.dark-mode .ig-icon-btn.send:hover {
   background: #1877f2;
 }
 
-.dark-mode .ig-requested-btn {
+.dark-mode .ig-icon-btn.requested {
   background: #3a3a3a;
   color: #e0e0e0;
 }
 
-.dark-mode .ig-requested-btn:hover {
+.dark-mode .ig-icon-btn.requested:hover {
   background: #505050;
 }
 
-.dark-mode .ig-chat-btn {
+.dark-mode .ig-icon-btn.chat {
   background: rgba(76, 175, 80, 0.2);
   color: #66bb6a;
 }
 
-.dark-mode .ig-chat-btn:hover {
+.dark-mode .ig-icon-btn.chat:hover {
   background: #4caf50;
   color: #fff;
 }
