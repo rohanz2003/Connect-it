@@ -881,9 +881,6 @@ function Chat({ user: currentUser }) {
           if (prev.some((c) => normalizeEmail(c.userEmail) === normalizeEmail(from))) return prev;
           return [...prev, { userEmail: normalizeEmail(from), lastMessage: null, timestamp: now, unread: 0 }];
         });
-        setSelectedUser(from);
-        setSidebarOpen(false);
-        setActiveTab("chat");
       }
     };
     socket.on("request-response", handleRequestResponse);
