@@ -1,37 +1,28 @@
 const express = require("express");
 const router = express.Router();
+const firebaseAuth = require("../middleware/firebaseAuth");
 const { createOrUpdateUser, updateAvatar, updateProfile, getProfile, getProfiles, getLastSeen, heartbeat, deleteAccount, getAllUsers } = require("../controllers/userController");
 
-// Health check
 router.get("/", (req, res) => {
   res.send("Users route working");
 });
 
-// Create or update user (upsert)
 router.post("/", createOrUpdateUser);
 
-// Heartbeat - update lastSeen
-router.post("/heartbeat", heartbeat);
+router.post("/heartbeat", firebaseAuth, heartbeat);
 
-// Update user avatar/profile picture
-router.put("/avatar", updateAvatar);
+router.put("/avatar", firebaseAuth, updateAvatar);
 
-// Update full profile (displayName, bio, avatarUrl)
-router.put("/profile", updateProfile);
+router.put("/profile", firebaseAuth, updateProfile);
 
-// Get single user profile
-router.get("/profile", getProfile);
+router.get("/profile", firebaseAuth, getProfile);
 
-// Get multiple user profiles by emails
-router.get("/profiles", getProfiles);
+router.get("/profiles", firebaseAuth, getProfiles);
 
-// Delete user account and all associated data
-router.delete("/delete-account", deleteAccount);
+router.delete("/delete-account", firebaseAuth, deleteAccount);
 
-// Get all registered users
-router.get("/all", getAllUsers);
+router.get("/all", firebaseAuth, getAllUsers);
 
-// Get last seen for a user by email
-router.get("/:id/lastseen", getLastSeen);
+router.get("/:id/lastseen", firebaseAuth, getLastSeen);
 
 module.exports = router;

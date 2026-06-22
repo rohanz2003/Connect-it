@@ -33,6 +33,8 @@ export function CallProvider({ children, user }) {
   const pendingIceCandidatesRef = useRef([]);
 
   const timer = useCallTimer(callState === "active");
+  const timerRef = useRef(timer);
+  timerRef.current = timer;
 
   // Refs to avoid stale closures in socket handlers
   const callStateRef = useRef(callState);
@@ -186,7 +188,7 @@ export function CallProvider({ children, user }) {
 
         w.endCall();
         playEndSound();
-        timer.reset();
+        timerRef.current.reset();
         setCallState("idle");
         setActiveCall((p) => ({ ...p, remoteStream: null }));
         setIncomingCall(null);
@@ -214,7 +216,7 @@ export function CallProvider({ children, user }) {
 
     const handleCallUserBusy = () => {
       w.endCall();
-      timer.reset();
+      timerRef.current.reset();
       setCallState("idle");
       setActiveCall((p) => ({ ...p, remoteStream: null }));
       setCallId(null);
@@ -237,7 +239,7 @@ export function CallProvider({ children, user }) {
       socket.off("call-started", handleCallStarted);
       socket.off("call-user-busy", handleCallUserBusy);
     };
-  }, [socket, flushPendingIceCandidates, addCallHistoryEntry, timer]);
+  }, [socket, flushPendingIceCandidates, addCallHistoryEntry]);
 
   const startCall = useCallback(async (targetUserId, type) => {
     try {

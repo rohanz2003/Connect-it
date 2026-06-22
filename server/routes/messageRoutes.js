@@ -1,10 +1,11 @@
 const express = require("express");
 const router = express.Router();
+const firebaseAuth = require("../middleware/firebaseAuth");
 const { getMessages, getRecentChats, getAcceptedChats, clearChat } = require("../controllers/messageController");
 
-router.get("/", getMessages);
-router.get("/recent", getRecentChats);
-router.get("/accepted", getAcceptedChats);
-router.post("/clear", clearChat);
+router.get("/", firebaseAuth, getMessages);
+router.get("/recent", firebaseAuth, getRecentChats);
+router.get("/accepted", firebaseAuth, getAcceptedChats);
+router.post("/clear", firebaseAuth, clearChat);
 
 module.exports = router;

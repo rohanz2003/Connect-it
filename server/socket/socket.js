@@ -7,6 +7,7 @@ const handleRequests = require("./requests");
 const { getCorsOrigins } = require("../config/env");
 const { registerSocket, unregisterSocket } = require("../utils/socketAuth");
 const { updateLastSeen } = require("../controllers/userController");
+const { verifyFirebaseToken } = require("../config/firebase");
 const Device = require("../models/Device");
 
 const crypto = require("crypto");
@@ -33,19 +34,37 @@ const initSocket = (server) => {
   const userDeviceSockets = {};
   const connectionCounts = new Map();
 
-  io.use((socket, next) => {
-    const email = socket.handshake.auth?.email || socket.handshake.auth?.userId;
-    if (!email || typeof email !== "string" || email.trim().length === 0) {
-      return next(new Error("Authentication required: email must be provided"));
-    }
+  io.use(async (socket, next) => {
+    const auth = socket.handshake.auth || {};
     const ip = socket.handshake.address;
     const count = connectionCounts.get(ip) || 0;
     if (count >= 20) {
       return next(new Error("Too many connections from this IP"));
     }
-    connectionCounts.set(ip, count + 1);
-    socket.data.authEmail = email.toLowerCase().trim();
-    next();
+
+    // Try Firebase token verification first
+    if (auth.idToken) {
+      try {
+        const decoded = await verifyFirebaseToken(auth.idToken);
+        if (decoded && decoded.email) {
+          socket.data.authEmail = decoded.email.toLowerCase().trim();
+          connectionCounts.set(ip, count + 1);
+          return next();
+        }
+      } catch (err) {
+        console.warn("Socket Firebase token verification failed:", err.message);
+      }
+    }
+
+    // Fallback: require email in auth (for backward compatibility)
+    const email = auth.email || auth.userId;
+    if (email && typeof email === "string" && email.trim().length > 0) {
+      socket.data.authEmail = email.toLowerCase().trim();
+      connectionCounts.set(ip, count + 1);
+      return next();
+    }
+
+    return next(new Error("Authentication required"));
   });
 
   io.on("connection", async (socket) => {

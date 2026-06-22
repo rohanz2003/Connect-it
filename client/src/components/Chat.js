@@ -64,13 +64,12 @@ import { getDeviceInfo } from "../utils/deviceDetector";
 import { subscribeToPush } from "../utils/pushHelper";
 import { fetchMessages, fetchRecentChats } from "../services/messageService";
 import { fetchAllUsers, fetchPendingRequests, fetchSentRequests, fetchRequestStatuses, sendRequest, unsendRequest, respondToRequest, fetchAcceptedChatsWithMessages, removeFriend } from "../services/requestService";
+import authAxios from "../services/authAxios";
 import NotificationBell from "./NotificationBell";
 import { useNavigate } from "react-router-dom";
 import "./Chat.css";
 
 const normalizeEmail = (email) => (email || "").toLowerCase().trim();
-
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const getOtherParty = (msg, currentUserEmail) => {
   const senderEmail = normalizeEmail(msg.sender);
@@ -292,8 +291,8 @@ function Chat({ user: currentUser }) {
 
   useEffect(() => {
     const fetchPlatformStats = () => {
-      fetch(`${API_URL}/api/analytics`)
-        .then(r => r.json())
+      authAxios.get("/api/analytics")
+        .then(r => r.data)
         .then(d => { if (d.success) setPlatformStats(d); })
         .catch(() => {});
     };
@@ -600,8 +599,8 @@ function Chat({ user: currentUser }) {
           // Fetch profiles for recent chat partners (don't block sidebar render)
           const partnerEmails = recentChats.map(c => c.userEmail).filter(Boolean);
           if (partnerEmails.length > 0) {
-            fetch(`${API_URL}/api/users/profiles?emails=${encodeURIComponent(partnerEmails.join(","))}`)
-              .then(r => r.json())
+            authAxios.get(`/api/users/profiles?emails=${encodeURIComponent(partnerEmails.join(","))}`)
+              .then(r => r.data)
               .then(profilesData => {
                 if (profilesData.success && profilesData.profiles) {
                   const newLastSeen = {};
@@ -1242,8 +1241,8 @@ function Chat({ user: currentUser }) {
     if (unknown.length === 0) return;
     const fetchProfiles = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/users/profiles?emails=${encodeURIComponent(unknown.join(","))}`);
-        const data = await res.json();
+        const res = await authAxios.get(`/api/users/profiles?emails=${encodeURIComponent(unknown.join(","))}`);
+        const data = res.data;
         if (data.success && data.profiles) {
           Object.entries(data.profiles).forEach(([email, profile]) => {
             if (profile.avatarUrl) {
@@ -1790,13 +1789,10 @@ function Chat({ user: currentUser }) {
     });
 
     // Persist to database
-    fetch(`${API_URL}/api/users/avatar`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: user.email, avatarUrl: croppedDataUrl }),
-    }).catch((err) => {
-      console.error("Failed to update avatar on server:", err);
-    });
+    authAxios.put("/api/users/avatar", { email: user.email, avatarUrl: croppedDataUrl })
+      .catch((err) => {
+        console.error("Failed to update avatar on server:", err);
+      });
 
     // Broadcast via socket to all connected clients
     if (socket && socket.connected) {
@@ -1825,12 +1821,8 @@ function Chat({ user: currentUser }) {
       } catch (e) {}
 
       // Persist to database
-      const res = await fetch(`${API_URL}/api/users/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email, displayName, bio }),
-      });
-      const data = await res.json();
+      const res = await authAxios.put("/api/users/profile", { email: user.email, displayName, bio });
+      const data = res.data;
       if (!data.success) {
         throw new Error("Failed to save profile");
       }
@@ -1886,13 +1878,10 @@ function Chat({ user: currentUser }) {
     });
 
     // Persist to database
-    fetch(`${API_URL}/api/users/avatar`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: user.email, avatarUrl: null }),
-    }).catch((err) => {
-      console.error("Failed to update avatar on server:", err);
-    });
+    authAxios.put("/api/users/avatar", { email: user.email, avatarUrl: null })
+      .catch((err) => {
+        console.error("Failed to update avatar on server:", err);
+      });
 
     // Broadcast via socket to all connected clients
     if (socket && socket.connected) {
@@ -1935,12 +1924,10 @@ function Chat({ user: currentUser }) {
       const credential = EmailAuthProvider.credential(user.email, deletePassword);
       await reauthenticateWithCredential(auth.currentUser, credential);
 
-      const res = await fetch(`${API_URL}/api/users/delete-account`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email }),
+      const res = await authAxios.delete("/api/users/delete-account", {
+        data: { email: user.email },
       });
-      if (!res.ok) throw new Error("Failed to delete account data from server");
+      if (res.status !== 200) throw new Error("Failed to delete account data from server");
 
       await deleteUser(auth.currentUser);
 

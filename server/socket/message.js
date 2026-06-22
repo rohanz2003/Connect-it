@@ -53,23 +53,10 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
 
   socket.on("send-message", async (data, callback) => {
     try {
-      let authSender = getAuthenticatedEmail(socket, users);
-      if (!authSender && data?.sender) {
-        authSender = normalizeEmail(data.sender);
-        // Auto-join this socket to the user's online sockets if it wasn't already
-        if (!users[authSender]) {
-          users[authSender] = new Set();
-        }
-        if (!users[authSender].has(socket.id)) {
-          users[authSender].add(socket.id);
-          socket.join(authSender);
-          console.log(`📡 Auto-authenticated socket ${socket.id} for ${authSender}`);
-          io.emit("online-users", Object.keys(users));
-        }
-      }
+      const authSender = getAuthenticatedEmail(socket, users);
 
       if (!authSender) {
-        console.warn(`❌ Message send blocked: Unauthenticated socket ${socket.id}. Data sender: ${data?.sender}`);
+        console.warn(`❌ Message send blocked: Unauthenticated socket ${socket.id}`);
         if (callback) callback({ ok: false, error: "Not authenticated. Reconnecting..." });
         return;
       }

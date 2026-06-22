@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const firebaseAuth = require("../middleware/firebaseAuth");
 const {
   sendRequest,
   unsendRequest,
@@ -13,13 +14,13 @@ const {
 
 router.get("/", (req, res) => res.send("Request routes working"));
 
-router.post("/send", sendRequest);
-router.delete("/:requestId", unsendRequest);
-router.get("/pending/:email", getPendingRequests);
-router.get("/sent/:email", getSentRequests);
-router.post("/respond", respondToRequest);
-router.post("/remove-friend", removeFriend);
-router.get("/accepted/:email", getAcceptedChats);
-router.get("/statuses/:email", getRequestStatuses);
+router.post("/send", firebaseAuth, sendRequest);
+router.delete("/:requestId", firebaseAuth, unsendRequest);
+router.get("/pending/:email", firebaseAuth, getPendingRequests);
+router.get("/sent/:email", firebaseAuth, getSentRequests);
+router.post("/respond", firebaseAuth, respondToRequest);
+router.post("/remove-friend", firebaseAuth, removeFriend);
+router.get("/accepted/:email", firebaseAuth, getAcceptedChats);
+router.get("/statuses/:email", firebaseAuth, getRequestStatuses);
 
 module.exports = router;

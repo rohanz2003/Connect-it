@@ -5,8 +5,7 @@ import { motion } from "framer-motion";
 import Header from "./Header";
 import Footer from "./Footer";
 import "../styles/Landing.css";
-
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+import authAxios from "../services/authAxios";
 
 const AnimatedCounter = ({ end, suffix = "" }) => {
   const [count, setCount] = useState(0);
@@ -38,8 +37,8 @@ const Landing = () => {
   const [stats, setStats] = useState({ totalUsers: 0, totalMessages: 0, acceptedRequests: 0 });
 
   const fetchStats = () => {
-    fetch(`${API_URL}/api/analytics`)
-      .then(r => r.json())
+    authAxios.get("/api/analytics")
+      .then(r => r.data)
       .then(d => { if (d.success) setStats(d); else console.warn("Analytics API error:", d); })
       .catch(e => console.warn("Analytics fetch failed:", e));
   };

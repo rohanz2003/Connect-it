@@ -24,6 +24,7 @@ import {
   Camera,
 } from "lucide-react";
 import "./Login.css";
+import authAxios from "../services/authAxios";
 
 const validatePassword = (pwd) => {
   const errors = [];
@@ -171,12 +172,7 @@ function Login() {
 
         // Save displayName to MongoDB immediately
         try {
-          const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
-          await fetch(`${API_URL}/api/users/profile`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: email.toLowerCase(), displayName: displayName.trim() }),
-          });
+          await authAxios.put("/api/users/profile", { email: email.toLowerCase(), displayName: displayName.trim() });
         } catch (e) {
           console.warn("Failed to save displayName to server on register");
         }
@@ -203,9 +199,8 @@ function Login() {
         let serverDisplayName = "";
         let serverBio = "";
         try {
-          const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
-          const profileRes = await fetch(`${API_URL}/api/users/profile?email=${encodeURIComponent(userCredential.user.email)}`);
-          const profileData = await profileRes.json();
+          const profileRes = await authAxios.get(`/api/users/profile?email=${encodeURIComponent(userCredential.user.email)}`);
+          const profileData = profileRes.data;
           if (profileData.success && profileData.user) {
             serverDisplayName = profileData.user.displayName || "";
             serverBio = profileData.user.bio || "";
