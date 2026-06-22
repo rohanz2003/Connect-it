@@ -3664,7 +3664,7 @@ function Chat({ user: currentUser }) {
         requestStatuses={requestStatuses}
         onSendMessage={(email) => {
           setProfilePreviewUser(null);
-          const existing = acceptedChats.find(c => normalizeEmail(c.userEmail) === normalizeEmail(email));
+          const existing = acceptedChatPartners.find(c => normalizeEmail(c.userEmail) === normalizeEmail(email));
           if (existing) {
             setSelectedUser(normalizeEmail(email));
             setActiveTab("chats");
