@@ -9,7 +9,9 @@ import Feedback from "./components/Feedback";
 import Admin from "./components/Admin";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { CallProvider } from "./context/CallContext";
+import { SocketProvider } from "./context/SocketContext";
 import GlobalCallOverlay from "./components/call/GlobalCallOverlay";
+import authAxios from "./services/authAxios";
 
 // ✅ Protected Route
 const PrivateRoute = ({ children, loading, user }) => {
@@ -41,9 +43,8 @@ function App() {
         };
 
         // Fetch displayName from MongoDB so it persists across sessions
-        const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
-        fetch(`${API_URL}/api/users/profile?email=${encodeURIComponent(currentUser.email)}`)
-          .then(r => r.json())
+        authAxios.get(`/api/users/profile?email=${encodeURIComponent(currentUser.email)}`)
+          .then(r => r.data)
           .then(profileData => {
             const displayName = profileData?.success && profileData?.user?.displayName ? profileData.user.displayName : "";
             const bio = profileData?.success && profileData?.user?.bio ? profileData.user.bio : "";
@@ -100,6 +101,7 @@ function App() {
   }, []);
 
   return (
+    <SocketProvider>
     <CallProvider user={user}>
       <GlobalCallOverlay />
       <Routes>
@@ -123,6 +125,7 @@ function App() {
         <Route path="/admin" element={<Admin />} />
       </Routes>
     </CallProvider>
+    </SocketProvider>
   );
 }
 

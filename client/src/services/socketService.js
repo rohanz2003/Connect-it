@@ -14,6 +14,8 @@ const socket = io(SOCKET_URL, {
 });
 
 const connectSocket = async () => {
+  if (socket.connected) return;
+
   const user = auth.currentUser;
   if (!user) {
     console.warn("Cannot connect socket: no authenticated user");
@@ -27,17 +29,26 @@ const connectSocket = async () => {
       email: user.email,
       deviceId: localStorage.getItem("deviceId") || undefined,
     };
-
-    if (!socket.connected) {
-      socket.connect();
-    }
   } catch (err) {
     console.error("Failed to get ID token for socket:", err.message);
     socket.auth = { email: user.email };
-    if (!socket.connected) {
-      socket.connect();
-    }
   }
+
+  if (socket.connected) return;
+
+  return new Promise((resolve) => {
+    const onConnect = () => {
+      socket.off("connect", onConnect);
+      socket.off("connect_error", onError);
+      resolve();
+    };
+    const onError = (err) => {
+      console.error("Socket connection error:", err.message);
+    };
+    socket.on("connect", onConnect);
+    socket.on("connect_error", onError);
+    socket.connect();
+  });
 };
 
 socket.on("connect", () => {

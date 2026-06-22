@@ -11,6 +11,11 @@ export function SocketProvider({ children }) {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         connectSocket().then(() => setConnected(true));
+      } else {
+        if (socket.connected) {
+          socket.disconnect();
+        }
+        setConnected(false);
       }
     });
 
