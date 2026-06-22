@@ -8,7 +8,7 @@ exports.createOrUpdateUser = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { email: email.toLowerCase() },
       { lastSeen: lastSeen || new Date(), email: email.toLowerCase() },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     );
 
     res.json({ success: true, user });
@@ -27,7 +27,7 @@ exports.updateAvatar = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { email: email.toLowerCase() },
       update,
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     );
 
     res.json({ success: true, user });
@@ -50,7 +50,7 @@ exports.updateProfile = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { email: email.toLowerCase() },
       { $set: update },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     );
 
     res.json({ success: true, user });

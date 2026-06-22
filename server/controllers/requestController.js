@@ -114,7 +114,7 @@ exports.respondToRequest = async (req, res) => {
     const request = await ChatRequest.findByIdAndUpdate(
       requestId,
       { status: action, respondedAt: new Date() },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!request) return res.status(404).json({ error: "Request not found" });

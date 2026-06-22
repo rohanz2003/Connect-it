@@ -27,7 +27,7 @@ const firebaseAuthMiddleware = async (req, res, next) => {
             await User.findOneAndUpdate(
               { email: payload.email.toLowerCase() },
               { $setOnInsert: { email: payload.email.toLowerCase() } },
-              { upsert: true, new: true, setDefaultsOnInsert: true }
+              { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
             );
           }
 
@@ -54,7 +54,7 @@ const firebaseAuthMiddleware = async (req, res, next) => {
       await User.findOneAndUpdate(
         { email: decoded.email.toLowerCase() },
         { $setOnInsert: { email: decoded.email.toLowerCase() } },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
       );
     }
 

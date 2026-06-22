@@ -106,7 +106,7 @@ const initSocket = (server) => {
         const device = await Device.findOneAndUpdate(
           { deviceId },
           { $set: updateData },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
+          { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
         );
         socket.emit("device-registered", { deviceId });
         socketToDevice[socket.id] = deviceId;

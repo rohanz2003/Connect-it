@@ -376,7 +376,7 @@ module.exports = (io, socket, users, socketToDevice, userDeviceSockets) => {
       await ClearedChat.findOneAndUpdate(
         { user: normalizedUser1, partner: normalizedUser2 },
         { clearedAt },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: "after" }
       );
 
       io.to(normalizedUser1).emit("chat-cleared", {

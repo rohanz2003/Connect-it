@@ -155,7 +155,7 @@ const handleRequests = (io, socket, users) => {
       const request = await ChatRequest.findByIdAndUpdate(
         requestId,
         { status: action, respondedAt: new Date() },
-        { new: true }
+        { returnDocument: "after" }
       );
 
       if (!request) {

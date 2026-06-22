@@ -176,7 +176,7 @@ exports.clearChat = async (req, res) => {
     await ClearedChat.findOneAndUpdate(
       { user: normalizeEmail(user), partner: normalizeEmail(partner) },
       { clearedAt: new Date() },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     );
     res.json({ success: true });
   } catch (error) {

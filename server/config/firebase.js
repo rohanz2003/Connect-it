@@ -1,47 +1,45 @@
 const admin = require("firebase-admin");
 
 let firebaseApp = null;
-let firebaseAvailable = false;
 
 const initFirebase = () => {
   if (firebaseApp) return firebaseApp;
 
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID_CLEAN;
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
-  if (!projectId) {
-    if (!firebaseAvailable) {
-      console.warn("⚠️ FIREBASE_PROJECT_ID not set — Firebase Admin disabled. Set it in Render dashboard for full auth.");
-      firebaseAvailable = false;
+  if (projectId && clientEmail && privateKey) {
+    if (!admin.apps.length) {
+      try {
+        firebaseApp = admin.initializeApp({
+          credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
+        });
+        console.log("✅ Firebase Admin initialized with service account");
+      } catch (err) {
+        console.error("Firebase Admin init error:", err.message);
+      }
+    } else {
+      firebaseApp = admin.apps[0];
     }
-    return null;
+    return firebaseApp;
   }
 
-  if (!admin.apps.length) {
-    try {
-      firebaseApp = admin.initializeApp({
-        projectId: projectId,
-      });
-      firebaseAvailable = true;
-      console.log("✅ Firebase Admin initialized with project ID:", projectId);
-    } catch (err) {
-      console.error("Firebase Admin init error:", err.message);
-    }
-  } else {
-    firebaseApp = admin.apps[0];
-    firebaseAvailable = true;
+  if (projectId && !clientEmail && !privateKey) {
+    console.warn("⚠️ FIREBASE_PROJECT_ID set but missing FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY");
   }
 
-  return firebaseApp;
+  return null;
 };
 
 const isFirebaseConfigured = () => {
-  return firebaseAvailable || !!process.env.FIREBASE_PROJECT_ID || !!process.env.FIREBASE_PROJECT_ID_CLEAN;
+  return !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY);
 };
 
 const verifyFirebaseToken = async (idToken) => {
   const app = initFirebase();
   if (!app) {
-    throw new Error("Firebase Admin not configured — set FIREBASE_PROJECT_ID env var");
+    throw new Error("Firebase Admin not configured");
   }
   return admin.auth().verifyIdToken(idToken);
 };
