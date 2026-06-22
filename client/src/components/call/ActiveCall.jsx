@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Signal } from "lucide-react";
+import { Signal, Maximize2, Minimize2 } from "lucide-react";
 import Avatar from "../Avatar";
 import CallControls from "./CallControls";
 
@@ -20,8 +20,10 @@ export default function ActiveCall({
   const remoteVideoRef = useRef(null);
   const remoteAudioRef = useRef(null);
   const localVideoRef = useRef(null);
+  const localFullscreenRef = useRef(null);
   const hideTimerRef = useRef(null);
   const [showUi, setShowUi] = useState(true);
+  const [selfViewFullscreen, setSelfViewFullscreen] = useState(false);
 
   // Attach remote stream to video or audio element
   useEffect(() => {
@@ -40,6 +42,9 @@ export default function ActiveCall({
     if (localVideoRef.current && localStreamRef?.current) {
       localVideoRef.current.srcObject = localStreamRef.current;
     }
+    if (localFullscreenRef.current && localStreamRef?.current) {
+      localFullscreenRef.current.srcObject = localStreamRef.current;
+    }
   }, [localStreamRef?.current]); // eslint-disable-line
 
   const resetHideTimer = useCallback(() => {
@@ -50,13 +55,17 @@ export default function ActiveCall({
 
   const handleTap = useCallback(() => {
     if (showUi) {
-      // Already visible — start hide timer
       resetHideTimer();
     } else {
       setShowUi(true);
       resetHideTimer();
     }
   }, [showUi, resetHideTimer]);
+
+  const toggleSelfView = useCallback((e) => {
+    e.stopPropagation();
+    setSelfViewFullscreen(prev => !prev);
+  }, []);
 
   // Auto-hide controls after 5s when call is active
   useEffect(() => {
@@ -81,14 +90,17 @@ export default function ActiveCall({
       onClick={handleTap}
     >
       {/* Remote video for video calls */}
-      {isVideo && hasRemoteStream ? (
+      {isVideo && hasRemoteStream && (
         <video
           ref={remoteVideoRef}
           autoPlay
           playsInline
-          className="active-call-remote-video"
+          className={`active-call-remote-video ${selfViewFullscreen ? "pip-mode" : ""}`}
         />
-      ) : (
+      )}
+
+      {/* Voice call UI */}
+      {(!isVideo || !hasRemoteStream) && (
         <div className="active-call-voice-bg">
           <div className="active-call-voice-rings">
             <span className="active-call-voice-ring r1" />
@@ -109,7 +121,7 @@ export default function ActiveCall({
         </div>
       )}
 
-      {/* Hidden audio element for voice calls — plays remote audio stream */}
+      {/* Hidden audio element for voice calls */}
       {!isVideo && (
         <audio
           ref={remoteAudioRef}
@@ -142,10 +154,23 @@ export default function ActiveCall({
         )}
       </AnimatePresence>
 
-      {/* PIP self-view for video calls */}
-      {isVideo && localStreamRef?.current && (
-        <div className="active-call-pip" onClick={(e) => e.stopPropagation()}>
+      {/* PIP self-view / fullscreen self-view toggle for video calls */}
+      {isVideo && localStreamRef?.current && !selfViewFullscreen && (
+        <div className="active-call-pip" onClick={toggleSelfView}>
           <video ref={localVideoRef} autoPlay playsInline muted className="active-call-pip-video" />
+          <div className="active-call-pip-expand">
+            <Maximize2 size={14} />
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen self-view — remote becomes PIP */}
+      {isVideo && selfViewFullscreen && (
+        <div className="active-call-self-fullscreen" onClick={toggleSelfView}>
+          <video ref={localFullscreenRef} autoPlay playsInline muted className="active-call-self-fullscreen-video" />
+          <div className="active-call-self-fullscreen-badge">
+            <Minimize2 size={14} /> Tap to minimize
+          </div>
         </div>
       )}
 
