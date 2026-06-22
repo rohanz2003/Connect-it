@@ -667,7 +667,7 @@ function Chat({ user: currentUser }) {
       try { setUnreadMessages(JSON.parse(storedUnread)); } catch (e) { console.error('Failed to parse stored unread counts', e); }
     }
 
-    socket.on("typing", ({ from }) => {
+    const handleTyping = ({ from }) => {
       const activeChat = selectedUserRef.current;
       const normalizedFrom = normalizeEmail(from);
       const normalizedActiveChat = normalizeEmail(activeChat);
@@ -679,9 +679,10 @@ function Chat({ user: currentUser }) {
       } else {
         console.warn(`Error: Typing mismatch or empty: normalizedFrom=[${normalizedFrom}], normalizedActiveChat=[${normalizedActiveChat}]`);
       }
-    });
+    };
+    socket.on("typing", handleTyping);
 
-    socket.on("stop-typing", ({ from }) => {
+    const handleStopTyping = ({ from }) => {
       const activeChat = selectedUserRef.current;
       const normalizedFrom = normalizeEmail(from);
       const normalizedActiveChat = normalizeEmail(activeChat);
@@ -699,14 +700,16 @@ function Chat({ user: currentUser }) {
         }
         return currentTypingUser;
       });
-    });
+    };
+    socket.on("stop-typing", handleStopTyping);
 
-    socket.on("last-seen", (data) => {
+    const handleLastSeen = (data) => {
       setLastSeen((prev) => ({
         ...prev,
         [data.userId]: data.time,
       }));
-    });
+    };
+    socket.on("last-seen", handleLastSeen);
 
     // Listen for unread message updates from server
     socket.on("unread-update", (unreadData) => {
@@ -1174,9 +1177,9 @@ function Chat({ user: currentUser }) {
     return () => {
       socket.off("connect", handleJoin);
       socket.off("online-users", handleOnlineUsers);
-      socket.off("typing");
-      socket.off("stop-typing");
-      socket.off("last-seen");
+      socket.off("typing", handleTyping);
+      socket.off("stop-typing", handleStopTyping);
+      socket.off("last-seen", handleLastSeen);
       socket.off("unread-update");
       socket.off("user-profile-update");
       socket.off("chat-cleared", handleChatCleared);

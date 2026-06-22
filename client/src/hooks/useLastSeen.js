@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import useSocket from "./useSocket";
 import { formatLastSeen } from "../utils/timeFormatter";
-
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+import authAxios from "../services/authAxios";
 
 export const useLastSeen = (userId, { pollInterval = 60000 } = {}) => {
   const [lastSeen, setLastSeen] = useState(null);
@@ -22,10 +21,10 @@ export const useLastSeen = (userId, { pollInterval = 60000 } = {}) => {
   const fetchLastSeen = useCallback(async () => {
     if (!userId) return;
     try {
-      const res = await fetch(
-        `${API_URL}/api/users/${encodeURIComponent(userId)}/lastseen`
+      const res = await authAxios.get(
+        `/api/users/${encodeURIComponent(userId)}/lastseen`
       );
-      const data = await res.json();
+      const data = res.data;
       if (data.success && data.lastSeen) {
         setLastSeen(data.lastSeen);
       }
