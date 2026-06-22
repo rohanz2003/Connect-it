@@ -2,34 +2,49 @@ const admin = require("firebase-admin");
 
 let firebaseApp = null;
 
+function cleanPrivateKey(raw) {
+  if (!raw) return null;
+  let key = raw.trim();
+  // Strip wrapping quotes (Render sometimes includes them)
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1);
+  }
+  // Replace literal \n with real newlines
+  key = key.replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n");
+  // Ensure proper PEM structure
+  if (!key.includes("-----BEGIN PRIVATE KEY-----")) return null;
+  return key;
+}
+
 const initFirebase = () => {
   if (firebaseApp) return firebaseApp;
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const privateKey = cleanPrivateKey(process.env.FIREBASE_PRIVATE_KEY);
 
-  if (projectId && clientEmail && privateKey) {
-    if (!admin.apps.length) {
-      try {
-        firebaseApp = admin.initializeApp({
-          credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
-        });
-        console.log("✅ Firebase Admin initialized with service account");
-      } catch (err) {
-        console.error("Firebase Admin init error:", err.message);
-      }
-    } else {
-      firebaseApp = admin.apps[0];
+  if (!projectId || !clientEmail || !privateKey) {
+    if (projectId && (!clientEmail || !privateKey)) {
+      console.warn("⚠️ Firebase: partial config — missing FIREBASE_CLIENT_EMAIL or FIREBASE_PRIVATE_KEY. Token verification disabled.");
     }
-    return firebaseApp;
+    return null;
   }
 
-  if (projectId && !clientEmail && !privateKey) {
-    console.warn("⚠️ FIREBASE_PROJECT_ID set but missing FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY");
+  if (!admin.apps.length) {
+    try {
+      firebaseApp = admin.initializeApp({
+        credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
+      });
+      console.log("✅ Firebase Admin initialized with service account for project:", projectId);
+    } catch (err) {
+      console.error("❌ Firebase Admin init error:", err.message);
+      firebaseApp = null;
+    }
+  } else {
+    firebaseApp = admin.apps[0];
   }
 
-  return null;
+  return firebaseApp;
 };
 
 const isFirebaseConfigured = () => {
@@ -40,6 +55,9 @@ const verifyFirebaseToken = async (idToken) => {
   const app = initFirebase();
   if (!app) {
     throw new Error("Firebase Admin not configured");
+  }
+  if (!idToken || typeof idToken !== "string") {
+    throw new Error("Invalid token: not a string");
   }
   return admin.auth().verifyIdToken(idToken);
 };

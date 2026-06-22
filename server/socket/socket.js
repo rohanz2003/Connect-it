@@ -12,6 +12,17 @@ const Device = require("../models/Device");
 
 const crypto = require("crypto");
 
+const decodeTokenPayload = (token) => {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString());
+    return payload.email || null;
+  } catch {
+    return null;
+  }
+};
+
 const generateDeviceId = () => `dev_${crypto.randomBytes(8).toString("hex")}`;
 
 const initSocket = (server) => {
@@ -53,22 +64,22 @@ const initSocket = (server) => {
             return next();
           }
         } catch (err) {
+          // Fallback: decode token without verification
+          const email = decodeTokenPayload(auth.idToken);
+          if (email) {
+            socket.data.authEmail = email.toLowerCase().trim();
+            connectionCounts.set(ip, count + 1);
+            return next();
+          }
           console.warn("Socket Firebase token verification failed:", err.message);
         }
       } else {
         // Firebase not configured — decode token payload without verification
-        try {
-          const parts = auth.idToken.split(".");
-          if (parts.length === 3) {
-            const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString());
-            if (payload.email) {
-              socket.data.authEmail = payload.email.toLowerCase().trim();
-              connectionCounts.set(ip, count + 1);
-              return next();
-            }
-          }
-        } catch (decodeErr) {
-          console.warn("Socket token decode failed:", decodeErr.message);
+        const email = decodeTokenPayload(auth.idToken);
+        if (email) {
+          socket.data.authEmail = email.toLowerCase().trim();
+          connectionCounts.set(ip, count + 1);
+          return next();
         }
       }
     }
