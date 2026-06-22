@@ -67,6 +67,8 @@ function App() {
               });
               safeLocalStorageSet("user", storedUserPayload);
             }
+
+            setLoading(false);
           })
           .catch(() => {
             // Even if fetch fails, set user without displayName (will be fetched in Chat.js)
@@ -85,12 +87,14 @@ function App() {
               });
               safeLocalStorageSet("user", storedUserPayload);
             }
+
+            setLoading(false);
           });
       } else {
         setUser(null);
         localStorage.removeItem("user");
+        setLoading(false);
       }
-      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
