@@ -2673,7 +2673,7 @@ function Chat({ user: currentUser }) {
           >
             <div style={{ position: 'relative' }}>
               <Users size={18} />
-              {filteredOnlineUsers.length > 0 && <span className="tab-online-dot" style={{ position: 'absolute', top: -2, right: -2, border: '2px solid var(--background-sidebar)' }} />}
+              {filteredOnlineUsers.length > 0 && <span className="bottom-nav-green-dot" style={{ top: -6, right: -10 }}>{filteredOnlineUsers.length}</span>}
             </div>
           </button>
           <button
@@ -3746,7 +3746,7 @@ function Chat({ user: currentUser }) {
         <button className={`bottom-nav-btn ${activeTab === "online" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("online"); setSidebarOpen(false); }}>
           <span className="bottom-nav-icon-wrap">
             <Users size={18} />
-            {filteredOnlineUsers.length > 0 && <span className="bottom-nav-green-dot" />}
+            {filteredOnlineUsers.length > 0 && <span className="bottom-nav-green-dot">{filteredOnlineUsers.length}</span>}
           </span>
           <span>Online</span>
         </button>

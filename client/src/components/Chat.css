@@ -2673,13 +2673,20 @@ body {
 
 .bottom-nav-green-dot {
   position: absolute;
-  top: -2px;
-  right: -4px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  top: -6px;
+  right: -10px;
   background: #10b981;
-  border: 2px solid var(--background-white, #ffffff);
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
 }
 
 .image-zoom-overlay {
