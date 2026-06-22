@@ -81,3 +81,37 @@ export const deleteCallHistoryEntry = (id) => {
     console.warn("Failed to delete call history entry", e);
   }
 };
+
+const CALL_EVENTS_KEY = "call_events";
+
+export const saveCallEvent = (myEmail, otherEmail, event) => {
+  try {
+    const key = `${CALL_EVENTS_KEY}_${normalizeForStorage(myEmail)}_${normalizeForStorage(otherEmail)}`;
+    const existing = JSON.parse(localStorage.getItem(key) || "[]");
+    existing.unshift({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type: "call_event",
+      callType: event.callType || "audio",
+      status: event.status || "outgoing",
+      duration: event.duration || 0,
+      timestamp: event.timestamp || new Date().toISOString(),
+      sender: event.status === "incoming" ? otherEmail : myEmail,
+      receiver: event.status === "incoming" ? myEmail : otherEmail,
+    });
+    if (existing.length > 100) existing.length = 100;
+    localStorage.setItem(key, JSON.stringify(existing));
+  } catch (e) {
+    console.warn("Failed to save call event", e);
+  }
+};
+
+export const getCallEvents = (myEmail, otherEmail) => {
+  try {
+    const key = `${CALL_EVENTS_KEY}_${normalizeForStorage(myEmail)}_${normalizeForStorage(otherEmail)}`;
+    return JSON.parse(localStorage.getItem(key) || "[]");
+  } catch (e) {
+    return [];
+  }
+};
+
+const normalizeForStorage = (email) => (email || "").toLowerCase().replace(/[^a-z0-9]/g, "_");

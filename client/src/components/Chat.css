@@ -4754,6 +4754,61 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
    ============================================================================ */
 
 
+/* ---------------------------------------------------------------------------
+   CALL EVENT MESSAGES (in-chat, like WhatsApp)
+   --------------------------------------------------------------------------- */
+
+.call-event-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  margin: 4px auto;
+  max-width: fit-content;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  user-select: none;
+}
+
+.call-event-message.missed {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.15);
+}
+
+.call-event-message.missed .call-event-label {
+  color: #ef4444;
+}
+
+.call-event-icon {
+  display: flex;
+  align-items: center;
+  color: #10b981;
+  opacity: 0.8;
+}
+
+.call-event-message.missed .call-event-icon {
+  color: #ef4444;
+}
+
+.call-event-label {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.call-event-duration {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 11px;
+}
+
+.call-event-time {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 10px;
+  margin-left: 4px;
+}
 
 /* ============================================================================
    CALL SYSTEM - WhatsApp-Style Voice & Video Calling
@@ -4999,7 +5054,7 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   object-fit: cover;
   border: 2px solid rgba(255, 255, 255, 0.25);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  z-index: 5;
+  z-index: 9;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 

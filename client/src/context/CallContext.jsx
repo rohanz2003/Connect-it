@@ -6,6 +6,7 @@ import {
   getCallHistory,
   clearCallHistory,
   deleteCallHistoryEntry,
+  saveCallEvent,
 } from "../utils/callHelpers";
 import { playRingtone, stopRingtone, playConnectSound, playEndSound } from "../utils/callSounds";
 import socket from "../services/socketService";
@@ -157,6 +158,11 @@ export function CallProvider({ children, user }) {
             duration: 0,
             status: "outgoing",
           });
+          saveCallEvent(user?.email, activeCallRef.current.with, {
+            callType: activeCallRef.current.type,
+            status: "outgoing",
+            duration: 0,
+          });
         }
         w.endCall();
         playEndSound();
@@ -177,12 +183,22 @@ export function CallProvider({ children, user }) {
             duration,
             status: activeCallRef.current.direction || "outgoing",
           });
+          saveCallEvent(user?.email, activeCallRef.current.with, {
+            callType: activeCallRef.current.type,
+            status: activeCallRef.current.direction || "outgoing",
+            duration,
+          });
         } else if (state === "ringing" && incomingCallRef.current) {
           addCallHistoryEntry({
             with: incomingCallRef.current.from,
             type: incomingCallRef.current.type,
             duration: 0,
             status: "missed",
+          });
+          saveCallEvent(user?.email, incomingCallRef.current.from, {
+            callType: incomingCallRef.current.type,
+            status: "missed",
+            duration: 0,
           });
         }
 
@@ -239,7 +255,7 @@ export function CallProvider({ children, user }) {
       socket.off("call-started", handleCallStarted);
       socket.off("call-user-busy", handleCallUserBusy);
     };
-  }, [socket, flushPendingIceCandidates, addCallHistoryEntry]);
+  }, [socket, flushPendingIceCandidates, addCallHistoryEntry, user]);
 
   const startCall = useCallback(async (targetUserId, type) => {
     try {
@@ -300,11 +316,16 @@ export function CallProvider({ children, user }) {
         duration: 0,
         status: "missed",
       });
+      saveCallEvent(user?.email, incomingCall.from, {
+        callType: incomingCall.type,
+        status: "missed",
+        duration: 0,
+      });
     }
     setIncomingCall(null);
     setCallState("idle");
     setCallId(null);
-  }, [incomingCall, callId, addCallHistoryEntry]);
+  }, [incomingCall, callId, addCallHistoryEntry, user]);
 
   const endCall = useCallback(() => {
     if (activeCall.with) {
@@ -315,6 +336,11 @@ export function CallProvider({ children, user }) {
         duration: timer.seconds,
         status: activeCall.direction || "outgoing",
       });
+      saveCallEvent(user?.email, activeCall.with, {
+        callType: activeCall.type,
+        status: activeCall.direction || "outgoing",
+        duration: timer.seconds,
+      });
     }
     webrtc.endCall();
     playEndSound();
@@ -323,7 +349,7 @@ export function CallProvider({ children, user }) {
     setActiveCall((p) => ({ ...p, remoteStream: null }));
     setIncomingCall(null);
     setCallId(null);
-  }, [activeCall, callId, webrtc, timer, addCallHistoryEntry]);
+  }, [activeCall, callId, webrtc, timer, addCallHistoryEntry, user]);
 
   const toggleMute = useCallback(() => {
     const enabled = webrtc.toggleMute();

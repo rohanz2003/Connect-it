@@ -49,6 +49,8 @@ import {
   Phone,
   Video,
   PhoneCall,
+  PhoneOff,
+  VideoOff,
 } from "lucide-react";
 import { useCall } from "../context/CallContext";
 import CallHistory from "./call/CallHistory";
@@ -59,6 +61,7 @@ import { auth } from "../firebase";
 import { EmailAuthProvider, reauthenticateWithCredential, deleteUser } from "firebase/auth";
 import useSocket from "../hooks/useSocket";
 import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
+import { getCallEvents } from "../utils/callHelpers";
 import { validateImageFile, compressImage } from "../utils/imageUtils";
 import { getDeviceInfo } from "../utils/deviceDetector";
 import { subscribeToPush } from "../utils/pushHelper";
@@ -2469,6 +2472,11 @@ function Chat({ user: currentUser }) {
   const uniqueConversations = new Set(messages.map(m => m.sender === user?.email?.toLowerCase() ? m.receiver : m.sender)).size;
   const totalMediaShared = messages.filter(m => m.fileUrl).length;
 
+  const callEventsForChat = selectedUser && user ? getCallEvents(user.email, selectedUser) : [];
+  const mergedMessages = [...messages, ...callEventsForChat].sort(
+    (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
+  );
+
   const allMessages = Object.values(chatHistory).flat();
   const totalChatMessages = allMessages.length;
   const totalChatMedia = allMessages.filter(m => m.type === "media" || m.fileUrl).length;
@@ -3104,7 +3112,7 @@ function Chat({ user: currentUser }) {
                     <UserPlus size={16} />
                   </button>
                 </div>
-              ) : messages.length === 0 ? (
+              ) : messages.length === 0 && callEventsForChat.length === 0 ? (
                 <div className="empty-chat-state">
                   <MessageCircle size={32} />
                   <h4>No messages yet</h4>
@@ -3112,16 +3120,37 @@ function Chat({ user: currentUser }) {
                 </div>
               ) : (
                 <>
-                {messages.map((msg, i) => {
-                  const previousMsg = messages[i - 1];
+                {mergedMessages.map((msg, i) => {
+                  const previousMsg = mergedMessages[i - 1];
                   const showDay = !previousMsg || new Date(msg.timestamp || msg.createdAt).toDateString() !== new Date(previousMsg.timestamp || previousMsg.createdAt).toDateString();
                   return (
-                    <React.Fragment key={msg._id || msg.tempId || `msg-${i}`}>
+                    <React.Fragment key={msg._id || msg.tempId || msg.id || `msg-${i}`}>
                       {showDay && (
                         <div className="day-separator">
                           <span>{formatDay(msg.timestamp || msg.createdAt)}</span>
                         </div>
                       )}
+                      {msg.type === "call_event" ? (
+                        <div className={`call-event-message ${msg.status === "missed" ? "missed" : ""}`}>
+                          <span className="call-event-icon">
+                            {msg.status === "missed" ? (
+                              msg.callType === "video" ? <VideoOff size={14} /> : <PhoneOff size={14} />
+                            ) : (
+                              msg.callType === "video" ? <Video size={14} /> : <Phone size={14} />
+                            )}
+                          </span>
+                          <span className="call-event-label">
+                            {msg.status === "missed" ? "Missed call" : msg.status === "incoming" ? "Incoming call" : "Outgoing call"}
+                            {msg.callType === "video" ? " (Video)" : ""}
+                          </span>
+                          {msg.duration > 0 && (
+                            <span className="call-event-duration">
+                              {Math.floor(msg.duration / 60)}:{String(msg.duration % 60).padStart(2, "0")}
+                            </span>
+                          )}
+                          <span className="call-event-time">{formatMessageTime(msg.timestamp || msg.createdAt)}</span>
+                        </div>
+                      ) : (
                       <div className={`message ${normalizeEmail(msg.sender) === normalizeEmail(user.email) ? "sent" : "received"} message-animate`} onContextMenu={(e) => handleContextMenu(e, msg)}>
                         <div className="message-content">
                           {msg.replyTo && (
@@ -3281,7 +3310,8 @@ function Chat({ user: currentUser }) {
                             </span>
                           )}
                         </div>
-                      </div>
+                        </div>
+                      )}
                     </React.Fragment>
                   );
                 })
