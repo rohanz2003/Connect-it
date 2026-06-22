@@ -41,6 +41,8 @@ const User = require("./modules/User");
 const app = express();
 const server = http.createServer(app);
 
+app.set("trust proxy", 1);
+
 const io = initSocket(server);
 app.set("io", io);
 console.log("Socket.IO Started ✅");

@@ -96,14 +96,16 @@ const init = async () => {
     transporterReady = false;
     return;
   }
-  try {
-    await transporter.verify();
-    transporterReady = true;
-    console.log("📧 Email transporter verified and ready ✅");
-  } catch (err) {
-    transporterReady = false;
-    console.warn("📧 Email transporter verification failed:", err?.message);
-  }
+  // Don't block startup on verification — fire and forget
+  transporter.verify()
+    .then(() => {
+      transporterReady = true;
+      console.log("📧 Email transporter verified and ready ✅");
+    })
+    .catch((err) => {
+      transporterReady = false;
+      console.warn("📧 Email transporter verification failed:", err?.message, "— emails will retry on send");
+    });
 };
 
 const ensureTransporter = async () => {
