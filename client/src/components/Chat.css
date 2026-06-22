@@ -4918,9 +4918,7 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   color: rgba(255, 255, 255, 0.6);
 }
 
-/* ---------------------------------------------------------------------------
-   PIP - Self-View for Video Calls
-   --------------------------------------------------------------------------- */
+/* PIP - Self-View for Video Calls */
 
 .active-call-pip {
   position: absolute;
@@ -4935,7 +4933,14 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   z-index: 10;
   cursor: pointer;
   touch-action: none;
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.active-call-pip.pip-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.5);
+  z-index: -1;
 }
 
 .active-call-pip:hover {
@@ -4991,7 +4996,7 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Fullscreen self-view */
+/* Fullscreen self-view — hidden by default, shown via .visible */
 .active-call-self-fullscreen {
   position: absolute;
   inset: 0;
@@ -5001,6 +5006,16 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   align-items: center;
   justify-content: center;
   background: #0a0a0f;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.active-call-self-fullscreen.visible {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
 }
 
 .active-call-self-fullscreen-video {

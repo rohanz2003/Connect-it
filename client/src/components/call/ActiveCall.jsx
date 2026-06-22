@@ -17,35 +17,63 @@ export default function ActiveCall({
   onToggleSpeaker,
   onEndCall,
 }) {
-  const remoteVideoRef = useRef(null);
   const remoteAudioRef = useRef(null);
-  const localVideoRef = useRef(null);
-  const localFullscreenRef = useRef(null);
   const hideTimerRef = useRef(null);
   const [showUi, setShowUi] = useState(true);
   const [selfViewFullscreen, setSelfViewFullscreen] = useState(false);
 
-  // Attach remote stream to video or audio element
-  useEffect(() => {
-    if (remoteStreamRef?.current) {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStreamRef.current;
-      }
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = remoteStreamRef.current;
-      }
+  // Callback ref: attach remote stream immediately when video mounts
+  const remoteVideoCallbackRef = useCallback((node) => {
+    if (node && remoteStreamRef?.current) {
+      node.srcObject = remoteStreamRef.current;
     }
   }, [remoteStreamRef?.current]); // eslint-disable-line
 
-  // Attach local stream to PIP video element
-  useEffect(() => {
-    if (localVideoRef.current && localStreamRef?.current) {
-      localVideoRef.current.srcObject = localStreamRef.current;
-    }
-    if (localFullscreenRef.current && localStreamRef?.current) {
-      localFullscreenRef.current.srcObject = localStreamRef.current;
+  // Callback ref: attach local stream to PIP immediately when mounted
+  const localPipCallbackRef = useCallback((node) => {
+    if (node && localStreamRef?.current) {
+      node.srcObject = localStreamRef.current;
     }
   }, [localStreamRef?.current]); // eslint-disable-line
+
+  // Callback ref: attach local stream to fullscreen immediately when mounted
+  const localFullscreenCallbackRef = useCallback((node) => {
+    if (node && localStreamRef?.current) {
+      node.srcObject = localStreamRef.current;
+    }
+  }, [localStreamRef?.current]); // eslint-disable-line
+
+  // Re-attach remote stream when toggling self-view (PIP ↔ fullscreen)
+  useEffect(() => {
+    // Small delay to let DOM update after toggle
+    const timer = setTimeout(() => {
+      const remoteVideo = document.querySelector(".active-call-remote-video");
+      if (remoteVideo && remoteStreamRef?.current && remoteVideo.srcObject !== remoteStreamRef.current) {
+        remoteVideo.srcObject = remoteStreamRef.current;
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [selfViewFullscreen, remoteStreamRef?.current]); // eslint-disable-line
+
+  // Re-attach local stream when toggling self-view
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const localVideo = document.querySelector(selfViewFullscreen
+        ? ".active-call-self-fullscreen-video"
+        : ".active-call-pip-video");
+      if (localVideo && localStreamRef?.current && localVideo.srcObject !== localStreamRef.current) {
+        localVideo.srcObject = localStreamRef.current;
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [selfViewFullscreen, localStreamRef?.current]); // eslint-disable-line
+
+  // Attach audio stream
+  useEffect(() => {
+    if (remoteAudioRef.current && remoteStreamRef?.current) {
+      remoteAudioRef.current.srcObject = remoteStreamRef.current;
+    }
+  }, [remoteStreamRef?.current]); // eslint-disable-line
 
   const resetHideTimer = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
@@ -78,7 +106,6 @@ export default function ActiveCall({
   }, [callState, resetHideTimer]);
 
   const isVideo = activeCall?.type === "video";
-  const hasRemoteStream = !!remoteStreamRef?.current;
   const callerName = getDisplayName ? getDisplayName(activeCall?.with) : activeCall?.with || "Connecting...";
 
   return (
@@ -89,10 +116,10 @@ export default function ActiveCall({
       exit={{ opacity: 0 }}
       onClick={handleTap}
     >
-      {/* Remote video for video calls */}
-      {isVideo && hasRemoteStream && (
+      {/* Remote video — always rendered for video calls, hidden via CSS when self-view is fullscreen */}
+      {isVideo && (
         <video
-          ref={remoteVideoRef}
+          ref={remoteVideoCallbackRef}
           autoPlay
           playsInline
           className={`active-call-remote-video ${selfViewFullscreen ? "pip-mode" : ""}`}
@@ -100,7 +127,7 @@ export default function ActiveCall({
       )}
 
       {/* Voice call UI */}
-      {(!isVideo || !hasRemoteStream) && (
+      {(!isVideo) && (
         <div className="active-call-voice-bg">
           <div className="active-call-voice-rings">
             <span className="active-call-voice-ring r1" />
@@ -154,20 +181,26 @@ export default function ActiveCall({
         )}
       </AnimatePresence>
 
-      {/* PIP self-view / fullscreen self-view toggle for video calls */}
-      {isVideo && localStreamRef?.current && !selfViewFullscreen && (
-        <div className="active-call-pip" onClick={toggleSelfView}>
-          <video ref={localVideoRef} autoPlay playsInline muted className="active-call-pip-video" />
+      {/* PIP self-view — always rendered, toggled via CSS visibility */}
+      {isVideo && (
+        <div
+          className={`active-call-pip ${selfViewFullscreen ? "pip-hidden" : ""}`}
+          onClick={toggleSelfView}
+        >
+          <video ref={localPipCallbackRef} autoPlay playsInline muted className="active-call-pip-video" />
           <div className="active-call-pip-expand">
             <Maximize2 size={14} />
           </div>
         </div>
       )}
 
-      {/* Fullscreen self-view — remote becomes PIP */}
-      {isVideo && selfViewFullscreen && (
-        <div className="active-call-self-fullscreen" onClick={toggleSelfView}>
-          <video ref={localFullscreenRef} autoPlay playsInline muted className="active-call-self-fullscreen-video" />
+      {/* Fullscreen self-view — always rendered, toggled via CSS visibility */}
+      {isVideo && (
+        <div
+          className={`active-call-self-fullscreen ${selfViewFullscreen ? "visible" : ""}`}
+          onClick={toggleSelfView}
+        >
+          <video ref={localFullscreenCallbackRef} autoPlay playsInline muted className="active-call-self-fullscreen-video" />
           <div className="active-call-self-fullscreen-badge">
             <Minimize2 size={14} /> Tap to minimize
           </div>
