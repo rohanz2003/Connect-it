@@ -169,6 +169,18 @@ function Login() {
           localStorage.setItem("user", JSON.stringify({ ...stored, displayName: displayName.trim() }));
         } catch (e) {}
 
+        // Save displayName to MongoDB immediately
+        try {
+          const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+          await fetch(`${API_URL}/api/users/profile`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email.toLowerCase(), displayName: displayName.trim() }),
+          });
+        } catch (e) {
+          console.warn("Failed to save displayName to server on register");
+        }
+
         await sendEmailVerification(userCredential.user);
         setMessage("Account created! Check your Gmail inbox and verify your email before signing in.");
         setIsRegistering(false);
@@ -187,12 +199,29 @@ function Login() {
           return;
         }
 
+        // Fetch displayName from MongoDB on login
+        let serverDisplayName = "";
+        let serverBio = "";
+        try {
+          const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+          const profileRes = await fetch(`${API_URL}/api/users/profile?email=${encodeURIComponent(userCredential.user.email)}`);
+          const profileData = await profileRes.json();
+          if (profileData.success && profileData.user) {
+            serverDisplayName = profileData.user.displayName || "";
+            serverBio = profileData.user.bio || "";
+          }
+        } catch (e) {
+          console.warn("Failed to fetch profile from server on login");
+        }
+
         const storedProfilePic = localStorage.getItem(`profilePic_${userCredential.user.email.toLowerCase()}`);
         const profilePicUrl = userCredential.user.photoURL || storedProfilePic || null;
         const signedInUser = {
           email: userCredential.user.email,
           uid: userCredential.user.uid,
           profilePic: profilePicUrl,
+          displayName: serverDisplayName,
+          bio: serverBio,
         };
 
         try {
@@ -201,6 +230,8 @@ function Login() {
             JSON.stringify({
               email: signedInUser.email,
               uid: signedInUser.uid,
+              displayName: serverDisplayName,
+              bio: serverBio,
             })
           );
         } catch (storageError) {
@@ -215,6 +246,8 @@ function Login() {
               JSON.stringify({
                 email: signedInUser.email,
                 uid: signedInUser.uid,
+                displayName: serverDisplayName,
+                bio: serverBio,
               })
             );
           } catch (f) {
@@ -224,6 +257,8 @@ function Login() {
                 JSON.stringify({
                   email: signedInUser.email,
                   uid: signedInUser.uid,
+                  displayName: serverDisplayName,
+                  bio: serverBio,
                 })
               );
             } catch (sessionError) {}

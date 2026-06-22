@@ -490,13 +490,33 @@ function Chat({ user: currentUser }) {
     const userData = {
       email: currentUser.email.toLowerCase(),
       profilePic: currentUser.profilePic,
-      uid: currentUser.uid
+      uid: currentUser.uid,
+      displayName: currentUser.displayName || "",
+      bio: currentUser.bio || "",
     };
     setUser(userData);
+
+    const storedDisplayName = currentUser.displayName || "";
+    const storedBio = currentUser.bio || "";
     safeLocalStorageSet("user", JSON.stringify({
       email: userData.email,
-      uid: userData.uid
+      uid: userData.uid,
+      displayName: storedDisplayName,
+      bio: storedBio,
     }));
+
+    // Sync displayName state from server data
+    if (storedDisplayName) {
+      setDisplayName(storedDisplayName);
+    }
+    if (storedBio) {
+      setBio(storedBio);
+    }
+
+    // Add own name to userNames map so getDisplayName(user.email) works
+    if (storedDisplayName) {
+      setUserNames(prev => ({ ...prev, [userData.email]: storedDisplayName }));
+    }
 
     if (userData.profilePic) {
       setUserProfiles((prev) => ({
@@ -773,6 +793,14 @@ function Chat({ user: currentUser }) {
           }
           return updated;
         });
+
+        // Also update allUsers so it stays fresh
+        setAllUsers(prev => prev.map(u => {
+          if (u.email === updatedEmail) {
+            return { ...u, displayName: data.displayName || u.displayName, bio: data.bio !== undefined ? data.bio : u.bio };
+          }
+          return u;
+        }));
       }
     });
 
@@ -2284,7 +2312,7 @@ function Chat({ user: currentUser }) {
                     {isOnline && <span className="status-dot online" />}
                   </div>
                   <div className="user-item-copy">
-                    <span className="user-name">{u.displayName || u.email.split("@")[0]}</span>
+                    <span className="user-name">{getDisplayName(u.email)}</span>
                     <span className="user-last">{isOnline ? "Online" : "Offline"}</span>
                   </div>
                   <div className="user-item-actions">
@@ -2868,7 +2896,7 @@ function Chat({ user: currentUser }) {
                       {isOnline && <span className="status-dot online" />}
                     </div>
                     <div className="user-item-copy">
-                      <span className="user-name">{u.displayName || u.email.split("@")[0]}</span>
+                      <span className="user-name">{getDisplayName(u.email)}</span>
                       <span className="user-last">
                         {isOnline ? "Online" : "Offline"}
                       </span>
@@ -3110,7 +3138,7 @@ function Chat({ user: currentUser }) {
                         <div className="message-content">
                           {msg.replyTo && (
                             <div className="reply-quote">
-                              <small>{normalizeEmail(msg.replyTo.sender) === normalizeEmail(user.email) ? "You" : msg.replyTo.sender.split('@')[0]}</small>
+                              <small>{normalizeEmail(msg.replyTo.sender) === normalizeEmail(user.email) ? "You" : getDisplayName(msg.replyTo.sender)}</small>
                               <p>{msg.replyTo.text}</p>
                             </div>
                           )}
@@ -3447,7 +3475,7 @@ function Chat({ user: currentUser }) {
           {replyTo && (
             <div className="reply-preview">
               <div className="reply-preview-content">
-                <small>Replying to {replyTo.sender === user.email ? "yourself" : replyTo.sender.split('@')[0]}</small>
+                <small>Replying to {replyTo.sender === user.email ? "yourself" : getDisplayName(replyTo.sender)}</small>
                 <p>{replyTo.type === 'media' ? 'Media file' : replyTo.text}</p>
               </div>
               <button className="close-reply" onClick={() => setReplyTo(null)}><X size={14} /></button>

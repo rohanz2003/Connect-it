@@ -39,27 +39,53 @@ function App() {
           profilePic: currentUser.photoURL || localStorage.getItem(`profilePic_${currentUser.email.toLowerCase()}`),
           uid: currentUser.uid
         };
-        setUser(mappedUser);
-        const storedUserPayload = JSON.stringify({
-          email: mappedUser.email,
-          uid: mappedUser.uid
-        });
 
-        if (!safeLocalStorageSet("user", storedUserPayload)) {
-          Object.keys(localStorage).forEach(key => {
-            if (key.startsWith('chatHistory_') || key.startsWith('unread_') || key.startsWith('userProfiles_')) {
-              localStorage.removeItem(key);
+        // Fetch displayName from MongoDB so it persists across sessions
+        const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+        fetch(`${API_URL}/api/users/profile?email=${encodeURIComponent(currentUser.email)}`)
+          .then(r => r.json())
+          .then(profileData => {
+            const displayName = profileData?.success && profileData?.user?.displayName ? profileData.user.displayName : "";
+            const bio = profileData?.success && profileData?.user?.bio ? profileData.user.bio : "";
+
+            mappedUser.displayName = displayName;
+            mappedUser.bio = bio;
+            setUser(mappedUser);
+
+            const storedUserPayload = JSON.stringify({
+              email: mappedUser.email,
+              uid: mappedUser.uid,
+              displayName,
+              bio,
+            });
+
+            if (!safeLocalStorageSet("user", storedUserPayload)) {
+              Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('chatHistory_') || key.startsWith('unread_') || key.startsWith('userProfiles_')) {
+                  localStorage.removeItem(key);
+                }
+              });
+              safeLocalStorageSet("user", storedUserPayload);
+            }
+          })
+          .catch(() => {
+            // Even if fetch fails, set user without displayName (will be fetched in Chat.js)
+            setUser(mappedUser);
+            const storedUserPayload = JSON.stringify({
+              email: mappedUser.email,
+              uid: mappedUser.uid,
+              displayName: "",
+              bio: "",
+            });
+            if (!safeLocalStorageSet("user", storedUserPayload)) {
+              Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('chatHistory_') || key.startsWith('unread_') || key.startsWith('userProfiles_')) {
+                  localStorage.removeItem(key);
+                }
+              });
+              safeLocalStorageSet("user", storedUserPayload);
             }
           });
-          if (!safeLocalStorageSet("user", storedUserPayload)) {
-            console.warn("Storage quota exceeded: falling back to sessionStorage for user session.");
-            try {
-              sessionStorage.setItem("user", storedUserPayload);
-            } catch (sessionError) {
-              console.error("Session storage also failed", sessionError);
-            }
-          }
-        }
       } else {
         setUser(null);
         localStorage.removeItem("user");
