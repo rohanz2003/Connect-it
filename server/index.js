@@ -4,7 +4,6 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const mongoSanitize = require("express-mongo-sanitize");
 
 const {
   getCorsOrigins,
@@ -74,7 +73,23 @@ app.use("/api/", globalLimiter);
 app.use("/api/admin/send-otp", authLimiter);
 app.use("/api/admin/verify-otp", authLimiter);
 
-app.use(mongoSanitize());
+// Custom mongo sanitization (express-mongo-sanitize v2 is incompatible with Express 5 req.query getter)
+const mongoSanitizeCustom = (req, _res, next) => {
+  if (req.body) removeMongoKeys(req.body);
+  if (req.params) removeMongoKeys(req.params);
+  next();
+};
+const removeMongoKeys = (obj) => {
+  for (const key in obj) {
+    if (key.startsWith("$") || key.startsWith("__")) {
+      delete obj[key];
+    } else if (typeof obj[key] === "object" && obj[key] !== null) {
+      removeMongoKeys(obj[key]);
+    }
+  }
+};
+
+app.use(mongoSanitizeCustom);
 
 app.use(
   cors({

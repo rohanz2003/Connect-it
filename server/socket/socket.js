@@ -7,7 +7,7 @@ const handleRequests = require("./requests");
 const { getCorsOrigins } = require("../config/env");
 const { registerSocket, unregisterSocket } = require("../utils/socketAuth");
 const { updateLastSeen } = require("../controllers/userController");
-const { verifyFirebaseToken } = require("../config/firebase");
+const { verifyFirebaseToken, isFirebaseConfigured } = require("../config/firebase");
 const Device = require("../models/Device");
 
 const crypto = require("crypto");
@@ -44,15 +44,32 @@ const initSocket = (server) => {
 
     // Try Firebase token verification first
     if (auth.idToken) {
-      try {
-        const decoded = await verifyFirebaseToken(auth.idToken);
-        if (decoded && decoded.email) {
-          socket.data.authEmail = decoded.email.toLowerCase().trim();
-          connectionCounts.set(ip, count + 1);
-          return next();
+      if (isFirebaseConfigured()) {
+        try {
+          const decoded = await verifyFirebaseToken(auth.idToken);
+          if (decoded && decoded.email) {
+            socket.data.authEmail = decoded.email.toLowerCase().trim();
+            connectionCounts.set(ip, count + 1);
+            return next();
+          }
+        } catch (err) {
+          console.warn("Socket Firebase token verification failed:", err.message);
         }
-      } catch (err) {
-        console.warn("Socket Firebase token verification failed:", err.message);
+      } else {
+        // Firebase not configured — decode token payload without verification
+        try {
+          const parts = auth.idToken.split(".");
+          if (parts.length === 3) {
+            const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString());
+            if (payload.email) {
+              socket.data.authEmail = payload.email.toLowerCase().trim();
+              connectionCounts.set(ip, count + 1);
+              return next();
+            }
+          }
+        } catch (decodeErr) {
+          console.warn("Socket token decode failed:", decodeErr.message);
+        }
       }
     }
 
@@ -78,13 +95,19 @@ const initSocket = (server) => {
         if (!deviceId) {
           deviceId = generateDeviceId();
         }
-        let device = await Device.findOne({ deviceId });
-        if (device) {
-          device.socketId = socket.id;
-          device.isActive = true;
-          device.lastSeen = new Date();
-          await device.save();
+        const updateData = {
+          socketId: socket.id,
+          isActive: true,
+          lastSeen: new Date(),
+        };
+        if (authEmail) {
+          updateData.userId = authEmail;
         }
+        const device = await Device.findOneAndUpdate(
+          { deviceId },
+          { $set: updateData },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
         socket.emit("device-registered", { deviceId });
         socketToDevice[socket.id] = deviceId;
       } catch (err) {

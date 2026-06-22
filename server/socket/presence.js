@@ -41,8 +41,8 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
       try {
         await Device.findOneAndUpdate(
           { deviceId: devId },
-          { isActive: true, socketId: socket.id, lastSeen: new Date() },
-          { upsert: true }
+          { $set: { isActive: true, socketId: socket.id, lastSeen: new Date(), userId } },
+          { upsert: true, setDefaultsOnInsert: true }
         );
       } catch (err) {
         console.error("Device active update error:", err.message);
