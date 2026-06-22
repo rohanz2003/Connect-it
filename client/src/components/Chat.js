@@ -1366,6 +1366,13 @@ function Chat({ user: currentUser }) {
     previousSelectedUserRef.current = selectedUser;
   }, [selectedUser, user, socket]);
 
+  // Reset unread notifications count when notifications tab is opened
+  useEffect(() => {
+    if (activeTab === "notifications") {
+      setUnreadNotifications(0);
+    }
+  }, [activeTab]);
+
   const handleTyping = (e) => {
     const val = e.target.value;
     setMessage(val);
