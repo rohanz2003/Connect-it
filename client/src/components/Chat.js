@@ -3005,7 +3005,6 @@ function Chat({ user: currentUser }) {
           {activeTab === "archive" && renderTabContent("mobile-archive")}
           {activeTab === "all" && renderTabContent("mobile-all")}
           {activeTab === "notifications" && renderTabContent("mobile-notifications")}
-          {activeTab === "analytics" && renderAnalytics()}
         </div>
       </motion.div>
 
@@ -3364,90 +3363,9 @@ function Chat({ user: currentUser }) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, ease: "easeOut", delay: 0.3 }}
                 >
-                  <h2>Welcome back, {getDisplayName(user.email)}</h2>
+                  <h2>Welcome back, {getDisplayName(user.email)}❤️</h2>
                   <p className="welcome-subtitle">Real-time messaging platform for seamless team collaboration</p>
                 </motion.div>
-
-                <div className="welcome-stats-grid">
-                  <motion.div
-                    className="welcome-stat-card"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.4 }}
-                    whileHover={{ y: -6, boxShadow: "0 12px 28px rgba(59,130,246,0.15)" }}
-                  >
-                    <div className="welcome-stat-icon" style={{ background: "#e8f5e9", color: "#2e7d32" }}>
-                      <MessageCircle size={18} />
-                    </div>
-                    <span className="welcome-stat-value">{analyticsActiveChats}</span>
-                    <span className="welcome-stat-label">Active Chats</span>
-                  </motion.div>
-                  <motion.div
-                    className="welcome-stat-card"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.5 }}
-                    whileHover={{ y: -6, boxShadow: "0 12px 28px rgba(59,130,246,0.15)" }}
-                  >
-                    <div className="welcome-stat-icon" style={{ background: "#ffebee", color: "#c62828" }}>
-                      <BellRing size={18} />
-                    </div>
-                    <span className="welcome-stat-value">{analyticsUnread}</span>
-                    <span className="welcome-stat-label">Unread</span>
-                  </motion.div>
-                  <motion.div
-                    className="welcome-stat-card"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.6 }}
-                    whileHover={{ y: -6, boxShadow: "0 12px 28px rgba(59,130,246,0.15)" }}
-                  >
-                    <div className="welcome-stat-icon" style={{ background: "#f3e5f5", color: "#7b1fa2" }}>
-                      <Send size={18} />
-                    </div>
-                    <span className="welcome-stat-value">{totalChatMessages}</span>
-                    <span className="welcome-stat-label">Messages</span>
-                  </motion.div>
-                  <motion.div
-                    className="welcome-stat-card"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.7 }}
-                    whileHover={{ y: -6, boxShadow: "0 12px 28px rgba(59,130,246,0.15)" }}
-                  >
-                    <div className="welcome-stat-icon" style={{ background: "#fff3e0", color: "#e65100" }}>
-                      <Image size={18} />
-                    </div>
-                    <span className="welcome-stat-value">{totalChatMedia}</span>
-                    <span className="welcome-stat-label">Media</span>
-                  </motion.div>
-                  <motion.div
-                    className="welcome-stat-card"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.8 }}
-                    whileHover={{ y: -6, boxShadow: "0 12px 28px rgba(59,130,246,0.15)" }}
-                  >
-                    <div className="welcome-stat-icon" style={{ background: "#e0f2f1", color: "#00695c" }}>
-                      <Activity size={18} />
-                    </div>
-                    <span className="welcome-stat-value">{responseRate}%</span>
-                    <span className="welcome-stat-label">Response Rate</span>
-                  </motion.div>
-                  <motion.div
-                    className="welcome-stat-card"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.9 }}
-                    whileHover={{ y: -6, boxShadow: "0 12px 28px rgba(59,130,246,0.15)" }}
-                  >
-                    <div className="welcome-stat-icon" style={{ background: "#e3f2fd", color: "#1565c0" }}>
-                      <Users size={18} />
-                    </div>
-                    <span className="welcome-stat-value">{otherOnlineUsers.length}</span>
-                    <span className="welcome-stat-label">Online Now</span>
-                  </motion.div>
-                </div>
               </motion.div>
             </div>
           )}
@@ -3801,7 +3719,6 @@ function Chat({ user: currentUser }) {
           <span>Calls</span>
         </button>
         <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("archive"); setSidebarOpen(false); }}><Archive size={18} /><span>Archive</span></button>
-        <button className={`bottom-nav-btn ${activeTab === "analytics" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("analytics"); setSidebarOpen(false); }}><BarChart3 size={18} /><span>Analytics</span></button>
         <button className="bottom-nav-btn" onClick={(e) => { e.stopPropagation(); setShowSettings(true); setSidebarOpen(false); }}><Settings size={18} /><span>Settings</span></button>
       </motion.nav>
 
