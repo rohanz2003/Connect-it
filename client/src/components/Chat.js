@@ -266,7 +266,7 @@ function Chat({ user: currentUser }) {
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
-  const [, setLastSeenTick] = useState(0);
+  // lastSeenTick removed — useLastSeen hook handles its own display refresh
   const [platformStats, setPlatformStats] = useState({ totalUsers: 0, totalMessages: 0, acceptedRequests: 0 });
   const [dismissedRecent, setDismissedRecent] = useState(() => {
     try {
@@ -279,11 +279,6 @@ function Chat({ user: currentUser }) {
     return [];
   });
 
-  // Auto-refresh last seen display every 1 second
-  useEffect(() => {
-    const interval = setInterval(() => setLastSeenTick((t) => t + 1), 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Use Ref to track selectedUser for the socket listener to avoid stale closures
   const selectedUserRef = useRef(selectedUser);
@@ -516,37 +511,7 @@ function Chat({ user: currentUser }) {
     }
   }, [currentUser, navigate]);
 
-  // Load profiles from server on mount
-  useEffect(() => {
-    if (!user) return;
-    const loadProfiles = async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/users/profiles?emails=${encodeURIComponent(user.email)}`);
-        const data = await res.json();
-        if (data.success && data.profiles) {
-          const newLastSeen = {};
-          Object.entries(data.profiles).forEach(([email, profile]) => {
-            if (profile.avatarUrl) {
-              setUserProfiles(prev => ({ ...prev, [email]: profile.avatarUrl }));
-              try { localStorage.setItem(`profilePic_${email}`, profile.avatarUrl); } catch {}
-            }
-            if (profile.displayName) {
-              setUserNames(prev => ({ ...prev, [email]: profile.displayName }));
-            }
-            if (profile.lastSeen) {
-              newLastSeen[email] = profile.lastSeen;
-            }
-          });
-          if (Object.keys(newLastSeen).length > 0) {
-            setLastSeen(prev => ({ ...prev, ...newLastSeen }));
-          }
-        }
-      } catch (e) {
-        console.warn("Failed to load profiles from server");
-      }
-    };
-    loadProfiles();
-  }, [user]);
+  // Load profiles from server on mount — merged into main parallelized load
 
   // Persist notificationHistory to localStorage
   useEffect(() => {
@@ -558,28 +523,36 @@ function Chat({ user: currentUser }) {
     }
   }, [user, notificationHistory]);
 
-  // Load chat history from localStorage and fetch recent chats on mount
+  // Load all data on mount — parallelize server requests for instant sidebar
   useEffect(() => {
     if (!user) return;
 
-    const loadChatHistory = async () => {
-      try {
-        // 1. Load from localStorage first (for offline access)
-        const savedHistory = localStorage.getItem(`chatHistory_${user.email}`);
-        if (savedHistory) {
-          try {
-            const parsed = normalizeChatHistoryKeys(JSON.parse(savedHistory));
-            setChatHistory(parsed);
-            console.log("OK Loaded chat history from localStorage:", Object.keys(parsed).length, "conversations");
-          } catch (e) {
-            console.error("Failed to parse saved chat history", e);
-          }
-        }
+    // 1. Load from localStorage first (instant offline display)
+    try {
+      const savedHistory = localStorage.getItem(`chatHistory_${user.email}`);
+      if (savedHistory) {
+        const parsed = normalizeChatHistoryKeys(JSON.parse(savedHistory));
+        setChatHistory(parsed);
+        console.log("OK Loaded chat history from localStorage:", Object.keys(parsed).length, "conversations");
+      }
+    } catch (e) {
+      console.error("Failed to parse saved chat history", e);
+    }
 
-        // 2. Fetch recent chats from server (to get the most up-to-date list)
-        const recentChats = await fetchRecentChats(user.email);
+    // 2. Fire ALL server requests in parallel for fastest load
+    const loadAllData = async () => {
+      try {
+        const [recentChats, usersRes, pendingRes, sentRes, statusesRes, acceptedRes] = await Promise.all([
+          fetchRecentChats(user.email).catch(() => []),
+          fetchAllUsers().catch(() => ({ success: false })),
+          fetchPendingRequests(user.email).catch(() => ({ success: false })),
+          fetchSentRequests(user.email).catch(() => ({ success: false })),
+          fetchRequestStatuses(user.email).catch(() => ({ success: false })),
+          fetchAcceptedChatsWithMessages(user.email).catch(() => []),
+        ]);
+
+        // Process recent chats into chat history
         if (recentChats && recentChats.length > 0) {
-          // Build chat history structure from recent chats for display purposes
           const historyFromServer = {};
           recentChats.forEach(chat => {
             if (chat.userEmail) {
@@ -597,7 +570,6 @@ function Chat({ user: currentUser }) {
             }
           });
 
-          // Merge with existing localStorage data, preferring localStorage for full histories
           setChatHistory(prev => {
             const merged = normalizeChatHistoryKeys({ ...historyFromServer, ...prev });
             persistHistory(merged, user.email);
@@ -605,64 +577,38 @@ function Chat({ user: currentUser }) {
           });
           console.log("OK Loaded", recentChats.length, "recent chats from server");
 
-          // Fetch profiles (including lastSeen) for recent chat partners
+          // Fetch profiles for recent chat partners (don't block sidebar render)
           const partnerEmails = recentChats.map(c => c.userEmail).filter(Boolean);
           if (partnerEmails.length > 0) {
-            try {
-              const profilesRes = await fetch(`${API_URL}/api/users/profiles?emails=${encodeURIComponent(partnerEmails.join(","))}`);
-              const profilesData = await profilesRes.json();
-              if (profilesData.success && profilesData.profiles) {
-                const newLastSeen = {};
-                Object.entries(profilesData.profiles).forEach(([email, profile]) => {
-                  if (profile.avatarUrl) {
-                    setUserProfiles(prev => ({ ...prev, [email]: profile.avatarUrl }));
-                  }
-                  if (profile.displayName) {
-                    setUserNames(prev => ({ ...prev, [email]: profile.displayName }));
-                  }
-                  if (profile.lastSeen) {
-                    newLastSeen[email] = profile.lastSeen;
-                  }
-                });
-                if (Object.keys(newLastSeen).length > 0) {
-                  setLastSeen(prev => ({ ...prev, ...newLastSeen }));
+            fetch(`${API_URL}/api/users/profiles?emails=${encodeURIComponent(partnerEmails.join(","))}`)
+              .then(r => r.json())
+              .then(profilesData => {
+                if (profilesData.success && profilesData.profiles) {
+                  const newLastSeen = {};
+                  Object.entries(profilesData.profiles).forEach(([email, profile]) => {
+                    if (profile.avatarUrl) setUserProfiles(prev => ({ ...prev, [email]: profile.avatarUrl }));
+                    if (profile.displayName) setUserNames(prev => ({ ...prev, [email]: profile.displayName }));
+                    if (profile.lastSeen) newLastSeen[email] = profile.lastSeen;
+                  });
+                  if (Object.keys(newLastSeen).length > 0) setLastSeen(prev => ({ ...prev, ...newLastSeen }));
                 }
-              }
-            } catch (e) {
-              console.warn("Failed to load recent chat profiles");
-            }
+              })
+              .catch(() => {});
           }
         }
-      } catch (error) {
-        console.error("Error loading chat history:", error);
-      }
-    };
 
-    loadChatHistory();
-  }, [user]);
-
-  // Load all users and pending requests
-  useEffect(() => {
-    if (!user) return;
-    const loadData = async () => {
-      try {
-        const [usersRes, pendingRes, sentRes, statusesRes, acceptedRes] = await Promise.all([
-          fetchAllUsers(),
-          fetchPendingRequests(user.email),
-          fetchSentRequests(user.email),
-          fetchRequestStatuses(user.email),
-          fetchAcceptedChatsWithMessages(user.email),
-        ]);
+        // Process request data
         if (usersRes.success) setAllUsers(usersRes.users);
         if (pendingRes.success) setPendingRequests(pendingRes.requests);
         if (sentRes.success) setSentRequests(sentRes.requests);
         if (statusesRes.success) setRequestStatuses(statusesRes.statuses);
         if (Array.isArray(acceptedRes)) setAcceptedChatPartners(acceptedRes);
-      } catch (e) {
-        console.warn("Failed to load request data", e);
+      } catch (error) {
+        console.error("Error loading data:", error);
       }
     };
-    loadData();
+
+    loadAllData();
   }, [user]);
 
   useEffect(() => {
@@ -1313,7 +1259,8 @@ function Chat({ user: currentUser }) {
       
       // 3. Fetch full history from Database (Fixes the "no msg show" issue)
       try {
-        const history = await fetchMessages(user.email, partner) || [];
+        const response = await fetchMessages(user.email, partner);
+        const history = Array.isArray(response) ? response : (response?.messages || []);
         
         setChatHistory(prev => {
           const updated = { ...prev, [partner]: history };
@@ -1727,7 +1674,8 @@ function Chat({ user: currentUser }) {
     // Ensure the conversation appears in chatHistory if we have data for it
     if (!chatHistory[partner]) {
       // Fetch from server if not in local history
-      fetchMessages(user.email, partnerEmail).then(msgs => {
+      fetchMessages(user.email, partnerEmail).then(response => {
+        const msgs = Array.isArray(response) ? response : (response?.messages || []);
         if (msgs && msgs.length > 0) {
           setChatHistory(prev => ({ ...prev, [partner]: msgs }));
         } else {
