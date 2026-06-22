@@ -66,6 +66,7 @@ import { fetchMessages, fetchRecentChats } from "../services/messageService";
 import { fetchAllUsers, fetchPendingRequests, fetchSentRequests, fetchRequestStatuses, sendRequest, unsendRequest, respondToRequest, fetchAcceptedChatsWithMessages, removeFriend } from "../services/requestService";
 import authAxios from "../services/authAxios";
 import NotificationBell from "./NotificationBell";
+import ProfileViewer from "./ProfileViewer";
 import { useNavigate } from "react-router-dom";
 import "./Chat.css";
 
@@ -3651,97 +3652,28 @@ function Chat({ user: currentUser }) {
         </div>
       )}
 
-      {/* Profile Preview Modal */}
-      {profilePreviewUser && (
-        <div className="profile-preview-overlay" onClick={() => setProfilePreviewUser(null)}>
-          <div className="profile-preview-card profile-card-animate" onClick={(e) => e.stopPropagation()}>
-            <button className="profile-preview-close" onClick={() => setProfilePreviewUser(null)}>
-              <X size={20} />
-            </button>
-            <div className="profile-preview-avatar">
-              <Avatar
-                src={userProfiles[normalizeEmail(profilePreviewUser.email)] || null}
-                email={profilePreviewUser.email}
-                size={120}
-              />
-            </div>
-            <h3 className="profile-preview-name">{getDisplayName(profilePreviewUser.email)}</h3>
-            <p className="profile-preview-email">{profilePreviewUser.email}</p>
-            <p className="profile-preview-status">
-              {isUserOnline(profilePreviewUser.email) ? (
-                <span className="last-seen online"><span className="online-dot" /> Online</span>
-              ) : (
-                <LastSeen userId={profilePreviewUser.email} />
-              )}
-            </p>
-            {!profilePreviewUser.isOwn && (() => {
-              const userCalls = callHistory.filter(c => normalizeEmail(c.with) === normalizeEmail(profilePreviewUser.email));
-              const totalCalls = userCalls.length;
-              const audioCalls = userCalls.filter(c => c.type === "audio").length;
-              const videoCalls = userCalls.filter(c => c.type === "video").length;
-              const missedCalls = userCalls.filter(c => c.status === "missed").length;
-              const reqStatus = requestStatuses[normalizeEmail(profilePreviewUser.email)];
-              const hasAnyInfo = totalCalls > 0 || reqStatus;
-              if (!hasAnyInfo) return null;
-              return (
-                <div className="profile-about-section">
-                  {totalCalls > 0 && (
-                    <div className="profile-about-stats">
-                      <span className="profile-about-stat"><Phone size={13} /> {audioCalls}</span>
-                      <span className="profile-about-stat"><Video size={13} /> {videoCalls}</span>
-                      <span className="profile-about-stat missed">{missedCalls > 0 && <><X size={13} /> {missedCalls}</>}</span>
-                    </div>
-                  )}
-                  {reqStatus && (
-                    <div className="profile-about-request">
-                      {reqStatus.status === "pending" && <span className="req-badge pending">Request Pending</span>}
-                      {reqStatus.status === "accepted" && <span className="req-badge accepted">Connected</span>}
-                      {reqStatus.status === "rejected" && <span className="req-badge rejected">Rejected</span>}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-            <div className="profile-preview-actions">
-              {userProfiles[normalizeEmail(profilePreviewUser.email)] && (
-                <button
-                  className="profile-preview-action-btn"
-                  onClick={() => handleViewFullImage(
-                    userProfiles[normalizeEmail(profilePreviewUser.email)],
-                    "profile",
-                    getDisplayName(profilePreviewUser.email),
-                    profilePreviewUser.isOwn
-                  )}
-                >
-                  View Full Image
-                </button>
-              )}
-              {profilePreviewUser.isOwn && (
-                <>
-                  <label htmlFor="preview-change-photo" className="profile-preview-action-btn primary">
-                    Change Photo
-                  </label>
-                  <input
-                    id="preview-change-photo"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleUpdateProfilePic}
-                    style={{ display: "none" }}
-                  />
-                  {userProfiles[normalizeEmail(profilePreviewUser.email)] && (
-                    <button
-                      className="profile-preview-action-btn danger"
-                      onClick={() => { handleRemoveProfilePic(); setProfilePreviewUser(null); }}
-                    >
-                      Remove Photo
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Profile Viewer Modal */}
+      <ProfileViewer
+        user={profilePreviewUser}
+        isOpen={!!profilePreviewUser}
+        onClose={() => setProfilePreviewUser(null)}
+        userProfiles={userProfiles}
+        userNames={userNames}
+        isUserOnline={isUserOnline}
+        callHistory={callHistory}
+        requestStatuses={requestStatuses}
+        onSendMessage={(email) => {
+          setProfilePreviewUser(null);
+          const existing = acceptedChats.find(c => normalizeEmail(c.userEmail) === normalizeEmail(email));
+          if (existing) {
+            setSelectedUser(normalizeEmail(email));
+            setActiveTab("chats");
+          }
+        }}
+        onChangePhoto={handleUpdateProfilePic}
+        onRemovePhoto={handleRemoveProfilePic}
+        onViewFullImage={handleViewFullImage}
+      />
 
       {/* Full-Screen Image Viewer */}
       {imageViewerState.open && (
