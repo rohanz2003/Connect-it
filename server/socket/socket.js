@@ -23,7 +23,7 @@ const initSocket = (server) => {
     transports: ["websocket", "polling"],
     pingTimeout: 60000,
     pingInterval: 25000,
-    maxHttpBufferSize: 50 * 1024 * 1024, // 50MB for audio/video uploads
+    maxHttpBufferSize: 10 * 1024 * 1024,
   });
 
   const users = {};
@@ -31,10 +31,27 @@ const initSocket = (server) => {
   const lastHeartbeats = {};
   const socketToDevice = {};
   const userDeviceSockets = {};
+  const connectionCounts = new Map();
+
+  io.use((socket, next) => {
+    const email = socket.handshake.auth?.email || socket.handshake.auth?.userId;
+    if (!email || typeof email !== "string" || email.trim().length === 0) {
+      return next(new Error("Authentication required: email must be provided"));
+    }
+    const ip = socket.handshake.address;
+    const count = connectionCounts.get(ip) || 0;
+    if (count >= 20) {
+      return next(new Error("Too many connections from this IP"));
+    }
+    connectionCounts.set(ip, count + 1);
+    socket.data.authEmail = email.toLowerCase().trim();
+    next();
+  });
 
   io.on("connection", async (socket) => {
     const auth = socket.handshake.auth || {};
     let deviceId = auth.deviceId;
+    const authEmail = socket.data.authEmail;
 
     // Register/update device in DB
     (async () => {
@@ -70,6 +87,14 @@ const initSocket = (server) => {
 
     socket.on("disconnect", async () => {
       const disconnectedUser = unregisterSocket(socket.id);
+
+      const ip = socket.handshake.address;
+      const count = connectionCounts.get(ip) || 0;
+      if (count <= 1) {
+        connectionCounts.delete(ip);
+      } else {
+        connectionCounts.set(ip, count - 1);
+      }
 
       // Mark device inactive
       const devId = socketToDevice[socket.id];

@@ -141,6 +141,7 @@ exports.deleteAccount = async (req, res) => {
     const Feedback = require("../models/Feedback");
     const PushSubscription = require("../models/PushSubscription");
     const DeviceModel = require("../models/Device");
+    const ChatRequestModel = require("../models/ChatRequest");
 
     await Promise.all([
       User.deleteOne({ email: normalizedEmail }),
@@ -149,6 +150,9 @@ exports.deleteAccount = async (req, res) => {
       }),
       ClearedChat.deleteMany({
         $or: [{ user: normalizedEmail }, { partner: normalizedEmail }],
+      }),
+      ChatRequestModel.deleteMany({
+        $or: [{ from: normalizedEmail }, { to: normalizedEmail }],
       }),
       Feedback.deleteMany({ email: normalizedEmail }),
       PushSubscription.deleteMany({ userId: normalizedEmail }),
@@ -182,7 +186,7 @@ exports.heartbeat = async (req, res) => {
     await User.findOneAndUpdate(
       { email: email.toLowerCase() },
       { lastSeen: new Date() },
-      { upsert: true }
+      { upsert: false }
     );
 
     res.json({ success: true });

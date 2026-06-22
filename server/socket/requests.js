@@ -12,7 +12,13 @@ const handleRequests = (io, socket, users) => {
         return;
       }
 
-      const normalizedFrom = from.toLowerCase();
+      const { getAuthenticatedEmail } = require("../utils/socketAuth");
+      const authEmail = getAuthenticatedEmail(socket, users);
+      if (!authEmail) {
+        if (callback) callback({ error: "Not authenticated" });
+        return;
+      }
+      const normalizedFrom = authEmail.toLowerCase();
       const normalizedTo = to.toLowerCase();
 
       const existing = await ChatRequest.findOne({
@@ -84,7 +90,13 @@ const handleRequests = (io, socket, users) => {
         return;
       }
 
-      const normalizedUser = user.toLowerCase();
+      const { getAuthenticatedEmail } = require("../utils/socketAuth");
+      const authEmail = getAuthenticatedEmail(socket, users);
+      if (!authEmail) {
+        if (callback) callback({ error: "Not authenticated" });
+        return;
+      }
+      const normalizedUser = authEmail.toLowerCase();
       const normalizedFriend = friend.toLowerCase();
 
       // Delete all chat request records between the two users
@@ -131,6 +143,12 @@ const handleRequests = (io, socket, users) => {
       const { requestId, action } = data;
       if (!requestId || !action) {
         if (callback) callback({ error: "requestId and action are required" });
+        return;
+      }
+
+      const validActions = ["accepted", "rejected"];
+      if (!validActions.includes(action)) {
+        if (callback) callback({ error: "action must be 'accepted' or 'rejected'" });
         return;
       }
 

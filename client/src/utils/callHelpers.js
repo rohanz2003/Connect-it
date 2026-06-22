@@ -31,7 +31,7 @@ const normalizeCallEntry = (entry, index = 0) => {
     ? entry.status
     : entry.status === "completed"
       ? "outgoing"
-      : "outgoing";
+      : "missed";
 
   return {
     id: entry.id || `${timestamp}-${index}-${entry.with || "unknown"}-${entry.type || "audio"}-${entry.status || "outgoing"}`,

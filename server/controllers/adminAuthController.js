@@ -1,24 +1,24 @@
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const NodeCache = require("node-cache");
 const { sendNotificationEmail } = require("../services/emailService");
 
 const otpCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
+const otpAttempts = new NodeCache({ stdTTL: 600, checkperiod: 60 });
 
 const adminEmail = process.env.ADMIN_EMAIL;
 
 const generateOtp = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 999999).toString();
 };
 
 const sendOtp = async (req, res) => {
-  console.log("🔐 Admin OTP request received");
   try {
     const { email } = req.body;
     const normalizedRequestEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
     const normalizedAdminEmail = typeof adminEmail === "string" ? adminEmail.trim().toLowerCase() : "";
 
     if (!adminEmail) {
-      console.error("❌ [Admin OTP] ADMIN_EMAIL missing; cannot send OTP.");
       return res
         .status(500)
         .json({ success: false, message: "ADMIN_EMAIL is missing on the server." });
@@ -28,8 +28,13 @@ const sendOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid admin email address." });
     }
 
+    const attempts = otpAttempts.get(normalizedAdminEmail) || 0;
+    if (attempts >= 5) {
+      return res.status(429).json({ success: false, message: "Too many OTP requests. Try again later." });
+    }
+    otpAttempts.set(normalizedAdminEmail, attempts + 1);
+
     const otp = generateOtp();
-    console.log("🔐 OTP generated for admin login");
     otpCache.set(normalizedAdminEmail, otp);
 
     const result = await sendNotificationEmail({
@@ -56,16 +61,10 @@ const sendOtp = async (req, res) => {
       `,
     });
 
-    if (result.logOnly) {
-      console.log("🔐 OTP logged to console (no email provider configured):", otp);
-    } else {
-      console.log("🔐 OTP email sent successfully");
-    }
-
     res.status(200).json({ success: true, message: "OTP sent to admin email." });
   } catch (error) {
-    console.error("Error sending OTP:", error);
-    res.status(500).json({ success: false, message: "Failed to send OTP.", error: error.message });
+    console.error("Error sending OTP:", error.message);
+    res.status(500).json({ success: false, message: "Failed to send OTP." });
   }
 };
 
@@ -98,14 +97,16 @@ const verifyOtp = async (req, res) => {
       return res.status(401).json({ success: false, message: "Invalid or expired OTP." });
     }
 
-    console.log("🔐 OTP verified successfully");
     otpCache.del(normalizedAdminEmail);
-    const token = jwt.sign({ email: normalizedAdminEmail }, jwtSecret, { expiresIn: "1h" });
+    const token = jwt.sign({ email: normalizedAdminEmail, role: "admin" }, jwtSecret, {
+      algorithm: "HS256",
+      expiresIn: "1h",
+    });
 
     res.status(200).json({ success: true, message: "Login successful.", token });
   } catch (error) {
-    console.error("Error verifying OTP:", error);
-    res.status(500).json({ success: false, message: "Failed to verify OTP.", error: error.message });
+    console.error("Error verifying OTP:", error.message);
+    res.status(500).json({ success: false, message: "Failed to verify OTP." });
   }
 };
 

@@ -35,9 +35,7 @@ export default function GlobalCallOverlay() {
   const getDisplayName = (email) => {
     if (!email) return "";
     const normalized = email.toLowerCase().trim();
-    return userProfiles[normalized]
-      ? email.split("@")[0]
-      : email.split("@")[0];
+    return email.split("@")[0];
   };
 
   return (
