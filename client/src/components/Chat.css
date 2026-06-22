@@ -3664,12 +3664,12 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
 }
 
 .fullscreen-viewer-content.profile-mode img {
-  width: 260px;
-  height: 260px;
+  width: 80vmin;
+  height: 80vmin;
   border-radius: 50%;
   object-fit: cover;
-  border: 4px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 0 60px rgba(99, 102, 241, 0.3), 0 0 120px rgba(99, 102, 241, 0.1);
+  border: 5px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 80px rgba(99, 102, 241, 0.35), 0 0 160px rgba(99, 102, 241, 0.12);
 }
 
 /* Floating close button always visible even when zoomed */
