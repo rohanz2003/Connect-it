@@ -3678,12 +3678,15 @@ function Chat({ user: currentUser }) {
       {/* Full-Screen Image Viewer */}
       {imageViewerState.open && (
         <div className="fullscreen-viewer-overlay" onClick={() => { setImageViewerState({ open: false, src: null, type: "media", name: "", isOwn: false }); setImageZoom(1); }}>
+          <button className="fullscreen-viewer-close-float" onClick={() => { setImageViewerState({ open: false, src: null, type: "media", name: "", isOwn: false }); setImageZoom(1); }} title="Close">
+            <X size={24} />
+          </button>
           <div className="fullscreen-viewer-toolbar" onClick={(e) => e.stopPropagation()}>
             <span className="fullscreen-viewer-title">{imageViewerState.name || "Image"}</span>
             <div className="fullscreen-viewer-controls">
-              <button onClick={() => setImageZoom(z => Math.max(0.5, z - 0.25))} title="Zoom out"><ZoomOut size={20} /></button>
+              <button onClick={() => setImageZoom(z => Math.max(0.25, z - 0.25))} title="Zoom out"><ZoomOut size={20} /></button>
               <span className="fullscreen-zoom-level">{Math.round(imageZoom * 100)}%</span>
-              <button onClick={() => setImageZoom(z => Math.min(3, z + 0.25))} title="Zoom in"><ZoomIn size={20} /></button>
+              <button onClick={() => setImageZoom(z => Math.min(5, z + 0.25))} title="Zoom in"><ZoomIn size={20} /></button>
               <button onClick={() => handleDownloadImage(imageViewerState.src, imageViewerState.name)} title="Download"><Download size={20} /></button>
               {imageViewerState.isOwn && (
                 <>
@@ -3706,15 +3709,13 @@ function Chat({ user: currentUser }) {
                   </button>
                 </>
               )}
-              <button onClick={() => { setImageViewerState({ open: false, src: null, type: "media", name: "", isOwn: false }); setImageZoom(1); }} title="Close"><X size={20} /></button>
             </div>
           </div>
           <div
-            className="fullscreen-viewer-content"
+            className={`fullscreen-viewer-content ${imageViewerState.type === "profile" ? "profile-mode" : ""}`}
             onClick={(e) => e.stopPropagation()}
-            style={{ transform: `scale(${imageZoom})` }}
           >
-            <img src={imageViewerState.src} alt={imageViewerState.name || "Full image"} />
+            <img src={imageViewerState.src} alt={imageViewerState.name || "Full image"} style={{ transform: `scale(${imageZoom})` }} draggable={false} />
           </div>
         </div>
       )}

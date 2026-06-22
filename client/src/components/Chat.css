@@ -3579,11 +3579,12 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
 .fullscreen-viewer-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.95);
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(30px);
   z-index: 10001;
   display: flex;
   flex-direction: column;
-  animation: fadeIn 0.2s ease;
+  animation: fadeIn 0.25s ease;
 }
 
 .fullscreen-viewer-toolbar {
@@ -3591,8 +3592,10 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
   flex-shrink: 0;
+  z-index: 2;
 }
 
 .fullscreen-viewer-title {
@@ -3644,15 +3647,54 @@ body.dark-mode .attach-menu-item:nth-child(5) .attach-icon { background: rgba(23
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: auto;
-  transition: transform 0.2s ease;
+  overflow: hidden;
+  position: relative;
+  transform-origin: center center;
 }
 
 .fullscreen-viewer-content img {
-  max-width: 90vw;
-  max-height: 90vh;
+  max-width: none;
+  max-height: none;
+  width: auto;
+  height: auto;
   object-fit: contain;
-  border-radius: 4px;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.fullscreen-viewer-content.profile-mode img {
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 60px rgba(99, 102, 241, 0.3), 0 0 120px rgba(99, 102, 241, 0.1);
+}
+
+/* Floating close button always visible even when zoomed */
+.fullscreen-viewer-close-float {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: all 0.2s ease;
+}
+
+.fullscreen-viewer-close-float:hover {
+  background: rgba(239, 68, 68, 0.5);
+  transform: scale(1.1);
 }
 
 /* ============================================================================
