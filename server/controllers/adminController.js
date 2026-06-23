@@ -150,55 +150,247 @@ exports.adminDeleteUser = async (req, res) => {
   }
 };
 
-// System health check
+// System health check — real accurate data
 exports.getSystemHealth = async (req, res) => {
   try {
     const mongoState = mongoose.connection.readyState;
     const mongoLabel = ["disconnected", "connected", "connecting", "disconnecting"][mongoState] || "unknown";
 
-    const totalUsers = await User.countDocuments();
-    const totalMessages = await Message.countDocuments();
-    const totalFeedback = await Feedback.countDocuments();
-    const activeDevices = await Device.countDocuments({ isActive: true });
+    const now = new Date();
+    const oneHourAgo = new Date(now - 60 * 60 * 1000);
+    const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
 
-    // Recent activity (last 24h)
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentUsers = await User.countDocuments({ lastSeen: { $gte: oneDayAgo } });
-    const recentMessages = await Message.countDocuments({ createdAt: { $gte: oneDayAgo } });
+    // Collection counts
+    const [totalUsers, totalMessages, totalFeedback, totalDevices, totalPushSubs, totalChatRequests] = await Promise.all([
+      User.countDocuments(),
+      Message.countDocuments(),
+      Feedback.countDocuments(),
+      Device.countDocuments(),
+      PushSubscription.countDocuments(),
+      ChatRequest.countDocuments(),
+    ]);
 
-    // Firebase status
+    // Active online users (active in last 5 minutes)
+    const fiveMinAgo = new Date(now - 5 * 60 * 1000);
+    const onlineNow = await Device.countDocuments({ isActive: true, lastSeen: { $gte: fiveMinAgo } });
+    const onlineUsers = await Device.distinct("userId", { isActive: true, lastSeen: { $gte: fiveMinAgo } });
+
+    // Active in last hour
+    const activeLastHour = await User.countDocuments({ lastSeen: { $gte: oneHourAgo } });
+    const activeLastDay = await User.countDocuments({ lastSeen: { $gte: oneDayAgo } });
+
+    // Messages in time ranges
+    const messagesLastHour = await Message.countDocuments({ createdAt: { $gte: oneHourAgo } });
+    const messagesLastDay = await Message.countDocuments({ createdAt: { $gte: oneDayAgo } });
+    const messagesLastWeek = await Message.countDocuments({ createdAt: { $gte: sevenDaysAgo } });
+
+    // Chat request stats
+    const [pendingRequests, acceptedRequests, rejectedRequests] = await Promise.all([
+      ChatRequest.countDocuments({ status: "pending" }),
+      ChatRequest.countDocuments({ status: "accepted" }),
+      ChatRequest.countDocuments({ status: "rejected" }),
+    ]);
+
+    // Feedback stats
+    const [repliedFeedback, unrepliedFeedback] = await Promise.all([
+      Feedback.countDocuments({ reply: { $ne: null } }),
+      Feedback.countDocuments({ reply: null }),
+    ]);
+
+    // Average feedback rating
+    const feedbackAgg = await Feedback.aggregate([
+      { $group: { _id: null, avg: { $avg: "$rating" }, count: { $sum: 1 } } },
+    ]);
+    const avgRating = feedbackAgg.length > 0 ? feedbackAgg[0].avg.toFixed(1) : "0.0";
+    const totalRatings = feedbackAgg.length > 0 ? feedbackAgg[0].count : 0;
+
+    // Message trends (last 7 days, grouped by day)
+    const messageTrends = await Message.aggregate([
+      { $match: { createdAt: { $gte: sevenDaysAgo } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Device type breakdown
+    const deviceBreakdown = await Device.aggregate([
+      { $group: { _id: "$deviceType", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]);
+
+    // Browser breakdown
+    const browserBreakdown = await Device.aggregate([
+      { $group: { _id: "$browser", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 },
+    ]);
+
+    // OS breakdown
+    const osBreakdown = await Device.aggregate([
+      { $group: { _id: "$os", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 },
+    ]);
+
+    // New users per day (last 7 days)
+    const newUsersTrend = await User.aggregate([
+      { $match: { createdAt: { $gte: sevenDaysAgo } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Database collection sizes
+    const db = mongoose.connection.db;
+    let dbStats = {};
+    try {
+      const collections = await db.listCollections().toArray();
+      for (const col of collections) {
+        const stats = await db.command({ collStats: col.name });
+        dbStats[col.name] = {
+          count: stats.count,
+          sizeBytes: stats.size || 0,
+          avgObjSize: stats.avgObjSize || 0,
+        };
+      }
+    } catch {}
+
+    // Server info
+    const mem = process.memoryUsage();
     const { isFirebaseConfigured } = require("../config/firebase");
-    const firebaseOk = isFirebaseConfigured();
-
-    // Email status
-    const emailConfigured = !!(process.env.RESEND_API_KEY);
 
     res.json({
       server: {
         uptime: Math.floor(process.uptime()),
-        memoryMB: Math.floor(process.memoryUsage().heapUsed / 1024 / 1024),
+        uptimeFormatted: formatUptime(process.uptime()),
+        memory: {
+          heapUsed: Math.floor(mem.heapUsed / 1024 / 1024),
+          heapTotal: Math.floor(mem.heapTotal / 1024 / 1024),
+          rss: Math.floor(mem.rss / 1024 / 1024),
+          external: Math.floor(mem.external / 1024 / 1024),
+        },
         nodeVersion: process.version,
         environment: process.env.NODE_ENV || "development",
+        platform: process.platform,
       },
       database: {
         status: mongoLabel,
         connected: mongoState === 1,
+        collections: dbStats,
+      },
+      online: {
+        devicesOnline: onlineNow,
+        usersOnline: onlineUsers.length,
+        onlineUserEmails: onlineUsers,
       },
       stats: {
         totalUsers,
         totalMessages,
         totalFeedback,
-        activeDevices,
-        recentUsers,
-        recentMessages,
+        totalDevices,
+        totalPushSubs,
+        totalChatRequests,
+        activeLastHour,
+        activeLastDay,
+        messagesLastHour,
+        messagesLastDay,
+        messagesLastWeek,
+        pendingRequests,
+        acceptedRequests,
+        rejectedRequests,
+        repliedFeedback,
+        unrepliedFeedback,
+        avgRating,
+        totalRatings,
+      },
+      trends: {
+        messageTrends,
+        newUsersTrend,
+      },
+      platforms: {
+        deviceTypes: deviceBreakdown,
+        browsers: browserBreakdown,
+        operatingSystems: osBreakdown,
       },
       services: {
-        firebase: firebaseOk,
-        email: emailConfigured,
+        firebase: isFirebaseConfigured(),
+        email: !!(process.env.RESEND_API_KEY),
       },
     });
   } catch (error) {
-    res.status(500).json({ error: "Health check failed" });
+    console.error("Health check error:", error.message);
+    res.status(500).json({ error: "Health check failed", details: error.message });
+  }
+};
+
+function formatUptime(seconds) {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  return `${m}m ${s}s`;
+}
+
+// Get recent activity feed
+exports.getRecentActivity = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const [recentMessages, recentFeedback, recentUsers, recentDevices] = await Promise.all([
+      Message.find({ createdAt: { $gte: oneDayAgo } })
+        .sort({ createdAt: -1 }).limit(limit).select("sender receiver type createdAt").lean(),
+      Feedback.find({ createdAt: { $gte: oneDayAgo } })
+        .sort({ createdAt: -1 }).limit(limit).select("name email rating createdAt").lean(),
+      User.find({ lastSeen: { $gte: oneDayAgo } })
+        .sort({ lastSeen: -1 }).limit(limit).select("email lastSeen").lean(),
+      Device.find({ loggedInAt: { $gte: oneDayAgo } })
+        .sort({ loggedInAt: -1 }).limit(limit).select("userId deviceName browser os loggedInAt").lean(),
+    ]);
+
+    // Merge into timeline
+    const activities = [];
+    recentMessages.forEach((m) => activities.push({ type: "message", detail: `${m.sender} → ${m.receiver}`, subtype: m.type, time: m.createdAt }));
+    recentFeedback.forEach((f) => activities.push({ type: "feedback", detail: `${f.name} (${f.email}) rated ${f.rating}⭐`, time: f.createdAt }));
+    recentUsers.forEach((u) => activities.push({ type: "login", detail: u.email, time: u.lastSeen }));
+    recentDevices.forEach((d) => activities.push({ type: "device", detail: `${d.userId} on ${d.deviceName} (${d.browser})`, time: d.loggedInAt }));
+
+    activities.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    res.json(activities.slice(0, limit));
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch activity" });
+  }
+};
+
+// Get platform stats
+exports.getPlatformStats = async (req, res) => {
+  try {
+    const [deviceTypes, browsers, osList, topChatters] = await Promise.all([
+      Device.aggregate([{ $group: { _id: "$deviceType", count: { $sum: 1 } } }]),
+      Device.aggregate([{ $group: { _id: "$browser", count: { $sum: 1 } } }, { $sort: { count: -1 } }, { $limit: 10 }]),
+      Device.aggregate([{ $group: { _id: "$os", count: { $sum: 1 } } }, { $sort: { count: -1 } }, { $limit: 10 }]),
+      Message.aggregate([
+        { $group: { _id: "$sender", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 10 },
+      ]),
+    ]);
+
+    res.json({ deviceTypes, browsers, osList, topChatters });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch platform stats" });
   }
 };
 

@@ -68,6 +68,16 @@ router.post('/broadcast', adminAuthMiddleware, adminController.broadcastMessage)
 // @access Private (Admin only)
 router.post('/feedback/:id/reply', adminAuthMiddleware, adminController.replyToFeedback);
 
+// @route GET /api/admin/activity
+// @desc Get recent activity feed
+// @access Private (Admin only)
+router.get('/activity', adminAuthMiddleware, adminController.getRecentActivity);
+
+// @route GET /api/admin/platform
+// @desc Get platform stats (devices, browsers, OS, top chatters)
+// @access Private (Admin only)
+router.get('/platform', adminAuthMiddleware, adminController.getPlatformStats);
+
 // @route POST /api/admin/logout
 // @desc Confirm token validity and hint client to remove token
 // @access Private (Admin only)

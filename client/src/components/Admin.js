@@ -367,19 +367,96 @@ function AdminDashboard() {
             )}
 
             {health && (
-              <div className="health-section">
-                <h3><Activity size={20} /> System Health</h3>
-                <div className="health-grid">
-                  <div className="health-item"><span className="health-label">Server Uptime</span><span className="health-value">{Math.floor(health.server.uptime / 60)}m {health.server.uptime % 60}s</span></div>
-                  <div className="health-item"><span className="health-label">Memory</span><span className="health-value">{health.server.memoryMB} MB</span></div>
-                  <div className="health-item"><span className="health-label">Database</span><span className={`health-value ${health.database.connected ? "health-ok" : "health-bad"}`}>{health.database.status}</span></div>
-                  <div className="health-item"><span className="health-label">Firebase</span><span className={`health-value ${health.services.firebase ? "health-ok" : "health-warn"}`}>{health.services.firebase ? "Configured" : "Not configured"}</span></div>
-                  <div className="health-item"><span className="health-label">Email Service</span><span className={`health-value ${health.services.email ? "health-ok" : "health-bad"}`}>{health.services.email ? "Resend" : "Not configured"}</span></div>
-                  <div className="health-item"><span className="health-label">Active Devices</span><span className="health-value">{health.stats.activeDevices}</span></div>
-                  <div className="health-item"><span className="health-label">Users (24h)</span><span className="health-value">{health.stats.recentUsers}</span></div>
-                  <div className="health-item"><span className="health-label">Messages (24h)</span><span className="health-value">{health.stats.recentMessages}</span></div>
+              <>
+                {/* Online Now */}
+                <div className="online-section">
+                  <h3>🟢 Online Now</h3>
+                  <div className="online-grid">
+                    <div className="online-stat big">{health.online.usersOnline}</div>
+                    <div className="online-stat-label">Users Online</div>
+                    <div className="online-stat big">{health.online.devicesOnline}</div>
+                    <div className="online-stat-label">Devices Active</div>
+                  </div>
+                  {health.online.onlineUserEmails.length > 0 && (
+                    <div className="online-users-list">
+                      {health.online.onlineUserEmails.map((e, i) => <span key={i} className="online-badge">{e}</span>)}
+                    </div>
+                  )}
                 </div>
-              </div>
+
+                {/* System Health */}
+                <div className="health-section">
+                  <h3><Activity size={20} /> System Health</h3>
+                  <div className="health-grid">
+                    <div className="health-item"><span className="health-label">Server Uptime</span><span className="health-value">{health.server.uptimeFormatted}</span></div>
+                    <div className="health-item"><span className="health-label">Memory Heap</span><span className="health-value">{health.server.memory.heapUsed} / {health.server.memory.heapTotal} MB</span></div>
+                    <div className="health-item"><span className="health-label">Memory RSS</span><span className="health-value">{health.server.memory.rss} MB</span></div>
+                    <div className="health-item"><span className="health-label">Node.js</span><span className="health-value">{health.server.nodeVersion}</span></div>
+                    <div className="health-item"><span className="health-label">Environment</span><span className="health-value">{health.server.environment}</span></div>
+                    <div className="health-item"><span className="health-label">Database</span><span className={`health-value ${health.database.connected ? "health-ok" : "health-bad"}`}>{health.database.status}</span></div>
+                    <div className="health-item"><span className="health-label">Firebase</span><span className={`health-value ${health.services.firebase ? "health-ok" : "health-warn"}`}>{health.services.firebase ? "Configured" : "Off"}</span></div>
+                    <div className="health-item"><span className="health-label">Email Service</span><span className={`health-value ${health.services.email ? "health-ok" : "health-bad"}`}>{health.services.email ? "Resend" : "Off"}</span></div>
+                  </div>
+                </div>
+
+                {/* Activity Stats */}
+                <div className="health-section">
+                  <h3>📈 Activity</h3>
+                  <div className="health-grid">
+                    <div className="health-item"><span className="health-label">Active (1h)</span><span className="health-value">{health.stats.activeLastHour} users</span></div>
+                    <div className="health-item"><span className="health-label">Active (24h)</span><span className="health-value">{health.stats.activeLastDay} users</span></div>
+                    <div className="health-item"><span className="health-label">Messages (1h)</span><span className="health-value">{health.stats.messagesLastHour}</span></div>
+                    <div className="health-item"><span className="health-label">Messages (24h)</span><span className="health-value">{health.stats.messagesLastDay}</span></div>
+                    <div className="health-item"><span className="health-label">Messages (7d)</span><span className="health-value">{health.stats.messagesLastWeek}</span></div>
+                    <div className="health-item"><span className="health-label">Pending Requests</span><span className="health-value">{health.stats.pendingRequests}</span></div>
+                    <div className="health-item"><span className="health-label">Accepted Requests</span><span className="health-value">{health.stats.acceptedRequests}</span></div>
+                    <div className="health-item"><span className="health-label">Avg Rating</span><span className="health-value">{health.stats.avgRating} ⭐ ({health.stats.totalRatings} ratings)</span></div>
+                    <div className="health-item"><span className="health-label">Replied Feedback</span><span className="health-value">{health.stats.repliedFeedback}</span></div>
+                    <div className="health-item"><span className="health-label">Unreplied Feedback</span><span className={`health-value ${health.stats.unrepliedFeedback > 0 ? "health-warn" : "health-ok"}`}>{health.stats.unrepliedFeedback}</span></div>
+                  </div>
+                </div>
+
+                {/* Platforms */}
+                {health.platforms && (
+                  <div className="health-section">
+                    <h3>💻 Platforms</h3>
+                    <div className="platform-row">
+                      <div className="platform-col">
+                        <h4>Devices</h4>
+                        {health.platforms.deviceTypes.map((d, i) => <div key={i} className="platform-item"><span>{d._id || "Unknown"}</span><span className="platform-count">{d.count}</span></div>)}
+                      </div>
+                      <div className="platform-col">
+                        <h4>Browsers</h4>
+                        {health.platforms.browsers.map((d, i) => <div key={i} className="platform-item"><span>{d._id || "Unknown"}</span><span className="platform-count">{d.count}</span></div>)}
+                      </div>
+                      <div className="platform-col">
+                        <h4>Operating Systems</h4>
+                        {health.platforms.operatingSystems.map((d, i) => <div key={i} className="platform-item"><span>{d._id || "Unknown"}</span><span className="platform-count">{d.count}</span></div>)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Message Trends */}
+                {health.trends && health.trends.messageTrends.length > 0 && (
+                  <div className="health-section">
+                    <h3>📊 Messages (Last 7 Days)</h3>
+                    <div className="trend-chart">
+                      {health.trends.messageTrends.map((d, i) => {
+                        const max = Math.max(...health.trends.messageTrends.map(x => x.count));
+                        const pct = max > 0 ? (d.count / max) * 100 : 0;
+                        return (
+                          <div key={i} className="trend-bar-wrapper">
+                            <div className="trend-bar" style={{ height: `${pct}%` }} title={`${d.count} messages`}></div>
+                            <span className="trend-label">{d._id.slice(5)}</span>
+                            <span className="trend-count">{d.count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {messageStats.length > 0 && (
