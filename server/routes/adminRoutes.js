@@ -43,6 +43,11 @@ router.get('/users', adminAuthMiddleware, adminController.getAllUsers);
 // @access Private (Admin only)
 router.get('/message-stats', adminAuthMiddleware, adminController.getMessageStats);
 
+// @route DELETE /api/admin/users/:email
+// @desc Delete a user from MongoDB + Firebase Auth
+// @access Private (Admin only)
+router.delete('/users/:email', adminAuthMiddleware, adminController.adminDeleteUser);
+
 // @route POST /api/admin/logout
 // @desc Confirm token validity and hint client to remove token
 // @access Private (Admin only)

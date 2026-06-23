@@ -1025,11 +1025,46 @@
   .resend-btn,
   .back-btn,
   .logout-btn,
-  .tab-btn {
+  .tab-btn,
+  .delete-user-btn {
     min-height: 44px;
   }
   
   .otp-input {
     min-height: 48px;
   }
+}
+
+/* Delete User Button */
+.delete-user-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  margin-top: 10px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.delete-user-btn:hover:not(:disabled) {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.delete-user-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.user-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
 }

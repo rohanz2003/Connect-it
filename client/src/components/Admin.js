@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { LogOut, Mail, ShieldCheck, ArrowLeft, MessageSquare, MessageCircle, Users, Star, TrendingUp, Send, Loader2 } from "lucide-react";
+import { LogOut, Mail, ShieldCheck, ArrowLeft, MessageSquare, Users, Star, TrendingUp, Send, Loader2, Trash2 } from "lucide-react";
 import "../styles/Admin.css";
 
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
@@ -19,11 +19,11 @@ function AdminDashboard() {
   // Dashboard states
   const [activeTab, setActiveTab] = useState("dashboard");
   const [stats, setStats] = useState(null);
-  const [messages, setMessages] = useState([]);
   const [feedback, setFeedback] = useState([]);
   const [users, setUsers] = useState([]);
   const [messageStats, setMessageStats] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
+  const [deletingUser, setDeletingUser] = useState(null);
 
   const navigate = useNavigate();
   const otpRefs = useRef([]);
@@ -41,16 +41,14 @@ function AdminDashboard() {
     try {
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [statsRes, messagesRes, feedbackRes, usersRes, messageStatsRes] = await Promise.all([
+      const [statsRes, feedbackRes, usersRes, messageStatsRes] = await Promise.all([
         fetch(`${API_URL}/api/admin/stats`, { headers }),
-        fetch(`${API_URL}/api/admin/messages`, { headers }),
         fetch(`${API_URL}/api/admin/feedback`, { headers }),
         fetch(`${API_URL}/api/admin/users`, { headers }),
         fetch(`${API_URL}/api/admin/message-stats`, { headers }),
       ]);
 
       if (statsRes.ok) setStats(await statsRes.json());
-      if (messagesRes.ok) setMessages(await messagesRes.json());
       if (feedbackRes.ok) setFeedback(await feedbackRes.json());
       if (usersRes.ok) setUsers(await usersRes.json());
       if (messageStatsRes.ok) setMessageStats(await messageStatsRes.json());
@@ -234,6 +232,30 @@ function AdminDashboard() {
     return () => clearInterval(id);
   }, [authStep, adminToken, fetchDashboardData]);
 
+  const handleDeleteUser = async (userEmail) => {
+    if (!window.confirm(`Delete user ${userEmail}? This will remove all their data and Firebase account permanently.`)) {
+      return;
+    }
+    setDeletingUser(userEmail);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/users/${encodeURIComponent(userEmail)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSuccess(`User ${userEmail} deleted successfully`);
+        setUsers((prev) => prev.filter((u) => u.email !== userEmail));
+      } else {
+        setError(data.error || "Failed to delete user");
+      }
+    } catch (err) {
+      setError("Network error. Failed to delete user.");
+    } finally {
+      setDeletingUser(null);
+    }
+  };
+
   const handleLogout = () => {
     setAuthStep("email");
     setAdminToken("");
@@ -242,7 +264,6 @@ function AdminDashboard() {
     setError("");
     setSuccess("");
     setStats(null);
-    setMessages([]);
     setFeedback([]);
     setUsers([]);
     localStorage.removeItem("adminToken");
@@ -420,12 +441,6 @@ function AdminDashboard() {
           <TrendingUp size={18} /> Dashboard
         </button>
         <button
-          className={`tab-btn ${activeTab === "messages" ? "active" : ""}`}
-          onClick={() => setActiveTab("messages")}
-        >
-          <MessageCircle size={18} /> Messages
-        </button>
-        <button
           className={`tab-btn ${activeTab === "feedback" ? "active" : ""}`}
           onClick={() => setActiveTab("feedback")}
         >
@@ -507,49 +522,6 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* MESSAGES TAB */}
-        {activeTab === "messages" && (
-          <div className="tab-content messages-tab">
-            <h2>All Messages ({messages.length})</h2>
-            {dataLoading ? (
-              <p className="loading-text">Loading messages...</p>
-            ) : messages.length > 0 ? (
-              <div className="data-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>From</th>
-                      <th>To</th>
-                      <th>Message</th>
-                      <th>Type</th>
-                      <th>Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {messages.slice(0, 100).map((msg, index) => (
-                      <tr key={index}>
-                        <td className="sender-email">{msg.sender}</td>
-                        <td className="receiver-email">{msg.receiver}</td>
-                        <td className="message-text">
-                          {typeof msg.text === "string"
-                            ? msg.text.substring(0, 50) + (msg.text.length > 50 ? "..." : "")
-                            : "[Media]"}
-                        </td>
-                        <td className="message-type">{msg.type || "text"}</td>
-                        <td className="message-time">
-                          {new Date(msg.timestamp || msg.createdAt).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="no-data">No messages found</p>
-            )}
-          </div>
-        )}
-
         {/* FEEDBACK TAB */}
         {activeTab === "feedback" && (
           <div className="tab-content feedback-tab">
@@ -582,6 +554,8 @@ function AdminDashboard() {
         {activeTab === "users" && (
           <div className="tab-content users-tab">
             <h2>Registered Users ({users.length})</h2>
+            {error && <div className="error-message">❌ {error}</div>}
+            {success && <div className="success-message">✅ {success}</div>}
             {dataLoading ? (
               <p className="loading-text">Loading users...</p>
             ) : users.length > 0 ? (
@@ -601,6 +575,19 @@ function AdminDashboard() {
                     <p className="user-last-seen">
                       Last seen: {user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "Never"}
                     </p>
+                    <button
+                      className="delete-user-btn"
+                      onClick={() => handleDeleteUser(user.email)}
+                      disabled={deletingUser === user.email}
+                      title="Remove user from chat"
+                    >
+                      {deletingUser === user.email ? (
+                        <Loader2 size={16} className="spinner" />
+                      ) : (
+                        <Trash2 size={16} />
+                      )}
+                      {deletingUser === user.email ? "Deleting..." : "Remove"}
+                    </button>
                   </div>
                 ))}
               </div>
