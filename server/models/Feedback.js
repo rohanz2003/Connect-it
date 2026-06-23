@@ -5,6 +5,8 @@ const feedbackSchema = new mongoose.Schema({
   email: { type: String, required: true },
   message: { type: String, required: true },
   rating: { type: Number, required: true },
+  reply: { type: String, default: null },
+  repliedAt: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now }
 });
 

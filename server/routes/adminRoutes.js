@@ -48,6 +48,26 @@ router.get('/message-stats', adminAuthMiddleware, adminController.getMessageStat
 // @access Private (Admin only)
 router.delete('/users/:email', adminAuthMiddleware, adminController.adminDeleteUser);
 
+// @route GET /api/admin/health
+// @desc System health check
+// @access Private (Admin only)
+router.get('/health', adminAuthMiddleware, adminController.getSystemHealth);
+
+// @route GET /api/admin/users/:email/detail
+// @desc Get user detail with activity
+// @access Private (Admin only)
+router.get('/users/:email/detail', adminAuthMiddleware, adminController.getUserDetail);
+
+// @route POST /api/admin/broadcast
+// @desc Broadcast message to all users
+// @access Private (Admin only)
+router.post('/broadcast', adminAuthMiddleware, adminController.broadcastMessage);
+
+// @route POST /api/admin/feedback/:id/reply
+// @desc Reply to feedback
+// @access Private (Admin only)
+router.post('/feedback/:id/reply', adminAuthMiddleware, adminController.replyToFeedback);
+
 // @route POST /api/admin/logout
 // @desc Confirm token validity and hint client to remove token
 // @access Private (Admin only)
