@@ -10,6 +10,7 @@ import {
   Smile,
   Paperclip,
   Home,
+  MessageSquare,
   Send,
   Trash2,
   Users,
@@ -1918,7 +1919,7 @@ function Chat({ user: currentUser }) {
       socket.emit("leave", { email: normalizeEmail(user.email) });
     }
     setShowLogoutConfirm(false);
-    navigate("/feedback");
+    navigate("/login");
     auth.signOut().then(() => {
       localStorage.removeItem("user");
     });
@@ -3521,6 +3522,9 @@ function Chat({ user: currentUser }) {
             <Home size={20} />
           </div>
           <p>Start a new chat, review mentions, and stay updated with your team activity.</p>
+          <button className="action-pill feedback-nav-btn" onClick={() => navigate("/feedback")} style={{ marginTop: 12, width: "100%", justifyContent: "center" }}>
+            <MessageSquare size={16} /> Share Feedback
+          </button>
         </div>
 
         <div className="dashboard-card stats-card">
