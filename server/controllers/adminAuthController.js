@@ -61,7 +61,13 @@ const sendOtp = async (req, res) => {
       `,
     });
 
-    res.status(200).json({ success: true, message: "OTP sent to admin email." });
+    if (result.success) {
+      console.log(`📧 OTP sent to ${normalizedAdminEmail} ✅`);
+      res.status(200).json({ success: true, message: "OTP sent to admin email." });
+    } else {
+      console.error(`📧 OTP email failed to ${normalizedAdminEmail}:`, result.error);
+      res.status(500).json({ success: false, message: `Failed to send OTP email: ${result.error}` });
+    }
   } catch (error) {
     console.error("Error sending OTP:", error.message);
     res.status(500).json({ success: false, message: "Failed to send OTP." });

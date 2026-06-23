@@ -39,6 +39,7 @@ const sendFeedback = async (req, res) => {
     const safeRating = Math.min(5, Math.max(1, parseInt(rating) || 5));
     const firstName = escapeHtml(name.split(" ")[0]);
 
+    // Save to DB
     try {
       await Feedback.create({ name, email, message, rating: safeRating });
       console.log("Feedback saved to DB ✅");
@@ -46,9 +47,11 @@ const sendFeedback = async (req, res) => {
       console.warn("Could not save feedback to DB:", dbErr.message);
     }
 
-    // Fire-and-forget emails — never block the response on email delivery
-    Promise.allSettled([
-      sendNotificationEmail({
+    // Send email to admin
+    let adminEmailSent = false;
+    let adminEmailError = null;
+    try {
+      const adminResult = await sendNotificationEmail({
         email: adminMailTo,
         subject: `New Feedback from ${name} - Connect It`,
         html: `
@@ -75,8 +78,19 @@ const sendFeedback = async (req, res) => {
             </div>
           </div>
         `,
-      }),
-      sendNotificationEmail({
+      });
+      adminEmailSent = adminResult.success;
+      if (!adminResult.success) adminEmailError = adminResult.error;
+      console.log("Admin feedback email:", adminResult.success ? "sent ✅" : `failed: ${adminResult.error}`);
+    } catch (err) {
+      adminEmailError = err.message;
+      console.error("Admin feedback email error:", err.message);
+    }
+
+    // Send confirmation to user
+    let userEmailSent = false;
+    try {
+      const userResult = await sendNotificationEmail({
         email,
         subject: "Thank You for Your Feedback - Connect It",
         html: `
@@ -99,21 +113,24 @@ const sendFeedback = async (req, res) => {
             </div>
           </div>
         `,
-      }),
-    ]).then((results) => {
-      const adminOk = results[0].status === "fulfilled";
-      const userOk = results[1].status === "fulfilled";
-      if (!adminOk) console.warn("Admin feedback email failed:", results[0].reason?.message);
-      if (!userOk) console.warn("User confirmation email failed:", results[1].reason?.message);
-      if (adminOk || userOk) console.log("Feedback email(s) sent ✅");
-    });
+      });
+      userEmailSent = userResult.success;
+      console.log("User confirmation email:", userResult.success ? "sent ✅" : `failed: ${userResult.error}`);
+    } catch (err) {
+      console.error("User confirmation email error:", err.message);
+    }
+
+    if (!adminEmailSent) {
+      console.warn(`⚠️ Feedback email to admin (${adminMailTo}) failed: ${adminEmailError}`);
+    }
 
     return res.status(200).json({
       success: true,
       message: "Thank you! Your feedback has been received.",
+      emailSent: adminEmailSent,
     });
   } catch (error) {
-    console.error("Error sending feedback email:", error);
+    console.error("Error sending feedback:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to send feedback. Please try again later.",

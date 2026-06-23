@@ -13,11 +13,9 @@ const getEmailPassword = () =>
   process.env.GMAIL_APP_PASSWORD;
 
 const hasAnyEmailConfig = () => {
-  return Boolean(
-    process.env.SENDGRID_API_KEY ||
-    (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) ||
-    (process.env.EMAIL_USER && getEmailPassword())
-  );
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+  const pass = getEmailPassword();
+  return Boolean(user && pass);
 };
 
 const getFrontendUrl = () =>
@@ -40,30 +38,22 @@ const logEnvironmentDiagnostics = () => {
   console.log("=== Environment Loaded ===");
   console.log("Mongo URI Exists:", Boolean(process.env.MONGO_URI));
   console.log("JWT Exists:", Boolean(process.env.JWT_SECRET));
-  console.log("Email Provider:", hasAnyEmailConfig() ? "configured ✅" : "NONE (log-only)");
-  if (process.env.SENDGRID_API_KEY) console.log("  → SendGrid API");
-  else if (process.env.SMTP_HOST) console.log(`  → SMTP (${process.env.SMTP_HOST})`);
-  else if (process.env.EMAIL_USER) console.log("  → Gmail SMTP");
-  console.log("Admin Email Exists:", Boolean(process.env.ADMIN_EMAIL));
-  console.log("Frontend URL Exists:", Boolean(getFrontendUrl()));
+  const emailUser = process.env.SMTP_USER || process.env.EMAIL_USER;
+  const emailPass = getEmailPassword();
+  console.log("Email User:", emailUser || "NOT SET");
+  console.log("Email Password:", emailPass ? "set ✅" : "NOT SET ❌");
+  console.log("Email Provider:", hasAnyEmailConfig() ? "Gmail SMTP ✅" : "NONE (log-only) ❌");
+  console.log("Admin Email:", process.env.ADMIN_EMAIL || "NOT SET");
+  console.log("Frontend URL:", getFrontendUrl() || "(not set)");
   console.log("Render Deploy:", process.env.RENDER === "true");
   console.log("Port:", process.env.PORT || "(default 5000)");
-
-  if (process.env.RENDER === "true") {
-    const mongoUri = process.env.MONGO_URI || "";
-    if (!mongoUri) {
-      console.error("❌ FATAL: MONGO_URI missing on Render. Set it in Environment tab.");
-    } else if (mongoUri.includes("localhost") || mongoUri.includes("127.0.0.1")) {
-      console.error("❌ FATAL: MONGO_URI cannot be localhost on Render. Use MongoDB Atlas.");
-    }
-  }
 };
 
 const validateRequiredEnv = () => {
   const missing = [];
   if (!process.env.MONGO_URI) missing.push("MONGO_URI");
   if (!process.env.JWT_SECRET) missing.push("JWT_SECRET");
-  if (!hasAnyEmailConfig()) missing.push("EMAIL config (set SMTP_HOST/SMTP_USER/SMTP_PASS or SENDGRID_API_KEY or EMAIL_USER)");
+  if (!hasAnyEmailConfig()) missing.push("EMAIL config (set SMTP_USER + SMTP_PASS in .env)");
   if (!process.env.ADMIN_EMAIL) missing.push("ADMIN_EMAIL");
 
   if (missing.length > 0) {

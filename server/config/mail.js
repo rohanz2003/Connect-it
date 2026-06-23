@@ -1,4 +1,4 @@
-const { sendMail, init } = require("../services/emailService");
+const { sendMail, sendNotificationEmail, init } = require("../services/emailService");
 
 const createTransporter = () => {
   init();
@@ -12,4 +12,5 @@ const verifyTransporter = async () => {
 module.exports = {
   createTransporter,
   verifyTransporter,
+  sendNotificationEmail,
 };

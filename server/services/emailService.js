@@ -1,21 +1,11 @@
 const nodemailer = require("nodemailer");
-let sgMail = null;
-try {
-  sgMail = require("@sendgrid/mail");
-} catch {
-  // @sendgrid/mail not installed, fall back to SMTP
-}
+const dns = require("dns");
+
+// Force IPv4 for SMTP connections (avoids IPv6 timeout on some hosts)
+dns.setDefaultResultOrder("ipv4first");
 
 let transporter = null;
 let transporterReady = false;
-
-const detectProvider = () => {
-  if (process.env.SENDGRID_API_KEY && sgMail) return "sendgrid";
-  if (process.env.SENDGRID_API_KEY) return "sendgrid-smtp";
-  if (process.env.SMTP_HOST) return "smtp";
-  if (process.env.EMAIL_USER && !process.env.SMTP_HOST && (process.env.EMAIL_PASS || process.env.GMAIL_APP_PASSWORD)) return "gmail";
-  return "log";
-};
 
 const getEmailPassword = () =>
   process.env.SMTP_PASS ||
@@ -27,91 +17,52 @@ const getFromEmail = () =>
   process.env.FROM_EMAIL || process.env.EMAIL_USER || "noreply@connectit.app";
 
 const createTransporter = () => {
-  const provider = detectProvider();
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+  const port = parseInt(process.env.SMTP_PORT || "587");
+  const secure = process.env.SMTP_SECURE === "true";
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+  const pass = getEmailPassword();
 
-  if (provider === "log") {
-    console.log("📧 Email: no provider configured — emails will be logged to console");
+  if (!user || !pass) {
+    console.error("📧 Email: missing credentials — set SMTP_USER and SMTP_PASS in .env");
     return null;
   }
 
-  if (provider === "sendgrid") {
-    console.log("📧 Email: using SendGrid API");
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-    return null;
-  }
+  console.log(`📧 Email: creating Nodemailer transporter (${host}:${port})`);
 
-  if (provider === "sendgrid-smtp") {
-    console.log("📧 Email: using SendGrid via SMTP (fallback)");
-    return nodemailer.createTransport({
-      host: "smtp.sendgrid.net",
-      port: 587,
-      secure: false,
-      auth: { user: "apikey", pass: process.env.SENDGRID_API_KEY },
-    });
-  }
-
-  if (provider === "smtp") {
-    console.log(`📧 Email: using SMTP (${process.env.SMTP_HOST})`);
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || "587"),
-      secure: process.env.SMTP_SECURE === "true",
-      auth: {
-        user: process.env.SMTP_USER || process.env.EMAIL_USER,
-        pass: getEmailPassword(),
-      },
-      tls: {
-        servername: process.env.SMTP_HOST,
-        rejectUnauthorized: false,
-      },
-      connectionTimeout: 40000,
-      greetingTimeout: 40000,
-      socketTimeout: 60000,
-    });
-  }
-
-  console.log("📧 Email: using Gmail SMTP");
   return nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: getEmailPassword(),
-    },
-    tls: { servername: "smtp.gmail.com", rejectUnauthorized: false },
-    connectionTimeout: 40000,
-    greetingTimeout: 40000,
-    socketTimeout: 60000,
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+    tls: { rejectUnauthorized: false },
+    family: 4,
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
   });
 };
 
 const init = async () => {
-  const provider = detectProvider();
-  if (provider === "sendgrid") {
-    transporterReady = true;
-    console.log("📧 SendGrid API ready ✅");
-    return;
-  }
   transporter = createTransporter();
   if (!transporter) {
     transporterReady = false;
+    console.warn("📧 Email: no transporter created — emails will not send");
     return;
   }
-  // Don't block startup on verification — fire and forget
-  transporter.verify()
-    .then(() => {
-      transporterReady = true;
-      console.log("📧 Email transporter verified and ready ✅");
-    })
-    .catch((err) => {
-      transporterReady = false;
-      console.warn("📧 Email transporter verification failed:", err?.message, "— emails will retry on send");
-    });
+  try {
+    await transporter.verify();
+    transporterReady = true;
+    console.log("📧 Email transporter verified and ready ✅");
+  } catch (err) {
+    transporterReady = false;
+    console.error("📧 Email transporter verification FAILED:", err?.message);
+    console.error("📧 Check your SMTP_USER and SMTP_PASS (Gmail App Password) in .env");
+  }
 };
 
 const ensureTransporter = async () => {
-  const provider = detectProvider();
-  if (provider === "sendgrid") return true;
-  if (transporterReady) return true;
+  if (transporterReady && transporter) return true;
   if (transporter) {
     try {
       await transporter.verify();
@@ -121,42 +72,44 @@ const ensureTransporter = async () => {
       return false;
     }
   }
-  return false;
+  transporter = createTransporter();
+  if (!transporter) return false;
+  try {
+    await transporter.verify();
+    transporterReady = true;
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 const sendMail = async ({ to, subject, html, text }) => {
-  const provider = detectProvider();
-  if (provider === "log") {
-    console.log("📧 [LOG-ONLY] Email would be sent:", { to, subject, text: text || html?.substring(0, 100) });
-    return { success: true, logOnly: true };
-  }
-
   const from = getFromEmail();
 
-  if (provider === "sendgrid") {
-    const msg = { to, from, subject, html, text };
-    try {
-      const response = await sgMail.send(msg);
-      console.log(`📧 SendGrid email sent to ${to}:`, response[0]?.statusCode);
-      return { success: true, messageId: response[0]?.headers?.["x-message-id"] };
-    } catch (err) {
-      console.error("📧 SendGrid error:", err?.response?.body?.errors?.[0]?.message || err.message);
-      console.log("📧 [FALLBACK LOG] To:", to, "| Subject:", subject);
-      return { success: true, logOnly: true, sendgridError: err.message };
-    }
+  if (!transporter) {
+    transporter = createTransporter();
+  }
+
+  if (!transporter) {
+    console.error(`📧 Cannot send email to ${to}: no transporter available`);
+    return { success: false, error: "No email transporter configured" };
   }
 
   try {
-    const t = transporter || createTransporter();
-    const info = await t.sendMail({ from, to, subject, html, text });
-    console.log(`📧 Email sent to ${to}:`, info.messageId, info.accepted);
-    if (!transporter) transporter = t;
+    const info = await transporter.sendMail({ from, to, subject, html, text });
+    console.log(`📧 Email sent to ${to}:`, info.messageId);
     return { success: true, messageId: info.messageId, accepted: info.accepted };
   } catch (err) {
     console.error(`📧 Failed to send email to ${to}:`, err?.message || err);
-    console.log("📧 [FALLBACK LOG] To:", to, "| Subject:", subject);
-    return { success: true, logOnly: true, smtpError: err.message };
+    // Try re-creating transporter on failure
+    transporter = null;
+    transporterReady = false;
+    return { success: false, error: err.message };
   }
+};
+
+const sendNotificationEmail = async ({ email, subject, html }) => {
+  return sendMail({ to: email, subject, html, text: html ? html.replace(/<[^>]+>/g, "").trim() : subject });
 };
 
 const sendInviteEmail = async ({ email, invitedByName, workspaceName, inviteLink }) => {
@@ -177,10 +130,6 @@ const sendInviteEmail = async ({ email, invitedByName, workspaceName, inviteLink
     `,
     text: `${safeName} invited you to ${safeWorkspace}. Click here to join: ${inviteLink}`,
   });
-};
-
-const sendNotificationEmail = async ({ email, subject, html }) => {
-  return sendMail({ to: email, subject, html, text: html ? html.replace(/<[^>]+>/g, "").trim() : subject });
 };
 
 init();
