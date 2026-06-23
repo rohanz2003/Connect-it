@@ -33,33 +33,31 @@ const sendOtp = async (req, res) => {
     const otp = generateOtp();
     otpCache.set(normalizedAdminEmail, otp);
 
-    // Respond immediately, send email async
-    res.status(200).json({ success: true, message: "OTP sent to admin email." });
-
-    setImmediate(async () => {
-      try {
-        const result = await sendNotificationEmail({
-          email: normalizedAdminEmail,
-          subject: "Connect It Admin Login OTP",
-          html: `
-            <div style="font-family:Arial,sans-serif;padding:20px;background:#f4f4f4;">
-              <div style="max-width:600px;margin:0 auto;background:#fff;padding:30px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
-                <h2 style="color:#333;">Admin Login OTP</h2>
-                <p style="color:#555;font-size:16px;">Your One-Time Password for Connect It admin login:</p>
-                <p style="font-size:28px;font-weight:bold;color:#007bff;text-align:center;background:#e9f5ff;padding:15px;border-radius:5px;margin:20px 0;">
-                  ${otp}
-                </p>
-                <p style="color:#555;font-size:14px;">Valid for 5 minutes. Do not share this code.</p>
-                <p style="color:#777;font-size:12px;margin-top:20px;">If you did not request this, ignore this email.</p>
-              </div>
+    // Send OTP email first, then respond
+    try {
+      const result = await sendNotificationEmail({
+        email: normalizedAdminEmail,
+        subject: "Connect It Admin Login OTP",
+        html: `
+          <div style="font-family:Arial,sans-serif;padding:20px;background:#f4f4f4;">
+            <div style="max-width:600px;margin:0 auto;background:#fff;padding:30px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+              <h2 style="color:#333;">Admin Login OTP</h2>
+              <p style="color:#555;font-size:16px;">Your One-Time Password for Connect It admin login:</p>
+              <p style="font-size:28px;font-weight:bold;color:#007bff;text-align:center;background:#e9f5ff;padding:15px;border-radius:5px;margin:20px 0;">
+                ${otp}
+              </p>
+              <p style="color:#555;font-size:14px;">Valid for 5 minutes. Do not share this code.</p>
+              <p style="color:#777;font-size:12px;margin-top:20px;">If you did not request this, ignore this email.</p>
             </div>
-          `,
-        });
-        console.log(`📧 OTP sent to ${normalizedAdminEmail}:`, result.success ? "✅" : `❌ ${result.error}`);
-      } catch (err) {
-        console.error("OTP email error:", err.message);
-      }
-    });
+          </div>
+        `,
+      });
+      console.log(`📧 OTP sent to ${normalizedAdminEmail}:`, result.success ? "✅" : `❌ ${result.error}`);
+      res.status(200).json({ success: true, message: "OTP sent to admin email." });
+    } catch (err) {
+      console.error("OTP email error:", err.message);
+      res.status(500).json({ success: false, message: "Failed to send OTP email." });
+    }
   } catch (error) {
     console.error("Error sending OTP:", error.message);
     res.status(500).json({ success: false, message: "Failed to send OTP." });

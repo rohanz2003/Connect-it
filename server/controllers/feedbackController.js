@@ -41,69 +41,58 @@ const sendFeedback = async (req, res) => {
       console.warn("Could not save feedback to DB:", dbErr.message);
     }
 
-    // Respond immediately — send emails in background (non-blocking)
+    // Send admin + user emails, then respond
+    const adminResult = await sendNotificationEmail({
+      email: adminMailTo,
+      subject: `New Feedback from ${name} - Connect It`,
+      replyTo: email,
+      html: `
+        <div style="font-family:Arial,sans-serif;background:#f9fafb;padding:20px;">
+          <div style="max-width:600px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
+            <h2 style="color:#1f2937;margin-bottom:20px;border-bottom:2px solid #3b82f6;padding-bottom:10px;">
+              New Feedback Received
+            </h2>
+            <p style="color:#6b7280;margin:10px 0;"><strong style="color:#374151;">Name:</strong> ${safeName}</p>
+            <p style="color:#6b7280;margin:10px 0;"><strong style="color:#374151;">Email:</strong> ${safeEmail}</p>
+            <p style="color:#6b7280;margin:10px 0;">
+              <strong style="color:#374151;">Rating:</strong>
+              <span style="color:#fbbf24;">${"★".repeat(safeRating)}${"☆".repeat(5 - safeRating)} (${safeRating}/5)</span>
+            </p>
+            <div style="background:#eff6ff;padding:15px;border-radius:8px;border-left:4px solid #3b82f6;margin-top:15px;">
+              <h3 style="color:#1d4ed8;margin-top:0;margin-bottom:10px;">Message:</h3>
+              <p style="color:#374151;line-height:1.6;margin:0;white-space:pre-wrap;">${safeMessage}</p>
+            </div>
+            <p style="color:#9ca3af;font-size:12px;margin-top:20px;">Submitted ${new Date().toLocaleString()}</p>
+          </div>
+        </div>
+      `,
+    });
+    console.log("Admin feedback email:", adminResult.success ? "sent ✅" : `failed: ${adminResult.error}`);
+
+    // Confirmation to user
+    const userResult = await sendNotificationEmail({
+      email,
+      subject: "Thank You for Your Feedback - Connect It",
+      html: `
+        <div style="font-family:Arial,sans-serif;background:#f9fafb;padding:20px;">
+          <div style="max-width:600px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
+            <h2 style="color:#1f2937;">Thank You, ${firstName}!</h2>
+            <p style="color:#6b7280;line-height:1.6;">We appreciate your feedback. It helps us improve Connect It.</p>
+            <div style="background:#dcfce7;padding:15px;border-radius:8px;border-left:4px solid #16a34a;margin:20px 0;">
+              <p style="color:#16a34a;margin:0;"><strong>Your feedback has been received</strong></p>
+            </div>
+            <p style="color:#6b7280;">Your Rating: <span style="color:#fbbf24;">${"★".repeat(safeRating)}</span></p>
+            <p style="color:#6b7280;margin-top:20px;">Best regards,<br/><strong>The Connect It Team</strong></p>
+          </div>
+        </div>
+      `,
+    });
+    console.log("User confirmation email:", userResult.success ? "sent ✅" : `failed: ${userResult.error}`);
+
     return res.status(200).json({
       success: true,
       message: "Thank you! Your feedback has been received.",
-    });
-
-    // Fire-and-forget emails (runs after response is sent)
-    setImmediate(async () => {
-      // Email to admin
-      try {
-        const adminResult = await sendNotificationEmail({
-          email: adminMailTo,
-          subject: `New Feedback from ${name} - Connect It`,
-          replyTo: email,
-          html: `
-            <div style="font-family:Arial,sans-serif;background:#f9fafb;padding:20px;">
-              <div style="max-width:600px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
-                <h2 style="color:#1f2937;margin-bottom:20px;border-bottom:2px solid #3b82f6;padding-bottom:10px;">
-                  New Feedback Received
-                </h2>
-                <p style="color:#6b7280;margin:10px 0;"><strong style="color:#374151;">Name:</strong> ${safeName}</p>
-                <p style="color:#6b7280;margin:10px 0;"><strong style="color:#374151;">Email:</strong> ${safeEmail}</p>
-                <p style="color:#6b7280;margin:10px 0;">
-                  <strong style="color:#374151;">Rating:</strong>
-                  <span style="color:#fbbf24;">${"★".repeat(safeRating)}${"☆".repeat(5 - safeRating)} (${safeRating}/5)</span>
-                </p>
-                <div style="background:#eff6ff;padding:15px;border-radius:8px;border-left:4px solid #3b82f6;margin-top:15px;">
-                  <h3 style="color:#1d4ed8;margin-top:0;margin-bottom:10px;">Message:</h3>
-                  <p style="color:#374151;line-height:1.6;margin:0;white-space:pre-wrap;">${safeMessage}</p>
-                </div>
-                <p style="color:#9ca3af;font-size:12px;margin-top:20px;">Submitted ${new Date().toLocaleString()}</p>
-              </div>
-            </div>
-          `,
-        });
-        console.log("Admin feedback email:", adminResult.success ? "sent ✅" : `failed: ${adminResult.error}`);
-      } catch (err) {
-        console.error("Admin feedback email error:", err.message);
-      }
-
-      // Confirmation to user
-      try {
-        const userResult = await sendNotificationEmail({
-          email,
-          subject: "Thank You for Your Feedback - Connect It",
-          html: `
-            <div style="font-family:Arial,sans-serif;background:#f9fafb;padding:20px;">
-              <div style="max-width:600px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
-                <h2 style="color:#1f2937;">Thank You, ${firstName}!</h2>
-                <p style="color:#6b7280;line-height:1.6;">We appreciate your feedback. It helps us improve Connect It.</p>
-                <div style="background:#dcfce7;padding:15px;border-radius:8px;border-left:4px solid #16a34a;margin:20px 0;">
-                  <p style="color:#16a34a;margin:0;"><strong>Your feedback has been received</strong></p>
-                </div>
-                <p style="color:#6b7280;">Your Rating: <span style="color:#fbbf24;">${"★".repeat(safeRating)}</span></p>
-                <p style="color:#6b7280;margin-top:20px;">Best regards,<br/><strong>The Connect It Team</strong></p>
-              </div>
-            </div>
-          `,
-        });
-        console.log("User confirmation email:", userResult.success ? "sent ✅" : `failed: ${userResult.error}`);
-      } catch (err) {
-        console.error("User confirmation email error:", err.message);
-      }
+      emailSent: adminResult.success,
     });
   } catch (error) {
     console.error("Error sending feedback:", error);
