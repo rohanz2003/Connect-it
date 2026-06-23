@@ -21,21 +21,40 @@ const sendPushNotification = async (userId, payload) => {
   try {
     const sub = await PushSubscription.findOne({ userId }).lean();
     if (!sub) {
-      console.log("⚠️ No push subscription for " + userId);
       return false;
     }
     await webpush.sendNotification(sub.subscription, JSON.stringify(payload));
-    console.log("🔔 Push sent to " + userId + ": " + (payload.body || ""));
+    console.log("🔔 Push sent to " + userId);
     return true;
   } catch (err) {
     if (err.statusCode === 410 || err.statusCode === 404) {
-      console.log("🗑️ Removing expired push subscription for " + userId);
       await PushSubscription.deleteOne({ userId });
-    } else {
-      console.error("❌ Push error for " + userId + ": " + err.message);
     }
     return false;
   }
 };
 
-module.exports = { initPush, sendPushNotification, getVapidConfig };
+// Send push to ALL subscriptions (broadcast)
+const broadcastPush = async (payload) => {
+  const subscriptions = await PushSubscription.find({}).lean();
+  let sent = 0;
+  let failed = 0;
+
+  const results = await Promise.allSettled(
+    subscriptions.map(async (sub) => {
+      try {
+        await webpush.sendNotification(sub.subscription, JSON.stringify(payload));
+        sent++;
+      } catch (err) {
+        failed++;
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          await PushSubscription.deleteOne({ userId: sub.userId });
+        }
+      }
+    })
+  );
+
+  return { sent, failed, total: subscriptions.length };
+};
+
+module.exports = { initPush, sendPushNotification, broadcastPush, getVapidConfig };

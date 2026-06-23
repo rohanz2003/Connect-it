@@ -6,6 +6,29 @@ self.addEventListener('push', (event) => {
     data = { title: 'New message', body: event.data.text() };
   }
   const { title, body, icon, badge, data: msgData } = data;
+
+  // Handle admin broadcasts
+  if (title && title.startsWith('📢')) {
+    const tag = 'admin-broadcast-' + Date.now();
+    event.waitUntil(
+      self.registration.showNotification(title, {
+        body: body || 'New announcement from Connect It',
+        icon: icon || '/logo192.png',
+        badge: badge || '/favicon.ico',
+        tag: tag,
+        renotify: true,
+        vibrate: [300, 100, 300, 100, 300],
+        data: msgData || { url: '/' },
+        actions: [
+          { action: 'open', title: 'View' },
+          { action: 'close', title: 'Dismiss' }
+        ]
+      })
+    );
+    return;
+  }
+
+  // Handle regular chat messages
   const senderKey = 'chat-' + (msgData?.senderId || 'unknown');
   event.waitUntil(
     self.registration.getNotifications({ tag: senderKey }).then(existing => {
@@ -29,6 +52,7 @@ self.addEventListener('push', (event) => {
     })
   );
 });
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   if (event.action === 'open' || !event.action) {

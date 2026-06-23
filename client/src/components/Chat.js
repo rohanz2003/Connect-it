@@ -217,6 +217,7 @@ function Chat({ user: currentUser }) {
   const [deleteError, setDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [broadcastNotification, setBroadcastNotification] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const attachMenuRef = useRef(null);
@@ -1172,6 +1173,15 @@ function Chat({ user: currentUser }) {
       }
     });
 
+    // Listen for admin broadcasts
+    const handleAdminBroadcast = ({ title, message, timestamp }) => {
+      // Show in-app notification banner
+      setBroadcastNotification({ title, message, timestamp });
+      // Auto-dismiss after 10 seconds
+      setTimeout(() => setBroadcastNotification(null), 10000);
+    };
+    socket.on("admin-broadcast", handleAdminBroadcast);
+
     return () => {
       socket.off("connect", handleJoin);
       socket.off("online-users", handleOnlineUsers);
@@ -1187,6 +1197,7 @@ function Chat({ user: currentUser }) {
       socket.off("message-saved", handleMessageSaved);
       socket.off("message-error", handleMessageError);
       socket.off("message-deleted");
+      socket.off("admin-broadcast", handleAdminBroadcast);
       socket.off("receive-message", handleIncomingMessage);
       socket.off("undelivered-messages");
       socket.off("message-status-update");
@@ -2612,6 +2623,27 @@ function Chat({ user: currentUser }) {
 
   return (
     <div className={`chat-layout ${isDarkMode ? "dark" : ""} w-full h-screen max-w-screen overflow-hidden md:grid md:grid-cols-[280px_1fr]`}>
+      {/* Admin Broadcast Banner */}
+      {broadcastNotification && (
+        <div className="broadcast-banner" style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+          color: 'white', padding: '14px 20px', boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '20px' }}>📢</span>
+            <div>
+              <strong>{broadcastNotification.title}</strong>
+              <p style={{ margin: '2px 0 0', opacity: 0.9, fontSize: '14px' }}>{broadcastNotification.message}</p>
+            </div>
+          </div>
+          <button onClick={() => setBroadcastNotification(null)} style={{
+            background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white',
+            borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontSize: '16px'
+          }}>×</button>
+        </div>
+      )}
       <div className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`} onClick={() => setSidebarOpen(false)} />
       <motion.aside
         className={`sidebar ${sidebarOpen ? "open" : ""}`}

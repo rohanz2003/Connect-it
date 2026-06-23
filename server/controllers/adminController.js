@@ -9,7 +9,7 @@ const ChatRequest = require("../models/ChatRequest");
 const PushSubscription = require("../models/PushSubscription");
 const Device = require("../models/Device");
 const { decryptMessageDoc } = require("../utils/messageCrypto");
-const { sendPushNotification } = require("../services/pushService");
+const { sendPushNotification, broadcastPush } = require("../services/pushService");
 const { sendNotificationEmail } = require("../services/emailService");
 
 // Get all messages with sender details
@@ -439,7 +439,7 @@ exports.getUserDetail = async (req, res) => {
   }
 };
 
-// Broadcast message to all users via push notification
+// Broadcast message to ALL users — push + email + socket.IO
 exports.broadcastMessage = async (req, res) => {
   try {
     const { title, message } = req.body;
@@ -447,54 +447,70 @@ exports.broadcastMessage = async (req, res) => {
       return res.status(400).json({ error: "Title and message are required" });
     }
 
-    // Get all push subscriptions
-    const subscriptions = await PushSubscription.find({}).lean();
-    let sentCount = 0;
-    let failedCount = 0;
-
-    const results = await Promise.allSettled(
-      subscriptions.map(async (sub) => {
-        try {
-          await sendPushNotification(sub.userId, {
-            title: `📢 ${title}`,
-            body: message,
-            icon: "/logo192.png",
-            url: "/",
-          });
-          sentCount++;
-        } catch {
-          failedCount++;
-        }
-      })
-    );
-
-    // Also send email to all users with email addresses
-    const users = await User.find({}).select("email").lean();
-    let emailSent = 0;
-    for (const user of users) {
-      try {
-        await sendNotificationEmail({
-          email: user.email,
-          subject: `📢 ${title}`,
-          html: `
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-              <h2 style="color:#1f2937;">${title}</h2>
-              <p style="color:#374151;line-height:1.6;">${message}</p>
-              <p style="color:#9ca3af;font-size:12px;margin-top:20px;">— The Connect It Team</p>
-            </div>
-          `,
-        });
-        emailSent++;
-      } catch {}
+    // 1. Send push notifications to all subscribers
+    let pushResult = { sent: 0, failed: 0, total: 0 };
+    try {
+      pushResult = await broadcastPush({
+        title: `📢 ${title}`,
+        body: message,
+        icon: "/logo192.png",
+        url: "/",
+      });
+    } catch (pushErr) {
+      console.error("Push broadcast error:", pushErr.message);
     }
 
-    console.log(`📢 Broadcast: ${sentCount} push, ${emailSent} email sent`);
+    // 2. Send email to ALL users in parallel (batches of 10)
+    const users = await User.find({}).select("email").lean();
+    let emailSent = 0;
+    let emailFailed = 0;
+    const batchSize = 10;
+    for (let i = 0; i < users.length; i += batchSize) {
+      const batch = users.slice(i, i + batchSize);
+      const results = await Promise.allSettled(
+        batch.map(async (user) => {
+          await sendNotificationEmail({
+            email: user.email,
+            subject: `📢 ${title}`,
+            html: `
+              <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                <h2 style="color:#1f2937;">${title}</h2>
+                <p style="color:#374151;line-height:1.6;">${message}</p>
+                <p style="color:#9ca3af;font-size:12px;margin-top:20px;">— The Connect It Team</p>
+              </div>
+            `,
+          });
+        })
+      );
+      results.forEach((r) => {
+        if (r.status === "fulfilled") emailSent++;
+        else emailFailed++;
+      });
+    }
+
+    // 3. Broadcast via Socket.IO to all online users
+    let socketSent = 0;
+    try {
+      const expressApp = req.app;
+      const io = expressApp.get("io");
+      if (io) {
+        io.emit("admin-broadcast", { title, message, timestamp: new Date().toISOString() });
+        socketSent = io.engine.clientsCount || 0;
+        console.log(`📡 Socket.IO broadcast to ${socketSent} connected clients`);
+      }
+    } catch (socketErr) {
+      console.warn("Socket broadcast error:", socketErr.message);
+    }
+
+    console.log(`📢 Broadcast complete: ${pushResult.sent} push, ${emailSent} email, ${socketSent} socket`);
     res.json({
       success: true,
-      message: `Broadcast sent: ${sentCount} push notifications, ${emailSent} emails`,
-      sentCount,
-      emailSent,
-      failedCount,
+      message: `Broadcast sent!`,
+      details: {
+        push: { sent: pushResult.sent, failed: pushResult.failed, total: pushResult.total },
+        email: { sent: emailSent, failed: emailFailed, total: users.length },
+        socket: { connected: socketSent },
+      },
     });
   } catch (error) {
     console.error("Broadcast error:", error.message);
