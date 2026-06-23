@@ -1,29 +1,15 @@
-const { Resend } = require("resend");
+const fetch = require("node-fetch");
 
-let resendClient = null;
+const RESEND_API = "https://api.resend.com";
 
-const getResendClient = () => {
-  if (resendClient) return resendClient;
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.warn("📧 RESEND_API_KEY not set — emails will not send");
-    return null;
-  }
-  resendClient = new Resend(apiKey);
-  console.log("📧 Resend client initialized ✅");
-  return resendClient;
-};
+const getApiKey = () => process.env.RESEND_API_KEY;
 
-const getFromEmail = () => {
-  // Resend free tier: must use onboarding@resend.dev unless you verify a domain
-  // For verified domain: use "Connect It <notifications@yourdomain.com>"
-  return process.env.FROM_EMAIL || "onboarding@resend.dev";
-};
+const getFromEmail = () => process.env.FROM_EMAIL || "onboarding@resend.dev";
 
 const sendMail = async ({ to, subject, html, text, replyTo }) => {
-  const client = getResendClient();
-  if (!client) {
-    console.error(`📧 Cannot send email to ${to}: Resend not configured`);
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    console.error("📧 RESEND_API_KEY not set — email not sent");
     return { success: false, error: "RESEND_API_KEY not set." };
   }
 
@@ -34,15 +20,24 @@ const sendMail = async ({ to, subject, html, text, replyTo }) => {
     if (text) payload.text = text;
     if (replyTo) payload.reply_to = replyTo;
 
-    const { data, error } = await client.emails.send(payload);
+    const res = await fetch(`${RESEND_API}/emails`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-    if (error) {
-      console.error(`📧 Failed to send email to ${to}:`, error.message);
-      return { success: false, error: error.message };
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.error(`📧 Failed to send email to ${to}:`, data.message || data);
+      return { success: false, error: data.message || "Send failed" };
     }
 
     console.log(`📧 Email sent to ${to} ✅`);
-    return { success: true, messageId: data?.id, accepted: [to] };
+    return { success: true, messageId: data.id, accepted: [to] };
   } catch (err) {
     console.error(`📧 Failed to send email to ${to}:`, err?.message);
     return { success: false, error: err.message };
