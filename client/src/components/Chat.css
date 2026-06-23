@@ -158,6 +158,12 @@ body {
   flex-shrink: 0;
 }
 
+@media (max-width: 767px) {
+  .mobile-page-notif-btn {
+    display: flex;
+  }
+}
+
 .mobile-page-notif-btn:hover {
   background: var(--border-color, #e5e7eb);
   color: var(--text-primary, #1f2937);
