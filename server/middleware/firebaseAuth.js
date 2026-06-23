@@ -1,6 +1,8 @@
 const { verifyFirebaseToken, isFirebaseConfigured } = require("../config/firebase");
 const User = require("../modules/User");
 
+let firebaseWarnedOnce = false;
+
 const decodeTokenPayload = (idToken) => {
   try {
     const parts = idToken.split(".");
@@ -61,7 +63,10 @@ const firebaseAuthMiddleware = async (req, res, next) => {
     // If verification fails, try decode as fallback (still validates token structure)
     const decoded = decodeTokenPayload(idToken);
     if (decoded) {
-      console.warn("⚠️ Firebase verification failed, using decoded token:", err.message);
+      if (!firebaseWarnedOnce) {
+        console.warn("⚠️ Firebase verification failed, using decoded token:", err.message);
+        firebaseWarnedOnce = true;
+      }
       req.user = decoded;
       return next();
     }

@@ -1,6 +1,7 @@
 const admin = require("firebase-admin");
 
 let firebaseApp = null;
+let initFailed = false;
 
 function cleanPrivateKey(raw) {
   if (!raw) return null;
@@ -18,6 +19,7 @@ function cleanPrivateKey(raw) {
 
 const initFirebase = () => {
   if (firebaseApp) return firebaseApp;
+  if (initFailed) return null;
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -39,6 +41,7 @@ const initFirebase = () => {
     } catch (err) {
       console.error("❌ Firebase Admin init error:", err.message);
       firebaseApp = null;
+      initFailed = true;
     }
   } else {
     firebaseApp = admin.apps[0];

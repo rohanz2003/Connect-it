@@ -17,10 +17,11 @@ const getEmailPassword = () =>
 const getFromEmail = () =>
   process.env.FROM_EMAIL || process.env.EMAIL_USER || "noreply@connectit.app";
 
-const createTransporter = () => {
+const createTransporter = (portOverride) => {
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = parseInt(process.env.SMTP_PORT || "587");
-  const secure = process.env.SMTP_SECURE === "true";
+  const defaultPort = parseInt(process.env.SMTP_PORT || "587");
+  const port = portOverride || defaultPort;
+  const secure = port === 465 ? true : process.env.SMTP_SECURE === "true";
   const user = process.env.SMTP_USER || process.env.EMAIL_USER;
   const pass = getEmailPassword();
 
@@ -29,7 +30,7 @@ const createTransporter = () => {
     return null;
   }
 
-  console.log(`📧 Email: creating Nodemailer transporter (${host}:${port}, user=${user})`);
+  console.log(`📧 Email: creating Nodemailer transporter (${host}:${port}, secure=${secure}, user=${user})`);
 
   return nodemailer.createTransport({
     host,
@@ -37,9 +38,9 @@ const createTransporter = () => {
     secure,
     auth: { user, pass },
     tls: { rejectUnauthorized: false },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 15000,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
   });
 };
 
@@ -47,23 +48,28 @@ const init = () => {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    transporter = createTransporter();
-    if (!transporter) {
-      transporterReady = false;
-      console.warn("📧 Email: no transporter created — emails will not send");
-      return false;
+    // Try default port first (587), then fallback to 465 (SSL)
+    const ports = [parseInt(process.env.SMTP_PORT || "587"), 465];
+    for (const port of ports) {
+      transporter = createTransporter(port);
+      if (!transporter) {
+        transporterReady = false;
+        console.warn("📧 Email: no transporter created — emails will not send");
+        return false;
+      }
+      try {
+        await transporter.verify();
+        transporterReady = true;
+        console.log(`📧 Email transporter verified on port ${port} ✅`);
+        return true;
+      } catch (err) {
+        console.warn(`📧 Email port ${port} failed: ${err?.message}`);
+        transporter = null;
+        transporterReady = false;
+      }
     }
-    try {
-      await transporter.verify();
-      transporterReady = true;
-      console.log("📧 Email transporter verified and ready ✅");
-      return true;
-    } catch (err) {
-      transporterReady = false;
-      console.error("📧 Email transporter verification FAILED:", err?.message);
-      console.error("📧 Check SMTP_USER and SMTP_PASS (Gmail App Password) in .env");
-      return false;
-    }
+    console.error("📧 Email: all SMTP ports failed. Check SMTP_USER and SMTP_PASS.");
+    return false;
   })();
 
   return initPromise;
@@ -84,18 +90,22 @@ const ensureTransporter = async () => {
     }
   }
 
-  // Create new transporter and verify
-  transporter = createTransporter();
-  if (!transporter) return false;
-  try {
-    await transporter.verify();
-    transporterReady = true;
-    return true;
-  } catch (err) {
-    transporterReady = false;
-    console.error("📧 Email transporter re-verification failed:", err?.message);
-    return false;
+  // Create new transporter — try default port, then 465 SSL
+  const ports = [parseInt(process.env.SMTP_PORT || "587"), 465];
+  for (const port of ports) {
+    transporter = createTransporter(port);
+    if (!transporter) return false;
+    try {
+      await transporter.verify();
+      transporterReady = true;
+      return true;
+    } catch {
+      transporter = null;
+      transporterReady = false;
+    }
   }
+  console.error("📧 Email: all SMTP ports failed during re-verification.");
+  return false;
 };
 
 const sendMail = async ({ to, subject, html, text }) => {

@@ -11,6 +11,7 @@ const {
   validateRequiredEnv,
 } = require("./config/env");
 const { connectDatabase, isDatabaseConnected } = require("./config/database");
+const { initFirebase, isFirebaseConfigured } = require("./config/firebase");
 
 console.log("=== Server Starting ===");
 
@@ -239,6 +240,19 @@ const startServer = async () => {
       process.exit(1);
     }
     console.warn("⚠️ Warning: Running in LOCAL MODE without database persistence.");
+  }
+
+  // Firebase Admin init — verify at startup once, not on every request
+  if (isFirebaseConfigured()) {
+    try {
+      initFirebase();
+      console.log("✅ Firebase Admin initialized at startup");
+    } catch (err) {
+      console.warn("⚠️ Firebase Admin init failed:", err.message);
+      console.warn("⚠️ Firebase token verification disabled — using decoded tokens");
+    }
+  } else {
+    console.warn("⚠️ Firebase Admin not configured — using decoded tokens");
   }
 
   const serverInstance = server.listen(PORT, () => {

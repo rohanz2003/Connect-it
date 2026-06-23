@@ -12,6 +12,8 @@ const Device = require("../models/Device");
 
 const crypto = require("crypto");
 
+let firebaseWarnedOnce = false;
+
 const decodeTokenPayload = (token) => {
   try {
     const parts = token.split(".");
@@ -71,7 +73,10 @@ const initSocket = (server) => {
             connectionCounts.set(ip, count + 1);
             return next();
           }
-          console.warn("Socket Firebase token verification failed:", err.message);
+          if (!firebaseWarnedOnce) {
+            console.warn("⚠️ Firebase verification failed, using decoded token:", err.message);
+            firebaseWarnedOnce = true;
+          }
         }
       } else {
         // Firebase not configured — decode token payload without verification
