@@ -11,7 +11,7 @@
 .feedback-header {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   position: relative;
   max-width: 1200px;
   margin: 0 auto 3rem;
@@ -21,8 +21,7 @@
 }
 
 .feedback-header .home-button {
-  position: absolute;
-  left: 0;
+  flex-shrink: 0;
 }
 
 .home-button {
@@ -46,6 +45,10 @@
 }
 
 .feedback-page-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
   font-size: 2rem;
   font-weight: 800;
   background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
