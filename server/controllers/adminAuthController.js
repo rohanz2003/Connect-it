@@ -8,9 +8,7 @@ const otpAttempts = new NodeCache({ stdTTL: 600, checkperiod: 60 });
 
 const adminEmail = process.env.ADMIN_EMAIL;
 
-const generateOtp = () => {
-  return crypto.randomInt(100000, 999999).toString();
-};
+const generateOtp = () => crypto.randomInt(100000, 999999).toString();
 
 const sendOtp = async (req, res) => {
   try {
@@ -19,9 +17,7 @@ const sendOtp = async (req, res) => {
     const normalizedAdminEmail = typeof adminEmail === "string" ? adminEmail.trim().toLowerCase() : "";
 
     if (!adminEmail) {
-      return res
-        .status(500)
-        .json({ success: false, message: "ADMIN_EMAIL is missing on the server." });
+      return res.status(500).json({ success: false, message: "ADMIN_EMAIL is missing on the server." });
     }
 
     if (!normalizedRequestEmail || normalizedRequestEmail !== normalizedAdminEmail) {
@@ -37,37 +33,33 @@ const sendOtp = async (req, res) => {
     const otp = generateOtp();
     otpCache.set(normalizedAdminEmail, otp);
 
-    const result = await sendNotificationEmail({
-      email: normalizedAdminEmail,
-      subject: "Connect It Admin Login OTP",
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
-          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <h2 style="color: #333333;">Admin Login OTP for Connect It</h2>
-            <p style="color: #555555; font-size: 16px;">
-              You've requested a One-Time Password (OTP) to log in to the Connect It admin panel.
-            </p>
-            <p style="font-size: 24px; font-weight: bold; color: #007bff; text-align: center; background-color: #e9f5ff; padding: 15px; border-radius: 5px;">
-              ${otp}
-            </p>
-            <p style="color: #555555; font-size: 14px;">
-              This OTP is valid for 5 minutes. Do not share this code with anyone.
-            </p>
-            <p style="color: #777777; font-size: 12px; margin-top: 20px;">
-              If you did not request this, please ignore this email.
-            </p>
-          </div>
-        </div>
-      `,
-    });
+    // Respond immediately, send email async
+    res.status(200).json({ success: true, message: "OTP sent to admin email." });
 
-    if (result.success) {
-      console.log(`📧 OTP sent to ${normalizedAdminEmail} ✅`);
-      res.status(200).json({ success: true, message: "OTP sent to admin email." });
-    } else {
-      console.error(`📧 OTP email failed to ${normalizedAdminEmail}:`, result.error);
-      res.status(500).json({ success: false, message: `Failed to send OTP email: ${result.error}` });
-    }
+    setImmediate(async () => {
+      try {
+        const result = await sendNotificationEmail({
+          email: normalizedAdminEmail,
+          subject: "Connect It Admin Login OTP",
+          html: `
+            <div style="font-family:Arial,sans-serif;padding:20px;background:#f4f4f4;">
+              <div style="max-width:600px;margin:0 auto;background:#fff;padding:30px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                <h2 style="color:#333;">Admin Login OTP</h2>
+                <p style="color:#555;font-size:16px;">Your One-Time Password for Connect It admin login:</p>
+                <p style="font-size:28px;font-weight:bold;color:#007bff;text-align:center;background:#e9f5ff;padding:15px;border-radius:5px;margin:20px 0;">
+                  ${otp}
+                </p>
+                <p style="color:#555;font-size:14px;">Valid for 5 minutes. Do not share this code.</p>
+                <p style="color:#777;font-size:12px;margin-top:20px;">If you did not request this, ignore this email.</p>
+              </div>
+            </div>
+          `,
+        });
+        console.log(`📧 OTP sent to ${normalizedAdminEmail}:`, result.success ? "✅" : `❌ ${result.error}`);
+      } catch (err) {
+        console.error("OTP email error:", err.message);
+      }
+    });
   } catch (error) {
     console.error("Error sending OTP:", error.message);
     res.status(500).json({ success: false, message: "Failed to send OTP." });
@@ -82,15 +74,11 @@ const verifyOtp = async (req, res) => {
     const normalizedAdminEmail = typeof adminEmail === "string" ? adminEmail.trim().toLowerCase() : "";
 
     if (!adminEmail) {
-      return res
-        .status(500)
-        .json({ success: false, message: "ADMIN_EMAIL is missing on the server." });
+      return res.status(500).json({ success: false, message: "ADMIN_EMAIL is missing on the server." });
     }
 
     if (!jwtSecret) {
-      return res
-        .status(500)
-        .json({ success: false, message: "JWT_SECRET is missing on the server." });
+      return res.status(500).json({ success: false, message: "JWT_SECRET is missing on the server." });
     }
 
     if (!normalizedRequestEmail || normalizedRequestEmail !== normalizedAdminEmail || !otp) {
@@ -116,7 +104,4 @@ const verifyOtp = async (req, res) => {
   }
 };
 
-module.exports = {
-  sendOtp,
-  verifyOtp,
-};
+module.exports = { sendOtp, verifyOtp };
