@@ -106,6 +106,26 @@ app.use("/api/feedback", feedbackRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/requests", requestRoutes);
 
+// Email test endpoint — POST /api/test-email { "to": "you@gmail.com" }
+app.post("/api/test-email", async (req, res) => {
+  const { sendNotificationEmail } = require("./services/emailService");
+  const to = req.body.to || process.env.ADMIN_EMAIL || "zenderohan2012@gmail.com";
+  try {
+    const result = await sendNotificationEmail({
+      email: to,
+      subject: "Connect It — Test Email ✅",
+      html: `<div style="font-family:Arial,sans-serif;padding:20px;"><h2 style="color:#16a34a;">Email is working!</h2><p>This is a test email from Connect It server. If you received this, Nodemailer + Gmail SMTP is configured correctly.</p><p style="color:#6b7280;font-size:12px;margin-top:20px;">Sent at ${new Date().toLocaleString()}</p></div>`,
+    });
+    if (result.success) {
+      res.json({ success: true, message: `Test email sent to ${to}`, messageId: result.messageId });
+    } else {
+      res.status(500).json({ success: false, error: result.error });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Push notification subscription endpoint
 app.post("/api/save-subscription", async (req, res) => {
   try {
