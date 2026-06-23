@@ -14,22 +14,10 @@ services:
         value: "20"
       - key: MONGO_URI
         sync: false
-      - key: SMTP_HOST
-        value: smtp.gmail.com
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_SECURE
-        value: "false"
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: EMAIL_USER
-        sync: false
-      - key: EMAIL_PASS
+      - key: RESEND_API_KEY
         sync: false
       - key: FROM_EMAIL
-        sync: false
+        value: onboarding@resend.dev
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_FEEDBACK_EMAIL

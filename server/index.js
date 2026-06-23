@@ -114,8 +114,8 @@ app.post("/api/test-email", async (req, res) => {
   try {
     const result = await sendNotificationEmail({
       email: to,
-      subject: "Connect It — Test Email ✅",
-      html: `<div style="font-family:Arial,sans-serif;padding:20px;"><h2 style="color:#16a34a;">Email is working!</h2><p>This is a test email from Connect It server. If you received this, Nodemailer + Gmail SMTP is configured correctly.</p><p style="color:#6b7280;font-size:12px;margin-top:20px;">Sent at ${new Date().toLocaleString()}</p></div>`,
+      subject: "Connect It — Test Email",
+      html: `<div style="font-family:Arial,sans-serif;padding:20px;"><h2 style="color:#16a34a;">Email is working!</h2><p>This is a test email from Connect It server via Resend API.</p><p style="color:#6b7280;font-size:12px;margin-top:20px;">Sent at ${new Date().toLocaleString()}</p></div>`,
     });
     if (result.success) {
       res.json({ success: true, message: `Test email sent to ${to}`, messageId: result.messageId });

@@ -1,115 +1,50 @@
-const nodemailer = require("nodemailer");
-const dns = require("dns");
+const { Resend } = require("resend");
 
-try { dns.setDefaultResultOrder("ipv4first"); } catch {}
+let resendClient = null;
 
-let transporter = null;
-let transporterReady = false;
-let workingPort = null;
-let initPromise = null;
-
-const getEmailPassword = () =>
-  process.env.SMTP_PASS ||
-  process.env.EMAIL_PASS ||
-  process.env.EMAIL_PASSWORD ||
-  process.env.GMAIL_APP_PASSWORD;
-
-const getFromEmail = () =>
-  process.env.FROM_EMAIL || process.env.EMAIL_USER || "noreply@connectit.app";
-
-const createTransporter = (port) => {
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const secure = port === 465;
-  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
-  const pass = getEmailPassword();
-
-  if (!user || !pass) {
-    console.error("📧 Email: missing credentials — set SMTP_USER and SMTP_PASS in .env");
+const getResendClient = () => {
+  if (resendClient) return resendClient;
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn("📧 RESEND_API_KEY not set — emails will not send");
     return null;
   }
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
-    tls: { rejectUnauthorized: false },
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 8000,
-  });
+  resendClient = new Resend(apiKey);
+  console.log("📧 Resend client initialized ✅");
+  return resendClient;
 };
 
-const init = () => {
-  if (initPromise) return initPromise;
-
-  initPromise = (async () => {
-    const ports = [parseInt(process.env.SMTP_PORT || "587"), 465];
-    for (const port of ports) {
-      const t = createTransporter(port);
-      if (!t) continue;
-      try {
-        await t.verify();
-        transporter = t;
-        transporterReady = true;
-        workingPort = port;
-        console.log(`📧 Email transporter verified on port ${port} ✅`);
-        return true;
-      } catch (err) {
-        console.warn(`📧 Email port ${port} failed: ${err?.message}`);
-      }
-    }
-    console.error("📧 Email: all SMTP ports failed.");
-    return false;
-  })();
-
-  return initPromise;
-};
-
-const ensureTransporter = async () => {
-  if (transporterReady && transporter) return true;
-
-  // If we already know the working port, skip to it
-  const ports = workingPort
-    ? [workingPort]
-    : [parseInt(process.env.SMTP_PORT || "587"), 465];
-
-  for (const port of ports) {
-    transporter = createTransporter(port);
-    if (!transporter) return false;
-    try {
-      await transporter.verify();
-      transporterReady = true;
-      workingPort = port;
-      return true;
-    } catch {
-      transporter = null;
-      transporterReady = false;
-    }
-  }
-  return false;
+const getFromEmail = () => {
+  // Resend free tier: must use onboarding@resend.dev unless you verify a domain
+  // For verified domain: use "Connect It <notifications@yourdomain.com>"
+  return process.env.FROM_EMAIL || "onboarding@resend.dev";
 };
 
 const sendMail = async ({ to, subject, html, text, replyTo }) => {
-  const from = `"Connect It" <${getFromEmail()}>`;
-
-  const ready = await ensureTransporter();
-  if (!ready || !transporter) {
-    console.error(`📧 Cannot send email to ${to}: transporter not available`);
-    return { success: false, error: "Email transporter not available." };
+  const client = getResendClient();
+  if (!client) {
+    console.error(`📧 Cannot send email to ${to}: Resend not configured`);
+    return { success: false, error: "RESEND_API_KEY not set." };
   }
 
+  const from = getFromEmail();
+
   try {
-    const msg = { from, to, subject, html, text };
-    if (replyTo) msg.replyTo = replyTo;
-    const info = await transporter.sendMail(msg);
+    const payload = { from, to, subject, html };
+    if (text) payload.text = text;
+    if (replyTo) payload.reply_to = replyTo;
+
+    const { data, error } = await client.emails.send(payload);
+
+    if (error) {
+      console.error(`📧 Failed to send email to ${to}:`, error.message);
+      return { success: false, error: error.message };
+    }
+
     console.log(`📧 Email sent to ${to} ✅`);
-    return { success: true, messageId: info.messageId, accepted: info.accepted };
+    return { success: true, messageId: data?.id, accepted: [to] };
   } catch (err) {
     console.error(`📧 Failed to send email to ${to}:`, err?.message);
-    transporter = null;
-    transporterReady = false;
-    workingPort = null;
     return { success: false, error: err.message };
   }
 };
@@ -144,7 +79,4 @@ const sendInviteEmail = async ({ email, invitedByName, workspaceName, inviteLink
   });
 };
 
-// Start init in background
-init();
-
-module.exports = { init, sendMail, sendInviteEmail, sendNotificationEmail };
+module.exports = { sendMail, sendInviteEmail, sendNotificationEmail };
