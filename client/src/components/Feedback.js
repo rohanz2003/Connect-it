@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Star, Home, Send } from "lucide-react";
+import { Star, ArrowLeft, Send } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import "../styles/Feedback.css";
 
@@ -96,7 +96,7 @@ const Feedback = () => {
           rating: 0,
         });
         setTimeout(() => {
-          navigate("/");
+          navigate("/chat");
         }, 2000);
       } else {
         setErrorMessage(data.message || "Failed to send feedback. Please try again.");
@@ -131,16 +131,16 @@ const Feedback = () => {
 
   return (
     <div className="feedback-page">
-      {/* Header with Home Icon */}
+      {/* Header with Back Icon */}
       <div className="feedback-header">
         <motion.button
           className="home-button"
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/chat")}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
-          title="Go back to home"
+          title="Back to chat"
         >
-          <Home size={24} />
+          <ArrowLeft size={24} />
         </motion.button>
         <h1 className="feedback-page-title">Connect It</h1>
       </div>

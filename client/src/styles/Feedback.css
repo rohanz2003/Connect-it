@@ -11,12 +11,18 @@
 .feedback-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  position: relative;
   max-width: 1200px;
   margin: 0 auto 3rem;
   width: 100%;
   padding-bottom: 2rem;
   border-bottom: 2px solid rgba(59, 130, 246, 0.1);
+}
+
+.feedback-header .home-button {
+  position: absolute;
+  left: 0;
 }
 
 .home-button {
@@ -329,10 +335,14 @@
   }
 
   .feedback-header {
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     gap: 1rem;
     margin-bottom: 1.5rem;
+  }
+
+  .feedback-header .home-button {
+    position: static;
   }
 
   .feedback-form-wrapper {
