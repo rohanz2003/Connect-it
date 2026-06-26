@@ -224,12 +224,9 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
       email,
     };
     
-    // Always include profilePic if it's being updated
+    // Only include profilePic if it's being updated (never send null for non-updates)
     if (data.hasOwnProperty('profilePic')) {
       profilePayload.profilePic = data.profilePic || null;
-    } else {
-      // If not updating profilePic, send current value
-      profilePayload.profilePic = userProfiles[email] || null;
     }
     
     if (data.hasOwnProperty('displayName')) {
