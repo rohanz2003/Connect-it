@@ -54,7 +54,7 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
       userProfiles[userId] = profilePic;
     }
 
-    // Only broadcast fields that were actually provided
+    // Build profilePayload from client data
     const profilePayload = {
       email: userId,
     };
@@ -64,26 +64,44 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
     if (displayName) profilePayload.displayName = displayName;
     if (bio) profilePayload.bio = bio;
 
-    // Only broadcast if we have profile data
-    if (typeof data === 'object' && data !== null) {
-      io.emit("user-profile-update", profilePayload);
-
-      // Persist to database (only truthy values to avoid overwriting)
+    // If some fields were not provided by client, fetch them from DB for reliable broadcast
+    if (!profilePayload.displayName || !profilePayload.bio || !profilePayload.profilePic) {
       try {
-        const update = {};
-        if (profilePic) update.avatarUrl = profilePic;
-        if (displayName) update.displayName = displayName;
-        if (bio) update.bio = bio;
-        if (Object.keys(update).length > 0) {
-          await User.findOneAndUpdate(
-            { email: userId },
-            { $set: update },
-            { upsert: true }
-          );
+        const userDoc = await User.findOne({ email: userId }).lean();
+        if (userDoc) {
+          if (!profilePayload.displayName && userDoc.displayName) {
+            profilePayload.displayName = userDoc.displayName;
+          }
+          if (!profilePayload.bio && userDoc.bio) {
+            profilePayload.bio = userDoc.bio;
+          }
+          if (!profilePayload.profilePic && userDoc.avatarUrl) {
+            profilePayload.profilePic = userDoc.avatarUrl;
+          }
         }
       } catch (err) {
-        console.error("Error persisting profile on join:", err.message);
+        console.error("Error fetching user profile on join:", err.message);
       }
+    }
+
+    // Broadcast profile to ALL connected clients
+    io.emit("user-profile-update", profilePayload);
+
+    // Persist to database (only truthy values to avoid overwriting)
+    try {
+      const update = {};
+      if (profilePic) update.avatarUrl = profilePic;
+      if (displayName) update.displayName = displayName;
+      if (bio) update.bio = bio;
+      if (Object.keys(update).length > 0) {
+        await User.findOneAndUpdate(
+          { email: userId },
+          { $set: update },
+          { upsert: true }
+        );
+      }
+    } catch (err) {
+      console.error("Error persisting profile on join:", err.message);
     }
     
     io.emit("online-users", Object.keys(users));

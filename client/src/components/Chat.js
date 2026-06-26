@@ -782,8 +782,8 @@ function Chat({ user: currentUser }) {
         });
       }
       
-      // Handle display name and bio updates
-      if (data.displayName !== undefined || data.bio !== undefined) {
+      // Handle display name updates (separate from bio to avoid overwriting with null)
+      if (data.displayName !== undefined) {
         setUserNames((prev) => {
           const updated = {
             ...prev,
@@ -798,11 +798,23 @@ function Chat({ user: currentUser }) {
           }
           return updated;
         });
+      }
 
-        // Also update allUsers so it stays fresh
+      // Handle bio updates
+      if (data.bio !== undefined) {
         setAllUsers(prev => prev.map(u => {
           if (u.email === updatedEmail) {
-            return { ...u, displayName: data.displayName || u.displayName, bio: data.bio !== undefined ? data.bio : u.bio };
+            return { ...u, bio: data.bio };
+          }
+          return u;
+        }));
+      }
+
+      // Also update allUsers displayName if present
+      if (data.displayName !== undefined) {
+        setAllUsers(prev => prev.map(u => {
+          if (u.email === updatedEmail) {
+            return { ...u, displayName: data.displayName };
           }
           return u;
         }));
@@ -1250,28 +1262,48 @@ function Chat({ user: currentUser }) {
     };
   }, [socket, user]);
 
-  // Fetch profiles for online users when list changes
+  // Fetch profiles for online users when list changes (always fetch ALL, not just unknown)
+  const profileFetchTimerRef = useRef(null);
+  const lastProfileFetchRef = useRef(0);
   useEffect(() => {
     if (!user) return;
-    const unknown = onlineUsers.filter(u => !userNames[u.toLowerCase().trim()] && u.toLowerCase().trim() !== user.email.toLowerCase());
-    if (unknown.length === 0) return;
+    const online = onlineUsers.filter(u => u.toLowerCase().trim() !== user.email.toLowerCase());
+    if (online.length === 0) return;
+
+    if (profileFetchTimerRef.current) clearTimeout(profileFetchTimerRef.current);
+
     const fetchProfiles = async () => {
       try {
-        const res = await authAxios.get(`/api/users/profiles?emails=${encodeURIComponent(unknown.join(","))}`);
+        const res = await authAxios.get(`/api/users/profiles?emails=${encodeURIComponent(online.join(","))}`);
         const data = res.data;
         if (data.success && data.profiles) {
-          Object.entries(data.profiles).forEach(([email, profile]) => {
-            if (profile.avatarUrl) {
-              setUserProfiles(p => ({ ...p, [email]: profile.avatarUrl }));
-            }
-            if (profile.displayName) {
-              setUserNames(p => ({ ...p, [email]: profile.displayName }));
-            }
+          setUserProfiles(p => {
+            const next = { ...p };
+            Object.entries(data.profiles).forEach(([email, profile]) => {
+              if (profile.avatarUrl) next[email] = profile.avatarUrl;
+            });
+            return next;
+          });
+          setUserNames(p => {
+            const next = { ...p };
+            Object.entries(data.profiles).forEach(([email, profile]) => {
+              if (profile.displayName) next[email] = profile.displayName;
+            });
+            return next;
           });
         }
+        lastProfileFetchRef.current = Date.now();
       } catch {}
     };
-    fetchProfiles();
+
+    const now = Date.now();
+    if (lastProfileFetchRef.current === 0) {
+      fetchProfiles();
+    } else {
+      profileFetchTimerRef.current = setTimeout(fetchProfiles, 1000);
+    }
+
+    return () => clearTimeout(profileFetchTimerRef.current);
   }, [onlineUsers, user]);
 
   // Socket heartbeat every 25 seconds
