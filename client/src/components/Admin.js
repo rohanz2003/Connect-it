@@ -210,10 +210,11 @@ function AdminDashboard() {
   };
 
   // === Feature: Broadcast ===
+  const [broadcastResult, setBroadcastResult] = useState(null);
   const handleBroadcast = async () => {
     if (!broadcastTitle.trim() || !broadcastMsg.trim()) { setError("Enter title and message"); return; }
     if (!window.confirm("Send broadcast to ALL users?")) return;
-    setBroadcastSending(true);
+    setBroadcastSending(true); setBroadcastResult(null);
     try {
       const res = await fetch(`${API_URL}/api/admin/broadcast`, {
         method: "POST",
@@ -222,7 +223,8 @@ function AdminDashboard() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setSuccess(`Broadcast sent: ${data.sentCount} push, ${data.emailSent} email`);
+        setBroadcastResult(data.details);
+        setSuccess("Broadcast sent!");
         setBroadcastTitle(""); setBroadcastMsg("");
       } else { setError(data.error || "Failed to send broadcast"); }
     } catch { setError("Network error."); }
@@ -488,7 +490,12 @@ function AdminDashboard() {
                 {feedback.map((item) => (
                   <div key={item._id} className="feedback-card">
                     <div className="feedback-header">
-                      <h4>{item.name}</h4>
+                      <div className="feedback-name-row">
+                        <h4>{item.name}</h4>
+                        <span className={`feedback-type-badge type-${item.type || "suggestion"}`}>
+                          {item.type === "suggestion" ? "💡" : item.type === "bug" ? "🐛" : item.type === "compliment" ? "❤️" : "💬"} {item.type || "suggestion"}
+                        </span>
+                      </div>
                       <div className="feedback-rating">{"⭐".repeat(item.rating)}</div>
                     </div>
                     <p className="feedback-email">{item.email}</p>
@@ -588,7 +595,7 @@ function AdminDashboard() {
         {activeTab === "broadcast" && (
           <div className="tab-content broadcast-tab">
             <h2><Radio size={20} /> Broadcast Message</h2>
-            <p className="broadcast-desc">Send a notification to all registered users (push + email)</p>
+            <p className="broadcast-desc">Send a notification to all registered users (push + email + live socket)</p>
             <div className="broadcast-form">
               <div className="form-group">
                 <label>Title</label>
@@ -602,6 +609,19 @@ function AdminDashboard() {
               </div>
               {error && <div className="error-message">❌ {error}</div>}
               {success && <div className="success-message">✅ {success}</div>}
+              {broadcastResult && (
+                <div className="broadcast-results">
+                  <h4>📤 Delivery Results</h4>
+                  <div className="health-grid">
+                    <div className="health-item"><span className="health-label">Push Sent</span><span className="health-value health-ok">{broadcastResult.push.sent}</span></div>
+                    <div className="health-item"><span className="health-label">Push Failed</span><span className={`health-value ${broadcastResult.push.failed > 0 ? "health-bad" : "health-ok"}`}>{broadcastResult.push.failed}</span></div>
+                    <div className="health-item"><span className="health-label">Push Total</span><span className="health-value">{broadcastResult.push.total}</span></div>
+                    <div className="health-item"><span className="health-label">Emails Sent</span><span className="health-value health-ok">{broadcastResult.email.sent}</span></div>
+                    <div className="health-item"><span className="health-label">Email Failed</span><span className={`health-value ${broadcastResult.email.failed > 0 ? "health-bad" : "health-ok"}`}>{broadcastResult.email.failed}</span></div>
+                    <div className="health-item"><span className="health-label">Socket Connected</span><span className="health-value">{broadcastResult.socket.connected}</span></div>
+                  </div>
+                </div>
+              )}
               <button className="admin-login-btn" onClick={handleBroadcast} disabled={broadcastSending}>
                 {broadcastSending ? <><Loader2 size={18} className="spinner" /> Sending...</> : <><Radio size={18} /> Broadcast to All Users</>}
               </button>

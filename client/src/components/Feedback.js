@@ -1,16 +1,24 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Star, ArrowLeft, Send } from "lucide-react";
+import { Star, ArrowLeft, Send, Lightbulb, Bug, Heart, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import "../styles/Feedback.css";
 
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
+const feedbackTypes = [
+  { value: "suggestion", label: "Feature Suggestion", icon: Lightbulb, color: "#3b82f6", bg: "#eff6ff", desc: "Suggest an improvement or new feature" },
+  { value: "bug",        label: "Bug Report",        icon: Bug,        color: "#dc2626", bg: "#fef2f2", desc: "Report something that isn't working" },
+  { value: "compliment", label: "Compliment",         icon: Heart,      color: "#16a34a", bg: "#f0fdf4", desc: "Share something you love" },
+  { value: "other",      label: "General Feedback",   icon: MessageSquare, color: "#8b5cf6", bg: "#f5f3ff", desc: "Anything else you want to share" },
+];
 
 const Feedback = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    type: "suggestion",
     message: "",
     rating: 0,
   });
@@ -92,6 +100,7 @@ const Feedback = () => {
         setFormData({
           name: "",
           email: "",
+          type: "suggestion",
           message: "",
           rating: 0,
         });
@@ -129,9 +138,11 @@ const Feedback = () => {
     },
   };
 
+  const selectedType = feedbackTypes.find(t => t.value === formData.type) || feedbackTypes[0];
+  const SelectedIcon = selectedType.icon;
+
   return (
     <div className="feedback-page">
-      {/* Header with Back Icon */}
       <div className="feedback-header">
         <motion.button
           className="home-button"
@@ -145,7 +156,6 @@ const Feedback = () => {
         <h1 className="feedback-page-title">Connect It</h1>
       </div>
 
-      {/* Main Content */}
       <div className="feedback-container">
         <motion.div
           className="feedback-form-wrapper"
@@ -153,67 +163,88 @@ const Feedback = () => {
           initial="hidden"
           animate="visible"
         >
-          {/* Title Section */}
           <motion.div className="feedback-title-section" variants={itemVariants}>
             <div className="feedback-badge">We Value Your Feedback</div>
-            <h2 className="feedback-main-title">Tell Us Your Experience</h2>
+            <h2 className="feedback-main-title">Help Us Improve</h2>
             <p className="feedback-subtitle">
-              Your feedback helps us improve Connect It and provide you with better service.
-              We'd love to hear from you!
+              Your input shapes the future of Connect It. Share a suggestion, report a bug,
+              or just tell us what you think.
             </p>
           </motion.div>
 
-          {/* Form Section */}
           <motion.form onSubmit={handleSubmit} className="feedback-form" variants={itemVariants}>
-            {/* Name Field */}
             <div className="form-group">
-              <label htmlFor="name" className="form-label">
-                Your Name
-              </label>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                placeholder="Enter your full name"
-                className="form-input"
-              />
+              <label className="form-label">Feedback Type</label>
+              <div className="feedback-type-grid">
+                {feedbackTypes.map(({ value, label, icon: Icon, color, bg, desc }) => (
+                  <motion.button
+                    key={value}
+                    type="button"
+                    className={`feedback-type-card ${formData.type === value ? "active" : ""}`}
+                    onClick={() => setFormData(prev => ({ ...prev, type: value }))}
+                    whileHover={{ scale: 1.02, y: -2 }}
+                    whileTap={{ scale: 0.98 }}
+                    style={{
+                      borderColor: formData.type === value ? color : "#e5e7eb",
+                      background: formData.type === value ? bg : "#fff",
+                    }}
+                  >
+                    <Icon size={22} style={{ color }} />
+                    <span className="feedback-type-label">{label}</span>
+                    <span className="feedback-type-desc">{desc}</span>
+                  </motion.button>
+                ))}
+              </div>
             </div>
 
-            {/* Email Field */}
-            <div className="form-group">
-              <label htmlFor="email" className="form-label">
-                Email Address
-              </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="Enter your email"
-                className="form-input"
-              />
+            <div className="form-row">
+              <div className="form-group form-group-half">
+                <label htmlFor="name" className="form-label">Your Name</label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  placeholder="Enter your full name"
+                  className="form-input"
+                />
+              </div>
+              <div className="form-group form-group-half">
+                <label htmlFor="email" className="form-label">Email Address</label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder="Enter your email"
+                  className="form-input"
+                />
+              </div>
             </div>
 
-            {/* Feedback Message */}
             <div className="form-group">
               <label htmlFor="message" className="form-label">
-                Your Feedback
+                <SelectedIcon size={16} style={{ color: selectedType.color, marginRight: 6, verticalAlign: "middle" }} />
+                Your {selectedType.label}
               </label>
               <textarea
                 id="message"
                 name="message"
                 value={formData.message}
                 onChange={handleInputChange}
-                placeholder="Tell us what you think about Connect It..."
+                placeholder={
+                  formData.type === "suggestion" ? "Describe your idea for a new feature or improvement..." :
+                  formData.type === "bug" ? "What went wrong? Steps to reproduce, expected vs actual behavior..." :
+                  formData.type === "compliment" ? "What do you love about Connect It? We'd love to hear it!" :
+                  "Share your thoughts, questions, or anything else..."
+                }
                 className="form-textarea"
                 rows="5"
               ></textarea>
             </div>
 
-            {/* Rating Section */}
             <div className="form-group">
               <label className="form-label">How would you rate your experience?</label>
               <div className="rating-container">
@@ -221,9 +252,7 @@ const Feedback = () => {
                   <motion.button
                     key={star}
                     type="button"
-                    className={`star-button ${
-                      star <= (hoveredRating || formData.rating) ? "active" : ""
-                    }`}
+                    className={`star-button ${star <= (hoveredRating || formData.rating) ? "active" : ""}`}
                     onClick={() => handleRating(star)}
                     onMouseEnter={() => setHoveredRating(star)}
                     onMouseLeave={() => setHoveredRating(0)}
@@ -239,12 +268,15 @@ const Feedback = () => {
               </div>
               {formData.rating > 0 && (
                 <p className="rating-text">
-                  Your rating: <strong>{formData.rating} out of 5 stars</strong>
+                  {formData.rating === 1 ? "Needs improvement" :
+                   formData.rating === 2 ? "Fair" :
+                   formData.rating === 3 ? "Good" :
+                   formData.rating === 4 ? "Great" :
+                   "Excellent!"} — <strong>{formData.rating}/5</strong>
                 </p>
               )}
             </div>
 
-            {/* Messages */}
             {errorMessage && (
               <motion.div
                 className="error-message"
@@ -265,7 +297,6 @@ const Feedback = () => {
               </motion.div>
             )}
 
-            {/* Submit Button */}
             <motion.button
               type="submit"
               className="submit-button"
@@ -275,13 +306,12 @@ const Feedback = () => {
               variants={itemVariants}
             >
               <Send size={20} />
-              {loading ? "Sending..." : "Submit Feedback"}
+              {loading ? "Sending..." : `Submit ${selectedType.label}`}
             </motion.button>
           </motion.form>
 
-          {/* Optional Message */}
           <motion.p className="optional-message" variants={itemVariants}>
-            Thank you for helping us improve Connect It! 💙
+            Every submission is read by our team. Thank you for helping us improve! 💙
           </motion.p>
         </motion.div>
       </div>
