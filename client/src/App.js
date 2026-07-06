@@ -123,6 +123,7 @@ function App() {
         <Route path="/feedback" element={<Feedback />} />
         
         <Route path="/admin" element={<Admin />} />
+        <Route path="/chat/admin" element={<Admin />} />
       </Routes>
     </CallProvider>
     </SocketProvider>

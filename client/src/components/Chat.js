@@ -69,6 +69,7 @@ import authAxios from "../services/authAxios";
 import NotificationBell from "./NotificationBell";
 import ProfileViewer from "./ProfileViewer";
 import { useNavigate } from "react-router-dom";
+import { buildMessageNotificationPayload, buildRequestNotificationPayload } from "../utils/browserNotifications";
 import "./Chat.css";
 
 const normalizeEmail = (email) => (email || "").toLowerCase().trim();
@@ -268,6 +269,8 @@ function Chat({ user: currentUser }) {
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const browserNotificationRef = useRef(false);
+  const notificationPermissionRequestedRef = useRef(false);
   // lastSeenTick removed — useLastSeen hook handles its own display refresh
   const [platformStats, setPlatformStats] = useState({ totalUsers: 0, totalMessages: 0, acceptedRequests: 0 });
   const [dismissedRecent, setDismissedRecent] = useState(() => {
@@ -447,6 +450,34 @@ function Chat({ user: currentUser }) {
 
   const getAvatar = (email) => userProfiles[normalizeEmail(email)] || null;
 
+  const showBrowserNotification = (title, body, options = {}) => {
+    if (typeof window === "undefined" || !window.Notification) return;
+    if (document.visibilityState === "visible" && document.hasFocus()) return;
+
+    const permission = window.Notification.permission;
+    if (permission !== "granted") {
+      if (!notificationPermissionRequestedRef.current && typeof window.Notification.requestPermission === "function") {
+        notificationPermissionRequestedRef.current = true;
+        window.Notification.requestPermission().catch(() => {});
+      }
+      return;
+    }
+
+    const payload = {
+      tag: options.tag || "chat-notification",
+      renotify: true,
+      silent: false,
+      ...options,
+    };
+
+    try {
+      new window.Notification(title, { body, ...payload });
+      browserNotificationRef.current = true;
+    } catch (err) {
+      console.warn("Browser notification failed", err);
+    }
+  };
+
   const chatHistoryRef = useRef({});
   useEffect(() => {
     chatHistoryRef.current = chatHistory;
@@ -456,6 +487,11 @@ function Chat({ user: currentUser }) {
   useEffect(() => {
     userNamesRef.current = userNames;
   }, [userNames]);
+
+  const unreadMessagesRef = useRef({});
+  useEffect(() => {
+    unreadMessagesRef.current = unreadMessages;
+  }, [unreadMessages]);
 
   const safeLocalStorageSet = (key, value) => {
     try {
@@ -664,6 +700,18 @@ function Chat({ user: currentUser }) {
       if (socket) socket.currentOnlineUsers = users;
       setOnlineUsers(users);
     };
+
+    const handleReconnect = () => {
+      const payload = buildMessageNotificationPayload({
+        senderName: "Chat",
+        preview: "You are back online. New activity will appear here.",
+        unreadCount: Object.values(unreadMessagesRef.current).reduce((sum, count) => sum + (count || 0), 0),
+      });
+      if (Object.values(unreadMessagesRef.current).some((count) => count > 0)) {
+        showBrowserNotification(payload.title, payload.body, { tag: "reconnect-chat" });
+      }
+    };
+    socket.on("connect", handleReconnect);
     socket.on("online-users", handleOnlineUsers);
 
     // Restore unread counts
@@ -876,6 +924,8 @@ function Chat({ user: currentUser }) {
           ? `${name} accepted your chat request`
           : `${name} rejected your chat request`;
       const now = new Date().toISOString();
+      const payload = buildRequestNotificationPayload({ senderName: name, status });
+      showBrowserNotification(payload.title, payload.body, { tag: payload.tag });
       setRequestNotifications((prev) => [
         ...prev,
         { id: Date.now(), msg, type: status, time: now },
@@ -1060,6 +1110,11 @@ function Chat({ user: currentUser }) {
       const isActiveChat =
         selectedUserRef.current &&
         normalizeEmail(selectedUserRef.current) === otherParty;
+      const senderName = getDisplayName(normalizeEmail(msg.sender) || msg.sender) || (msg.sender || "Someone").split("@")[0];
+      const preview = typeof msg.text === "string"
+        ? msg.text
+        : (msg.text?.text || msg.text?.name || "You have a new message");
+      const unreadCount = isActiveChat ? 0 : (unreadMessagesRef.current[`${otherParty}_${normalizeEmail(user.email)}`] || 0) + 1;
 
       setChatHistory((prev) => {
         const currentHistory = prev[otherParty] || [];
@@ -1088,6 +1143,8 @@ function Chat({ user: currentUser }) {
           }
           return newCounts;
         });
+        const payload = buildMessageNotificationPayload({ senderName, preview, unreadCount });
+        showBrowserNotification(payload.title, payload.body, { tag: payload.tag });
       }
     };
 
@@ -1202,6 +1259,7 @@ function Chat({ user: currentUser }) {
 
     return () => {
       socket.off("connect", handleJoin);
+      socket.off("connect", handleReconnect);
       socket.off("online-users", handleOnlineUsers);
       socket.off("typing", handleTyping);
       socket.off("stop-typing", handleStopTyping);
