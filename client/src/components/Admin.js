@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   LogOut, Mail, ShieldCheck, ArrowLeft, Users, Star, TrendingUp, Send,
   Loader2, Trash2, Search, Radio, Activity, Download, UserCheck, MessageSquare,
-  X, ChevronRight, RefreshCw, Sparkles, Clock3, LayoutGrid, BellRing
+  X, RefreshCw, Sparkles, Clock3, LayoutGrid, BellRing, Eye
 } from "lucide-react";
 import "../styles/Admin.css";
 import { buildDashboardHighlights, getAudienceLabel } from "../utils/adminDashboardUtils";
@@ -297,6 +297,14 @@ function AdminDashboard() {
     u.email.toLowerCase().includes(userSearch.toLowerCase())
   );
 
+  const userProfileMap = useMemo(() => {
+    const map = new Map();
+    users.forEach((user) => {
+      map.set((user.email || "").toLowerCase(), user);
+    });
+    return map;
+  }, [users]);
+
   // === LOGIN STEPS ===
   if (authStep === "email") {
     return (
@@ -568,27 +576,41 @@ function AdminDashboard() {
             </div>
             {dataLoading ? <p className="loading-text">Loading feedback...</p> : feedback.length > 0 ? (
               <div className="feedback-grid">
-                {feedback.map((item) => (
-                  <div key={item._id} className="feedback-card">
-                    <div className="feedback-header">
-                      <div className="feedback-name-row">
-                        <h4>{item.name}</h4>
-                        <span className={`feedback-type-badge type-${item.type || "suggestion"}`}>
-                          {item.type === "suggestion" ? "💡" : item.type === "bug" ? "🐛" : item.type === "compliment" ? "❤️" : "💬"} {item.type || "suggestion"}
-                        </span>
+                {feedback.map((item) => {
+                  const profile = userProfileMap.get((item.email || "").toLowerCase());
+                  const displayName = profile?.displayName || item.name || "Community member";
+                  return (
+                    <div key={item._id} className="feedback-card">
+                      <div className="feedback-header">
+                        <div className="feedback-name-row">
+                          <div className="feedback-author-card">
+                            <div className="feedback-author-avatar">{displayName.charAt(0).toUpperCase()}</div>
+                            <div>
+                              <h4>{displayName}</h4>
+                              <p className="feedback-email">{item.email}</p>
+                            </div>
+                          </div>
+                          <span className={`feedback-type-badge type-${item.type || "suggestion"}`}>
+                            {item.type === "suggestion" ? "💡" : item.type === "bug" ? "🐛" : item.type === "compliment" ? "❤️" : "💬"} {item.type || "suggestion"}
+                          </span>
+                        </div>
+                        <div className="feedback-meta-row">
+                          <div className="feedback-rating">{"⭐".repeat(item.rating)}</div>
+                          <span className={`feedback-status-badge ${item.reply ? "replied" : "pending"}`}>{item.reply ? "Replied" : "Pending"}</span>
+                        </div>
                       </div>
-                      <div className="feedback-rating">{"⭐".repeat(item.rating)}</div>
-                    </div>
-                    <p className="feedback-email">{item.email}</p>
-                    <p className="feedback-message">{item.message}</p>
-                    <p className="feedback-date">{new Date(item.createdAt).toLocaleString()}</p>
-                    {item.reply && (
-                      <div className="feedback-reply-box">
-                        <p className="reply-label">📤 Admin Reply:</p>
-                        <p className="reply-text">{item.reply}</p>
-                      </div>
-                    )}
-                    {replyingTo === item._id ? (
+                      <p className="feedback-message">{item.message}</p>
+                      <p className="feedback-date">{new Date(item.createdAt).toLocaleString()}</p>
+                      {profile?.displayName && profile.displayName !== item.name && (
+                        <p className="feedback-profile-note">Profile name: {profile.displayName}</p>
+                      )}
+                      {item.reply && (
+                        <div className="feedback-reply-box">
+                          <p className="reply-label">📤 Admin Reply:</p>
+                          <p className="reply-text">{item.reply}</p>
+                        </div>
+                      )}
+                      {replyingTo === item._id ? (
                       <div className="reply-input-row">
                         <input type="text" value={replyText} onChange={(e) => setReplyText(e.target.value)}
                           placeholder="Type your reply..." className="reply-input"
@@ -597,12 +619,13 @@ function AdminDashboard() {
                         <button className="reply-cancel-btn" onClick={() => { setReplyingTo(null); setReplyText(""); }}><X size={16} /></button>
                       </div>
                     ) : (
-                      <button className="reply-btn" onClick={() => { setReplyingTo(item._id); setReplyText(""); }}>
-                        <Send size={14} /> Reply
-                      </button>
-                    )}
-                  </div>
-                ))}
+                        <button className="reply-btn" onClick={() => { setReplyingTo(item._id); setReplyText(""); }}>
+                          <Send size={14} /> Reply
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : <p className="no-data">No feedback found</p>}
           </div>
@@ -627,13 +650,21 @@ function AdminDashboard() {
               <div className="users-grid">
                 {filteredUsers.map((user, index) => (
                   <div key={index} className="user-card">
-                    <div className="user-avatar">
-                      {user.avatarUrl ? <img src={user.avatarUrl} alt={user.email} /> : <div className="avatar-placeholder">{user.email.charAt(0).toUpperCase()}</div>}
+                    <div className="user-card-header">
+                      <div className="user-avatar">
+                        {user.avatarUrl ? <img src={user.avatarUrl} alt={user.email} /> : <div className="avatar-placeholder">{(user.displayName || user.email).charAt(0).toUpperCase()}</div>}
+                      </div>
+                      <div className="user-card-heading">
+                        <h4 className="user-name">{user.displayName || "Anonymous user"}</h4>
+                        <p className="user-email">{user.email}</p>
+                      </div>
                     </div>
-                    <h4 className="user-email">{user.email}</h4>
-                    <p className="user-last-seen">Last seen: {user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "Never"}</p>
+                    <div className="user-mini-stats">
+                      <span className="user-mini-stat"><Users size={12} /> {user.followersCount || 0} followers</span>
+                      <span className="user-mini-stat"><Clock3 size={12} /> {user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "Never"}</span>
+                    </div>
                     <div className="user-card-actions">
-                      <button className="view-user-btn" onClick={() => handleViewUser(user.email)}><ChevronRight size={16} /> View</button>
+                      <button className="view-user-btn" onClick={() => handleViewUser(user.email)}><Eye size={16} /> View</button>
                       <button className="delete-user-btn" onClick={() => handleDeleteUser(user.email)} disabled={deletingUser === user.email}>
                         {deletingUser === user.email ? <Loader2 size={16} className="spinner" /> : <Trash2 size={16} />}
                       </button>
@@ -654,16 +685,32 @@ function AdminDashboard() {
                   {userDetailLoading ? <p className="loading-text">Loading...</p> : userDetail ? (
                     <div className="user-detail">
                       <div className="detail-header">
-                        {userDetail.user.avatarUrl ? <img src={userDetail.user.avatarUrl} alt="" className="detail-avatar" /> : <div className="avatar-placeholder large">{userDetail.user.email.charAt(0).toUpperCase()}</div>}
-                        <div><h4>{userDetail.user.email}</h4><p>{userDetail.user.displayName || "No display name"}</p><p className="detail-bio">{userDetail.user.bio || "No bio"}</p></div>
+                        {userDetail.user.avatarUrl ? <img src={userDetail.user.avatarUrl} alt="" className="detail-avatar" /> : <div className="avatar-placeholder large">{(userDetail.user.displayName || userDetail.user.email).charAt(0).toUpperCase()}</div>}
+                        <div className="detail-main">
+                          <div className="detail-name-row">
+                            <h4>{userDetail.user.displayName || "Anonymous user"}</h4>
+                            {userDetail.user.isVerified && <span className="verified-pill">Verified</span>}
+                          </div>
+                          <p className="detail-email">{userDetail.user.email}</p>
+                          <p className="detail-bio">{userDetail.user.bio || "No profile bio yet."}</p>
+                        </div>
+                      </div>
+                      <div className="detail-social-grid">
+                        <div className="detail-social-card"><strong>{userDetail.user.followersCount || 0}</strong><span>Followers</span></div>
+                        <div className="detail-social-card"><strong>{userDetail.user.followingCount || 0}</strong><span>Following</span></div>
+                        <div className="detail-social-card"><strong>{userDetail.activity.deviceCount}</strong><span>Devices</span></div>
+                        <div className="detail-social-card"><strong>{userDetail.activity.chatRequests}</strong><span>Requests</span></div>
                       </div>
                       <div className="detail-stats">
                         <div className="detail-stat"><span>{userDetail.activity.messageCount}</span><p>Messages</p></div>
                         <div className="detail-stat"><span>{userDetail.activity.feedbackCount}</span><p>Feedback</p></div>
-                        <div className="detail-stat"><span>{userDetail.activity.chatRequests}</span><p>Chat Requests</p></div>
+                        <div className="detail-stat"><span>{userDetail.activity.chatRequests}</span><p>Requests</p></div>
                         <div className="detail-stat"><span>{userDetail.activity.deviceCount}</span><p>Devices</p></div>
                       </div>
-                      <p className="detail-last-seen">Last seen: {userDetail.user.lastSeen ? new Date(userDetail.user.lastSeen).toLocaleString() : "Never"}</p>
+                      <div className="detail-meta-list">
+                        <div><span>Last seen</span><strong>{userDetail.user.lastSeen ? new Date(userDetail.user.lastSeen).toLocaleString() : "Never"}</strong></div>
+                        <div><span>Joined</span><strong>{userDetail.user.createdAt ? new Date(userDetail.user.createdAt).toLocaleDateString() : "Recently added"}</strong></div>
+                      </div>
                     </div>
                   ) : <p className="no-data">Failed to load user detail</p>}
                 </div>
