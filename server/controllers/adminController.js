@@ -402,7 +402,7 @@ exports.getUserDetail = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase();
     const user = await User.findOne({ email: normalizedEmail })
-      .select("email displayName bio avatarUrl lastSeen");
+      .select("email displayName bio avatarUrl lastSeen followersCount followingCount isVerified createdAt");
 
     if (!user) return res.status(404).json({ error: "User not found" });
 

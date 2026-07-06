@@ -579,19 +579,24 @@ function AdminDashboard() {
                 {feedback.map((item) => {
                   const profile = userProfileMap.get((item.email || "").toLowerCase());
                   const displayName = profile?.displayName || item.name || "Community member";
+                  const avatar = profile?.avatarUrl || item.avatarUrl || null;
                   return (
                     <div key={item._id} className="feedback-card">
                       <div className="feedback-header">
                         <div className="feedback-name-row">
                           <div className="feedback-author-card">
-                            <div className="feedback-author-avatar">{displayName.charAt(0).toUpperCase()}</div>
+                            {avatar ? (
+                              <img src={avatar} alt={displayName} className="feedback-author-avatar feedback-author-image" />
+                            ) : (
+                              <div className="feedback-author-avatar">{displayName.charAt(0).toUpperCase()}</div>
+                            )}
                             <div>
                               <h4>{displayName}</h4>
                               <p className="feedback-email">{item.email}</p>
                             </div>
                           </div>
                           <span className={`feedback-type-badge type-${item.type || "suggestion"}`}>
-                            {item.type === "suggestion" ? "💡" : item.type === "bug" ? "🐛" : item.type === "compliment" ? "❤️" : "💬"} {item.type || "suggestion"}
+                            {item.type === "suggestion" ? "💡 Suggestion" : item.type === "bug" ? "🐛 Bug" : item.type === "compliment" ? "❤️ Compliment" : "💬 Other"}
                           </span>
                         </div>
                         <div className="feedback-meta-row">
@@ -650,18 +655,24 @@ function AdminDashboard() {
               <div className="users-grid">
                 {filteredUsers.map((user, index) => (
                   <div key={index} className="user-card">
-                    <div className="user-card-header">
-                      <div className="user-avatar">
-                        {user.avatarUrl ? <img src={user.avatarUrl} alt={user.email} /> : <div className="avatar-placeholder">{(user.displayName || user.email).charAt(0).toUpperCase()}</div>}
+                    <div className="user-card-hero">
+                      <div className="user-card-header">
+                        <div className="user-avatar">
+                          {user.avatarUrl ? <img src={user.avatarUrl} alt={user.email} /> : <div className="avatar-placeholder">{(user.displayName || user.email).charAt(0).toUpperCase()}</div>}
+                        </div>
+                        <div className="user-card-heading">
+                          <div className="user-name-row">
+                            <h4 className="user-name">{user.displayName || "Anonymous user"}</h4>
+                            {user.isVerified && <span className="verified-pill">Verified</span>}
+                          </div>
+                          <p className="user-email">{user.email}</p>
+                        </div>
                       </div>
-                      <div className="user-card-heading">
-                        <h4 className="user-name">{user.displayName || "Anonymous user"}</h4>
-                        <p className="user-email">{user.email}</p>
+                      <div className="user-mini-stats">
+                        <span className="user-mini-stat"><Users size={12} /> {user.followersCount || 0} followers</span>
+                        <span className="user-mini-stat"><Users size={12} /> {user.followingCount || 0} following</span>
+                        <span className="user-mini-stat"><Clock3 size={12} /> {user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "Never"}</span>
                       </div>
-                    </div>
-                    <div className="user-mini-stats">
-                      <span className="user-mini-stat"><Users size={12} /> {user.followersCount || 0} followers</span>
-                      <span className="user-mini-stat"><Clock3 size={12} /> {user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "Never"}</span>
                     </div>
                     <div className="user-card-actions">
                       <button className="view-user-btn" onClick={() => handleViewUser(user.email)}><Eye size={16} /> View</button>
