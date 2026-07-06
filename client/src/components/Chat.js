@@ -438,8 +438,14 @@ function Chat({ user: currentUser }) {
 
   const getDisplayName = (email) => {
     const normalized = normalizeEmail(email);
-    return userNames[normalized] || (email || "").split("@")[0];
+    const name = userNames[normalized];
+    if (name && typeof name === "string" && name.trim() !== "") {
+      return name;
+    }
+    return (email || "").split("@")[0];
   };
+
+  const getAvatar = (email) => userProfiles[normalizeEmail(email)] || null;
 
   const chatHistoryRef = useRef({});
   useEffect(() => {
@@ -639,7 +645,7 @@ function Chat({ user: currentUser }) {
     const handleJoin = () => {
       const joinData = { 
         email: user.email,
-        profilePic: user.profilePic || userProfiles[user.email.toLowerCase()] || null,
+        profilePic: user.profilePic || getAvatar(user.email) || null,
         displayName: displayName || null,
         bio: bio || null
       };
@@ -2291,7 +2297,7 @@ function Chat({ user: currentUser }) {
               return (
                 <div key={`mr-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}>
                   <div className="avatar-wrap">
-                    <Avatar src={userProfiles[u]} email={u} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u, false)} />
+                    <Avatar src={getAvatar(u)} email={u} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u, false)} />
                     {isUserOnline(u) && <span className="status-dot online" />}
                   </div>
                   <div className="user-item-copy">
@@ -2324,7 +2330,7 @@ function Chat({ user: currentUser }) {
             {filteredOnlineUsers.length > 0 ? filteredOnlineUsers.map((u, i) => (
               <div key={`mc-online-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}>
                 <div className="avatar-wrap">
-                  <Avatar src={userProfiles[u]} email={u} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u, false)} />
+                  <Avatar src={getAvatar(u)} email={u} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u, false)} />
                   <span className="status-dot online" />
                 </div>
                 <div className="user-item-copy">
@@ -2350,7 +2356,7 @@ function Chat({ user: currentUser }) {
               return (
                 <div key={`ma-all-${i}`} className="user-item">
                   <div className="avatar-wrap">
-                    <Avatar src={userProfiles[u.email] || u.avatarUrl} email={u.email} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u.email, false)} />
+                    <Avatar src={getAvatar(u.email) || u.avatarUrl} email={u.email} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u.email, false)} />
                     {isOnline && <span className="status-dot online" />}
                   </div>
                   <div className="user-item-copy">
@@ -2395,7 +2401,7 @@ function Chat({ user: currentUser }) {
             {pendingRequests.length > 0 ? pendingRequests.map((req) => (
               <div key={req._id} className="user-item">
                 <div className="avatar-wrap">
-                  <Avatar src={userProfiles[req.from]} email={req.from} size={40} className="user-avatar" />
+                  <Avatar src={getAvatar(req.from)} email={req.from} size={40} className="user-avatar" />
                 </div>
                 <div className="user-item-copy">
                   <span className="user-name">{getDisplayName(req.from)}</span>
@@ -2418,7 +2424,7 @@ function Chat({ user: currentUser }) {
                 {sentRequests.map((req) => (
                   <div key={req._id} className="user-item">
                     <div className="avatar-wrap">
-                      <Avatar src={userProfiles[req.to]} email={req.to} size={40} className="user-avatar" />
+                      <Avatar src={getAvatar(req.to)} email={req.to} size={40} className="user-avatar" />
                     </div>
                     <div className="user-item-copy">
                       <span className="user-name">{getDisplayName(req.to)}</span>
@@ -2444,7 +2450,7 @@ function Chat({ user: currentUser }) {
                 {recentAlerts.map((alert) => (
                   <div key={alert.id} className="user-item">
                     <div className="avatar-wrap">
-                      <Avatar src={userProfiles[alert.from]} email={alert.from} size={40} className="user-avatar" />
+                      <Avatar src={getAvatar(alert.from)} email={alert.from} size={40} className="user-avatar" />
                     </div>
                     <div className="user-item-copy">
                       <span className="user-name">{getDisplayName(alert.from)}</span>
@@ -2466,7 +2472,7 @@ function Chat({ user: currentUser }) {
                 {notificationHistory.map((item, i) => (
                   <div key={item._id || i} className="user-item">
                     <div className="avatar-wrap">
-                      <Avatar src={userProfiles[item.from]} email={item.from} size={40} className="user-avatar" />
+                      <Avatar src={getAvatar(item.from)} email={item.from} size={40} className="user-avatar" />
                     </div>
                     <div className="user-item-copy">
                       <span className="user-name">{getDisplayName(item.from)}</span>
@@ -2495,7 +2501,7 @@ function Chat({ user: currentUser }) {
               return (
                 <div key={`ma-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}>
                   <div className="avatar-wrap">
-                    <Avatar src={userProfiles[u]} email={u} size={40} className="user-avatar" />
+                    <Avatar src={getAvatar(u)} email={u} size={40} className="user-avatar" />
                   </div>
                   <div className="user-item-copy">
                     <span className="user-name">{getDisplayName(u)}</span>
@@ -2715,7 +2721,7 @@ function Chat({ user: currentUser }) {
         <div className="profile-card">
           <div className="profile-card-main">
             <Avatar
-              src={userProfiles[user.email.toLowerCase()] || user.profilePic}
+              src={getAvatar(user.email) || user.profilePic}
               email={user.email}
               size={40}
               className="profile-card-avatar"
@@ -2815,7 +2821,7 @@ function Chat({ user: currentUser }) {
                   >
                     <div className="avatar-wrap">
                       <Avatar
-                        src={userProfiles[u]}
+                        src={getAvatar(u)}
                         email={u}
                         size={40}
                         className="user-avatar"
@@ -2868,7 +2874,7 @@ function Chat({ user: currentUser }) {
                 >
                   <div className="avatar-wrap">
                       <Avatar
-                        src={userProfiles[u]}
+                        src={getAvatar(u)}
                         email={u}
                         size={40}
                         className="user-avatar"
@@ -2901,7 +2907,7 @@ function Chat({ user: currentUser }) {
                 >
                   <div className="avatar-wrap">
                     <Avatar
-                      src={userProfiles[u]}
+                      src={getAvatar(u)}
                       email={u}
                       size={40}
                       className="user-avatar"
@@ -2954,7 +2960,7 @@ function Chat({ user: currentUser }) {
                   <div key={`all-${i}`} className="user-item">
                     <div className="avatar-wrap">
                       <Avatar
-                        src={userProfiles[u.email] || u.avatarUrl}
+                        src={getAvatar(u.email) || u.avatarUrl}
                         email={u.email}
                         size={40}
                         className="user-avatar"
@@ -3088,7 +3094,7 @@ function Chat({ user: currentUser }) {
           <div className="chat-panel-title">
             <div className="header-avatar-wrap">
               <Avatar
-                src={selectedUser ? userProfiles[selectedUser] : null}
+                src={selectedUser ? getAvatar(selectedUser) : null}
                 email={selectedUser || "default"}
                 size={40}
                 className="header-avatar"
@@ -3777,7 +3783,7 @@ function Chat({ user: currentUser }) {
               <div className="settings-section settings-profile">
                 <div className="settings-avatar-wrapper">
                   <Avatar
-                    src={userProfiles[user?.email?.toLowerCase()] || user?.profilePic}
+                    src={getAvatar(user?.email) || user?.profilePic}
                     email={user?.email}
                     size={96}
                     className="settings-avatar"

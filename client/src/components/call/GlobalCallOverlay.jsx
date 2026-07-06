@@ -32,9 +32,21 @@ export default function GlobalCallOverlay() {
     return {};
   });
 
+  const [userNames, setUserNames] = React.useState(() => {
+    try {
+      const email = JSON.parse(localStorage.getItem("user") || "{}").email;
+      if (email) {
+        const stored = localStorage.getItem(`userNames_${email.toLowerCase()}`);
+        return stored ? JSON.parse(stored) : {};
+      }
+    } catch {}
+    return {};
+  });
+
   const getDisplayName = (email) => {
     if (!email) return "";
     const normalized = email.toLowerCase().trim();
+    if (userNames[normalized]) return userNames[normalized];
     return email.split("@")[0];
   };
 

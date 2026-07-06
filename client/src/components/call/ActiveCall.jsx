@@ -106,6 +106,8 @@ export default function ActiveCall({
   }, [callState, resetHideTimer]);
 
   const isVideo = activeCall?.type === "video";
+  const normalizedPeer = activeCall?.with?.toLowerCase().trim();
+  const peerAvatar = normalizedPeer ? userProfiles?.[normalizedPeer] || null : null;
   const callerName = getDisplayName ? getDisplayName(activeCall?.with) : activeCall?.with || "Connecting...";
 
   return (
@@ -135,7 +137,7 @@ export default function ActiveCall({
           </div>
           <div className="active-call-avatar-center">
             <Avatar
-              src={userProfiles?.[activeCall?.with]}
+              src={peerAvatar}
               email={activeCall?.with}
               size={150}
               className="active-call-big-avatar"

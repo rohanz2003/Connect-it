@@ -16,12 +16,13 @@ export default function IncomingCall({ call, onAccept, onReject, onMessage, user
     };
   }, [call]);
 
+  const normalizedCaller = call?.from?.toLowerCase().trim();
+  const callerAvatar = normalizedCaller ? userProfiles?.[normalizedCaller] || null : null;
   const callerName = getDisplayName ? getDisplayName(call?.from) : call?.from;
 
   return (
     <AnimatePresence>
       {call && (
-        <motion.div
           className="incoming-call-overlay"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -42,7 +43,7 @@ export default function IncomingCall({ call, onAccept, onReject, onMessage, user
               <span className="incoming-call-pulse ring3" />
               <div className="incoming-call-avatar">
                 <Avatar
-                  src={userProfiles?.[call.from]}
+                  src={callerAvatar}
                   email={call.from}
                   size={110}
                   className="incoming-avatar-img"
