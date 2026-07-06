@@ -23,6 +23,7 @@ export default function IncomingCall({ call, onAccept, onReject, onMessage, user
   return (
     <AnimatePresence>
       {call && (
+        <motion.div
           className="incoming-call-overlay"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
