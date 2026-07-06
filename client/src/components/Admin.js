@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   LogOut, Mail, ShieldCheck, ArrowLeft, Users, Star, TrendingUp, Send,
-  Loader2, Trash2, Search, Radio, Activity, Download, UserCheck, MessageSquare, X, ChevronRight
+  Loader2, Trash2, Search, Radio, Activity, Download, UserCheck, MessageSquare,
+  X, ChevronRight, RefreshCw, Sparkles, Clock3, LayoutGrid, BellRing
 } from "lucide-react";
 import "../styles/Admin.css";
+import { buildDashboardHighlights, getAudienceLabel } from "../utils/adminDashboardUtils";
 
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
@@ -24,10 +26,13 @@ function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [messageStats, setMessageStats] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [deletingUser, setDeletingUser] = useState(null);
 
   // New feature states
   const [health, setHealth] = useState(null);
+  const [activityFeed, setActivityFeed] = useState([]);
+  const [platformStats, setPlatformStats] = useState(null);
   const [userSearch, setUserSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
   const [userDetail, setUserDetail] = useState(null);
@@ -35,6 +40,9 @@ function AdminDashboard() {
   const [broadcastTitle, setBroadcastTitle] = useState("");
   const [broadcastMsg, setBroadcastMsg] = useState("");
   const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastAudience, setBroadcastAudience] = useState("all");
+  const [broadcastPriority, setBroadcastPriority] = useState("normal");
+  const [broadcastChannels, setBroadcastChannels] = useState({ push: true, email: true, socket: true });
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState("");
 
@@ -48,29 +56,36 @@ function AdminDashboard() {
     }
   }, [resendTimer]);
 
-  const fetchDashboardData = useCallback(async (token) => {
-    setDataLoading(true);
+  const fetchDashboardData = useCallback(async (token, options = {}) => {
+    const { showLoading = true, silent = false } = options;
+    if (showLoading) setDataLoading(true);
+    if (!silent) setIsRefreshing(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const [statsRes, feedbackRes, usersRes, messageStatsRes, healthRes] = await Promise.all([
+      const [statsRes, feedbackRes, usersRes, messageStatsRes, healthRes, activityRes, platformRes] = await Promise.all([
         fetch(`${API_URL}/api/admin/stats`, { headers }),
         fetch(`${API_URL}/api/admin/feedback`, { headers }),
         fetch(`${API_URL}/api/admin/users`, { headers }),
         fetch(`${API_URL}/api/admin/message-stats`, { headers }),
         fetch(`${API_URL}/api/admin/health`, { headers }),
+        fetch(`${API_URL}/api/admin/activity`, { headers }),
+        fetch(`${API_URL}/api/admin/platform`, { headers }),
       ]);
       if (statsRes.ok) setStats(await statsRes.json());
       if (feedbackRes.ok) setFeedback(await feedbackRes.json());
       if (usersRes.ok) setUsers(await usersRes.json());
       if (messageStatsRes.ok) setMessageStats(await messageStatsRes.json());
       if (healthRes.ok) setHealth(await healthRes.json());
+      if (activityRes.ok) setActivityFeed(await activityRes.json());
+      if (platformRes.ok) setPlatformStats(await platformRes.json());
     } catch (err) {
       console.error("Error fetching data:", err);
       setError("Failed to load dashboard data");
     } finally {
-      setDataLoading(false);
+      if (showLoading) setDataLoading(false);
+      setIsRefreshing(false);
     }
-  }, [API_URL]);
+  }, []);
 
   const verifyExistingToken = useCallback(async (token) => {
     try {
@@ -80,7 +95,7 @@ function AdminDashboard() {
       if (response.ok) {
         setAdminToken(token);
         setAuthStep("dashboard");
-        fetchDashboardData(token);
+        await fetchDashboardData(token, { showLoading: true });
       } else {
         localStorage.removeItem("adminToken");
       }
@@ -169,13 +184,16 @@ function AdminDashboard() {
 
   useEffect(() => {
     if (authStep !== "dashboard" || !adminToken) return;
-    const id = setInterval(() => fetchDashboardData(adminToken), 15000);
+    const id = setInterval(() => fetchDashboardData(adminToken, { showLoading: false, silent: true }), 30000);
     return () => clearInterval(id);
   }, [authStep, adminToken, fetchDashboardData]);
 
   const handleLogout = () => {
     setAuthStep("email"); setAdminToken(""); setEmail(""); setOtp(["", "", "", "", "", ""]);
     setError(""); setSuccess(""); setStats(null); setFeedback([]); setUsers([]); setHealth(null);
+    setActivityFeed([]); setPlatformStats(null); setSelectedUser(null); setUserDetail(null);
+    setBroadcastTitle(""); setBroadcastMsg(""); setBroadcastAudience("all"); setBroadcastPriority("normal");
+    setBroadcastChannels({ push: true, email: true, socket: true }); setActiveTab("dashboard");
     localStorage.removeItem("adminToken"); navigate("/admin");
   };
 
@@ -211,21 +229,33 @@ function AdminDashboard() {
 
   // === Feature: Broadcast ===
   const [broadcastResult, setBroadcastResult] = useState(null);
+  const broadcastTemplates = [
+    { title: "Feature update", message: "A new improvement is now live on Connect It. Check it out and share your feedback with us." },
+    { title: "Community reminder", message: "We are hosting a quick community update today. Please keep an eye on your inbox for important notices." },
+    { title: "Maintenance notice", message: "We will be performing a short maintenance window later today. Thank you for your patience." },
+  ];
+
   const handleBroadcast = async () => {
-    if (!broadcastTitle.trim() || !broadcastMsg.trim()) { setError("Enter title and message"); return; }
-    if (!window.confirm("Send broadcast to ALL users?")) return;
-    setBroadcastSending(true); setBroadcastResult(null);
+    if (!broadcastTitle.trim() || !broadcastMsg.trim()) { setError("Enter a title and message"); return; }
+    if (!window.confirm(`Send this announcement to ${getAudienceLabel(broadcastAudience)}?`)) return;
+    setBroadcastSending(true); setBroadcastResult(null); setError("");
     try {
       const res = await fetch(`${API_URL}/api/admin/broadcast`, {
         method: "POST",
         headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ title: broadcastTitle, message: broadcastMsg }),
+        body: JSON.stringify({
+          title: broadcastTitle.trim(),
+          message: broadcastMsg.trim(),
+          audience: broadcastAudience,
+          priority: broadcastPriority,
+          channels: broadcastChannels,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setBroadcastResult(data.details);
-        setSuccess("Broadcast sent!");
-        setBroadcastTitle(""); setBroadcastMsg("");
+        setSuccess(`Broadcast sent to ${getAudienceLabel(broadcastAudience).toLowerCase()}.`);
+        setBroadcastTitle(""); setBroadcastMsg(""); setBroadcastAudience("all"); setBroadcastPriority("normal"); setBroadcastChannels({ push: true, email: true, socket: true });
       } else { setError(data.error || "Failed to send broadcast"); }
     } catch { setError("Network error."); }
     finally { setBroadcastSending(false); }
@@ -342,8 +372,20 @@ function AdminDashboard() {
     <div className="admin-dashboard">
       <header className="admin-header">
         <div className="admin-header-content">
-          <div className="admin-title"><h1>📊 Admin Dashboard</h1><p>Manage Chat System</p></div>
-          <button onClick={handleLogout} className="logout-btn"><LogOut size={20} /> Logout</button>
+          <div className="admin-title">
+            <span className="header-badge"><Sparkles size={14} /> Live operations hub</span>
+            <h1>Admin Dashboard</h1>
+            <p>Monitor community signals, manage users, and deliver polished broadcasts from one place.</p>
+          </div>
+          <div className="admin-header-actions">
+            <div className={`status-pill ${isRefreshing ? "syncing" : "synced"}`}>
+              {isRefreshing ? <><RefreshCw size={14} className="spinner" /> Syncing</> : <><BellRing size={14} /> Synced</>}
+            </div>
+            <button onClick={() => fetchDashboardData(adminToken, { showLoading: true })} className="refresh-btn" disabled={dataLoading}>
+              <RefreshCw size={16} className={dataLoading ? "spinner" : ""} /> {dataLoading ? "Refreshing" : "Refresh"}
+            </button>
+            <button onClick={handleLogout} className="logout-btn"><LogOut size={20} /> Logout</button>
+          </div>
         </div>
       </header>
 
@@ -358,7 +400,29 @@ function AdminDashboard() {
         {/* DASHBOARD TAB */}
         {activeTab === "dashboard" && (
           <div className="tab-content dashboard-tab">
-            <h2>Dashboard Overview</h2>
+            <div className="dashboard-heading">
+              <div>
+                <h2>Dashboard Overview</h2>
+                <p className="dashboard-subtitle">A crisp signal board of your chat community and service health.</p>
+              </div>
+            </div>
+            {stats && (
+              <div className="dashboard-hero">
+                <div className="hero-content">
+                  <span className="hero-eyebrow"><Sparkles size={14} /> Operations snapshot</span>
+                  <h3>Stay ahead with a clear view of activity, engagement, and support.</h3>
+                  <p>Use the insights below to spot momentum, act on feedback, and keep your audience informed.</p>
+                </div>
+                <div className="hero-metrics">
+                  {buildDashboardHighlights(stats, health).map((item) => (
+                    <div key={item.label} className={`hero-metric ${item.tone}`}>
+                      <span className="hero-metric-label">{item.label}</span>
+                      <span className="hero-metric-value">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {stats && (
               <div className="stats-grid">
                 <div className="stat-card"><div className="stat-icon messages-icon"><MessageSquare size={32} /></div><div className="stat-info"><p className="stat-label">Total Messages</p><p className="stat-value">{stats.totalMessages}</p></div></div>
@@ -418,22 +482,39 @@ function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Platforms */}
-                {health.platforms && (
+                {activityFeed.length > 0 && (
                   <div className="health-section">
-                    <h3>💻 Platforms</h3>
+                    <h3><Clock3 size={18} /> Recent Activity</h3>
+                    <div className="activity-list">
+                      {activityFeed.slice(0, 8).map((item, i) => (
+                        <div key={`${item.type}-${i}`} className="activity-item">
+                          <div className="activity-badge">{item.type}</div>
+                          <div className="activity-copy">
+                            <strong>{item.detail}</strong>
+                            <span>{new Date(item.time).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Platforms */}
+                {(health.platforms || platformStats) && (
+                  <div className="health-section">
+                    <h3><LayoutGrid size={18} /> Platform Mix</h3>
                     <div className="platform-row">
                       <div className="platform-col">
                         <h4>Devices</h4>
-                        {health.platforms.deviceTypes.map((d, i) => <div key={i} className="platform-item"><span>{d._id || "Unknown"}</span><span className="platform-count">{d.count}</span></div>)}
+                        {(platformStats?.deviceTypes || health.platforms?.deviceTypes || []).map((d, i) => <div key={i} className="platform-item"><span>{d._id || "Unknown"}</span><span className="platform-count">{d.count}</span></div>)}
                       </div>
                       <div className="platform-col">
                         <h4>Browsers</h4>
-                        {health.platforms.browsers.map((d, i) => <div key={i} className="platform-item"><span>{d._id || "Unknown"}</span><span className="platform-count">{d.count}</span></div>)}
+                        {(platformStats?.browsers || health.platforms?.browsers || []).map((d, i) => <div key={i} className="platform-item"><span>{d._id || "Unknown"}</span><span className="platform-count">{d.count}</span></div>)}
                       </div>
                       <div className="platform-col">
                         <h4>Operating Systems</h4>
-                        {health.platforms.operatingSystems.map((d, i) => <div key={i} className="platform-item"><span>{d._id || "Unknown"}</span><span className="platform-count">{d.count}</span></div>)}
+                        {(platformStats?.osList || health.platforms?.operatingSystems || []).map((d, i) => <div key={i} className="platform-item"><span>{d._id || "Unknown"}</span><span className="platform-count">{d.count}</span></div>)}
                       </div>
                     </div>
                   </div>
@@ -594,37 +675,82 @@ function AdminDashboard() {
         {/* BROADCAST TAB */}
         {activeTab === "broadcast" && (
           <div className="tab-content broadcast-tab">
-            <h2><Radio size={20} /> Broadcast Message</h2>
-            <p className="broadcast-desc">Send a notification to all registered users (push + email + live socket)</p>
-            <div className="broadcast-form">
-              <div className="form-group">
-                <label>Title</label>
-                <input type="text" value={broadcastTitle} onChange={(e) => setBroadcastTitle(e.target.value)}
-                  placeholder="e.g. New feature update" className="form-input" />
-              </div>
-              <div className="form-group">
-                <label>Message</label>
-                <textarea value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)}
-                  placeholder="Write your announcement..." className="form-input broadcast-textarea" rows={5} />
-              </div>
-              {error && <div className="error-message">❌ {error}</div>}
-              {success && <div className="success-message">✅ {success}</div>}
-              {broadcastResult && (
-                <div className="broadcast-results">
-                  <h4>📤 Delivery Results</h4>
-                  <div className="health-grid">
-                    <div className="health-item"><span className="health-label">Push Sent</span><span className="health-value health-ok">{broadcastResult.push.sent}</span></div>
-                    <div className="health-item"><span className="health-label">Push Failed</span><span className={`health-value ${broadcastResult.push.failed > 0 ? "health-bad" : "health-ok"}`}>{broadcastResult.push.failed}</span></div>
-                    <div className="health-item"><span className="health-label">Push Total</span><span className="health-value">{broadcastResult.push.total}</span></div>
-                    <div className="health-item"><span className="health-label">Emails Sent</span><span className="health-value health-ok">{broadcastResult.email.sent}</span></div>
-                    <div className="health-item"><span className="health-label">Email Failed</span><span className={`health-value ${broadcastResult.email.failed > 0 ? "health-bad" : "health-ok"}`}>{broadcastResult.email.failed}</span></div>
-                    <div className="health-item"><span className="health-label">Socket Connected</span><span className="health-value">{broadcastResult.socket.connected}</span></div>
+            <div className="broadcast-shell">
+              <div className="broadcast-card">
+                <div className="broadcast-header">
+                  <div>
+                    <h2><Radio size={20} /> Broadcast Center</h2>
+                    <p className="broadcast-desc">Reach the right audience with polished announcements across push, email, and live sockets.</p>
                   </div>
                 </div>
-              )}
-              <button className="admin-login-btn" onClick={handleBroadcast} disabled={broadcastSending}>
-                {broadcastSending ? <><Loader2 size={18} className="spinner" /> Sending...</> : <><Radio size={18} /> Broadcast to All Users</>}
-              </button>
+                <div className="broadcast-options-grid">
+                  <div className="broadcast-option-card">
+                    <label>Audience</label>
+                    <div className="pill-group">
+                      {['all', 'active', 'recent'].map((value) => (
+                        <button key={value} type="button" className={`pill-btn ${broadcastAudience === value ? "active" : ""}`} onClick={() => setBroadcastAudience(value)}>{getAudienceLabel(value)}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="broadcast-option-card">
+                    <label>Priority</label>
+                    <select className="form-input" value={broadcastPriority} onChange={(e) => setBroadcastPriority(e.target.value)}>
+                      <option value="normal">Normal</option>
+                      <option value="urgent">Urgent</option>
+                      <option value="celebration">Celebration</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="template-grid">
+                  {broadcastTemplates.map((template) => (
+                    <button key={template.title} type="button" className="template-card" onClick={() => { setBroadcastTitle(template.title); setBroadcastMsg(template.message); }}>
+                      <strong>{template.title}</strong>
+                      <span>{template.message}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="broadcast-form">
+                  <div className="form-group">
+                    <label>Title</label>
+                    <input type="text" value={broadcastTitle} onChange={(e) => setBroadcastTitle(e.target.value)} placeholder="e.g. New feature update" className="form-input" />
+                  </div>
+                  <div className="form-group">
+                    <label>Message</label>
+                    <textarea value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)} placeholder="Write your announcement..." className="form-input broadcast-textarea" rows={5} />
+                  </div>
+                  <div className="channel-toggle-row">
+                    {Object.entries(broadcastChannels).map(([key, enabled]) => (
+                      <label key={key} className={`channel-toggle ${enabled ? "enabled" : ""}`}>
+                        <input type="checkbox" checked={enabled} onChange={() => setBroadcastChannels((prev) => ({ ...prev, [key]: !prev[key] }))} />
+                        <span>{key === "push" ? "Push" : key === "email" ? "Email" : "Live socket"}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="broadcast-preview">
+                    <span className="preview-badge">{broadcastPriority === "urgent" ? "Urgent" : broadcastPriority === "celebration" ? "Celebration" : "Standard"}</span>
+                    <h4>{broadcastTitle || "Your announcement title"}</h4>
+                    <p>{broadcastMsg || "Preview your message here before sending it to your audience."}</p>
+                  </div>
+                  {error && <div className="error-message">❌ {error}</div>}
+                  {success && <div className="success-message">✅ {success}</div>}
+                  {broadcastResult && (
+                    <div className="broadcast-results">
+                      <h4>📤 Delivery summary</h4>
+                      <div className="health-grid">
+                        <div className="health-item"><span className="health-label">Recipient Count</span><span className="health-value health-ok">{broadcastResult.recipients.total}</span></div>
+                        <div className="health-item"><span className="health-label">Push Sent</span><span className="health-value health-ok">{broadcastResult.push.sent}</span></div>
+                        <div className="health-item"><span className="health-label">Push Failed</span><span className={`health-value ${broadcastResult.push.failed > 0 ? "health-bad" : "health-ok"}`}>{broadcastResult.push.failed}</span></div>
+                        <div className="health-item"><span className="health-label">Emails Sent</span><span className="health-value health-ok">{broadcastResult.email.sent}</span></div>
+                        <div className="health-item"><span className="health-label">Email Failed</span><span className={`health-value ${broadcastResult.email.failed > 0 ? "health-bad" : "health-ok"}`}>{broadcastResult.email.failed}</span></div>
+                        <div className="health-item"><span className="health-label">Live Socket</span><span className="health-value">{broadcastResult.socket.connected}</span></div>
+                      </div>
+                    </div>
+                  )}
+                  <button className="admin-login-btn" onClick={handleBroadcast} disabled={broadcastSending}>
+                    {broadcastSending ? <><Loader2 size={18} className="spinner" /> Sending...</> : <><Radio size={18} /> Send Broadcast</>}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

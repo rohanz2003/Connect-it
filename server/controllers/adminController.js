@@ -442,71 +442,92 @@ exports.getUserDetail = async (req, res) => {
 // Broadcast message to ALL users — push + email + socket.IO
 exports.broadcastMessage = async (req, res) => {
   try {
-    const { title, message } = req.body;
+    const { title, message, audience = "all", priority = "normal", channels = {} } = req.body;
     if (!title || !message) {
       return res.status(400).json({ error: "Title and message are required" });
     }
 
-    // 1. Send push notifications to all subscribers
-    let pushResult = { sent: 0, failed: 0, total: 0 };
-    try {
-      pushResult = await broadcastPush({
-        title: `📢 ${title}`,
-        body: message,
-        icon: "/logo192.png",
-        url: "/",
-      });
-    } catch (pushErr) {
-      console.error("Push broadcast error:", pushErr.message);
+    const channelConfig = {
+      push: channels.push !== false,
+      email: channels.email !== false,
+      socket: channels.socket !== false,
+      ...channels,
+    };
+
+    const now = new Date();
+    const recipientQuery = {};
+    if (audience === "active") {
+      recipientQuery.lastSeen = { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) };
+    } else if (audience === "recent") {
+      recipientQuery.lastSeen = { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) };
     }
 
-    // 2. Send email to ALL users in parallel (batches of 10)
-    const users = await User.find({}).select("email").lean();
+    const users = await User.find(recipientQuery).select("email").lean();
+
+    let pushResult = { sent: 0, failed: 0, total: users.length };
+    if (channelConfig.push) {
+      try {
+        pushResult = await broadcastPush({
+          title: `📢 ${title}`,
+          body: message,
+          icon: "/logo192.png",
+          url: "/",
+        });
+      } catch (pushErr) {
+        console.error("Push broadcast error:", pushErr.message);
+      }
+    }
+
     let emailSent = 0;
     let emailFailed = 0;
-    const batchSize = 10;
-    for (let i = 0; i < users.length; i += batchSize) {
-      const batch = users.slice(i, i + batchSize);
-      const results = await Promise.allSettled(
-        batch.map(async (user) => {
-          await sendNotificationEmail({
-            email: user.email,
-            subject: `📢 ${title}`,
-            html: `
-              <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-                <h2 style="color:#1f2937;">${title}</h2>
-                <p style="color:#374151;line-height:1.6;">${message}</p>
-                <p style="color:#9ca3af;font-size:12px;margin-top:20px;">— The Connect It Team</p>
-              </div>
-            `,
-          });
-        })
-      );
-      results.forEach((r) => {
-        if (r.status === "fulfilled") emailSent++;
-        else emailFailed++;
-      });
+    if (channelConfig.email && users.length > 0) {
+      const batchSize = 10;
+      for (let i = 0; i < users.length; i += batchSize) {
+        const batch = users.slice(i, i + batchSize);
+        const results = await Promise.allSettled(
+          batch.map(async (user) => {
+            await sendNotificationEmail({
+              email: user.email,
+              subject: `📢 ${title}`,
+              html: `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                  <h2 style="color:#1f2937;">${title}</h2>
+                  <p style="color:#374151;line-height:1.6;">${message}</p>
+                  <p style="color:#9ca3af;font-size:12px;margin-top:20px;">Priority: ${priority}</p>
+                  <p style="color:#9ca3af;font-size:12px;margin-top:4px;">— The Connect It Team</p>
+                </div>
+              `,
+            });
+          })
+        );
+        results.forEach((r) => {
+          if (r.status === "fulfilled") emailSent++;
+          else emailFailed++;
+        });
+      }
     }
 
-    // 3. Broadcast via Socket.IO to all online users
     let socketSent = 0;
-    try {
-      const expressApp = req.app;
-      const io = expressApp.get("io");
-      if (io) {
-        io.emit("admin-broadcast", { title, message, timestamp: new Date().toISOString() });
-        socketSent = io.engine.clientsCount || 0;
-        console.log(`📡 Socket.IO broadcast to ${socketSent} connected clients`);
+    if (channelConfig.socket) {
+      try {
+        const expressApp = req.app;
+        const io = expressApp.get("io");
+        if (io) {
+          io.emit("admin-broadcast", { title, message, priority, timestamp: new Date().toISOString() });
+          socketSent = io.engine.clientsCount || 0;
+          console.log(`📡 Socket.IO broadcast to ${socketSent} connected clients`);
+        }
+      } catch (socketErr) {
+        console.warn("Socket broadcast error:", socketErr.message);
       }
-    } catch (socketErr) {
-      console.warn("Socket broadcast error:", socketErr.message);
     }
 
     console.log(`📢 Broadcast complete: ${pushResult.sent} push, ${emailSent} email, ${socketSent} socket`);
     res.json({
       success: true,
-      message: `Broadcast sent!`,
+      message: "Broadcast sent!",
       details: {
+        recipients: { total: users.length, audience, priority },
         push: { sent: pushResult.sent, failed: pushResult.failed, total: pushResult.total },
         email: { sent: emailSent, failed: emailFailed, total: users.length },
         socket: { connected: socketSent },
