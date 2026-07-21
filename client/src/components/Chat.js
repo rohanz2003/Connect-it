@@ -3489,7 +3489,7 @@ function Chat({ user: currentUser }) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, ease: "easeOut", delay: 0.3 }}
                 >
-                  <h2>Welcome back, {getDisplayName(user.email)}❤️</h2>
+                  <h2>Welcome back, {getDisplayName(user.email)}</h2>
                   <p className="welcome-subtitle">Real-time messaging platform for seamless team collaboration</p>
                 </motion.div>
               </motion.div>
