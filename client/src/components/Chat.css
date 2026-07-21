@@ -226,16 +226,18 @@ body {
   .sidebar {
     position: fixed;
     top: 0;
-    left: -100%;
+    left: 0;
+    transform: translateX(-100%);
     width: 280px !important;
     height: 100%;
     z-index: 200;
     box-shadow: var(--shadow-xl);
-    transition: left 0.3s ease;
+    transition: transform 0.3s ease;
   }
-
+ 
   .sidebar.open {
     left: 0;
+    transform: translateX(0);
   }
 
   .mobile-page {
