@@ -1886,7 +1886,7 @@ function Chat({ user: currentUser }) {
     }
 
     try {
-      const compressed = await compressImage(file, 500, 0.8);
+      const compressed = await compressImage(file, 800, 0.8);
       setShowSettings(false);
       setProfilePreviewUser(null);
       setCropState({ open: true, src: compressed, file });
