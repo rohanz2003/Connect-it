@@ -2741,7 +2741,7 @@ function Chat({ user: currentUser }) {
   if (!user) return <h2>Loading...</h2>;
 
   return (
-    <div className={`chat-layout ${isDarkMode ? "dark" : ""} w-full h-screen max-w-screen overflow-hidden md:grid md:grid-cols-[280px_1fr]`}>
+    <div className={`chat-layout ${isDarkMode ? "dark" : ""}`}>
       {/* Admin Broadcast Banner */}
       {broadcastNotification && (
         <div className="broadcast-banner" style={{
