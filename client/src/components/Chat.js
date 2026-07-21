@@ -650,8 +650,8 @@ function Chat({ user: currentUser }) {
                 if (profilesData.success && profilesData.profiles) {
                   const newLastSeen = {};
                   Object.entries(profilesData.profiles).forEach(([email, profile]) => {
-                    if (profile.avatarUrl) setUserProfiles(prev => ({ ...prev, [email]: profile.avatarUrl }));
-                    if (profile.displayName) setUserNames(prev => ({ ...prev, [email]: profile.displayName }));
+                    if (profile.avatarUrl) setUserProfiles(prev => prev[email] ? prev : { ...prev, [email]: profile.avatarUrl });
+                    if (profile.displayName) setUserNames(prev => prev[email] ? prev : { ...prev, [email]: profile.displayName });
                     if (profile.lastSeen) newLastSeen[email] = profile.lastSeen;
                   });
                   if (Object.keys(newLastSeen).length > 0) setLastSeen(prev => ({ ...prev, ...newLastSeen }));
@@ -662,7 +662,26 @@ function Chat({ user: currentUser }) {
         }
 
         // Process request data
-        if (usersRes.success) setAllUsers(usersRes.users);
+        if (usersRes.success) {
+          setAllUsers(usersRes.users);
+          // Pre-populate userNames from the all-users list
+          usersRes.users.forEach(u => {
+            if (u.displayName && u.email) {
+              setUserNames(prev => {
+                const norm = u.email.toLowerCase().trim();
+                if (prev[norm]) return prev;
+                return { ...prev, [norm]: u.displayName };
+              });
+            }
+            if (u.avatarUrl && u.email) {
+              setUserProfiles(prev => {
+                const norm = u.email.toLowerCase().trim();
+                if (prev[norm]) return prev;
+                return { ...prev, [norm]: u.avatarUrl };
+              });
+            }
+          });
+        }
         if (pendingRes.success) setPendingRequests(pendingRes.requests);
         if (sentRes.success) setSentRequests(sentRes.requests);
         if (statusesRes.success) setRequestStatuses(statusesRes.statuses);
@@ -679,13 +698,13 @@ function Chat({ user: currentUser }) {
     if (!user || !socket) return;
 
     const handleJoin = () => {
-      const joinData = { 
+      const joinData = {
         email: user.email,
         profilePic: user.profilePic || getAvatar(user.email) || null,
         displayName: displayName || null,
-        bio: bio || null
+        bio: bio || null,
       };
-      console.log("[socket] Joining socket with data:", { email: joinData.email, hasProfilePic: !!joinData.profilePic });
+      console.log("[socket] Joining socket with data:", { email: joinData.email, hasProfilePic: !!joinData.profilePic, displayName: joinData.displayName });
       socket.emit("join", joinData);
     };
 
@@ -1285,15 +1304,21 @@ function Chat({ user: currentUser }) {
   useEffect(() => {
     if (!socket || !user) return;
 
+    const buildJoinData = () => {
+      const jd = {
+        email: user.email.toLowerCase(),
+        displayName: displayName || null,
+        bio: bio || null,
+      };
+      if (user.profilePic) jd.profilePic = user.profilePic;
+      return jd;
+    };
+
     const emitVisiblePresence = () => {
       if (document.hidden) {
         socket.emit("leave", { email: user.email.toLowerCase() });
       } else {
-        const joinData = { email: user.email.toLowerCase() };
-        if (user.profilePic) {
-          joinData.profilePic = user.profilePic;
-        }
-        socket.emit("join", joinData);
+        socket.emit("join", buildJoinData());
       }
     };
 
@@ -1302,11 +1327,7 @@ function Chat({ user: currentUser }) {
     };
 
     const handleFocus = () => {
-      const joinData = { email: user.email.toLowerCase() };
-      if (user.profilePic) {
-        joinData.profilePic = user.profilePic;
-      }
-      socket.emit("join", joinData);
+      socket.emit("join", buildJoinData());
     };
 
     const handleBeforeUnload = () => {
@@ -1324,9 +1345,9 @@ function Chat({ user: currentUser }) {
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [socket, user]);
+  }, [socket, user, displayName, bio]);
 
-  // Fetch profiles for online users when list changes (always fetch ALL, not just unknown)
+  // Fetch profiles for online users when list changes (only fill unknown entries to avoid overwriting socket updates)
   const profileFetchTimerRef = useRef(null);
   const lastProfileFetchRef = useRef(0);
   useEffect(() => {
@@ -1344,14 +1365,14 @@ function Chat({ user: currentUser }) {
           setUserProfiles(p => {
             const next = { ...p };
             Object.entries(data.profiles).forEach(([email, profile]) => {
-              if (profile.avatarUrl) next[email] = profile.avatarUrl;
+              if (profile.avatarUrl && !next[email]) next[email] = profile.avatarUrl;
             });
             return next;
           });
           setUserNames(p => {
             const next = { ...p };
             Object.entries(data.profiles).forEach(([email, profile]) => {
-              if (profile.displayName) next[email] = profile.displayName;
+              if (profile.displayName && !next[email]) next[email] = profile.displayName;
             });
             return next;
           });
@@ -2014,11 +2035,13 @@ function Chat({ user: currentUser }) {
 
   const ensureSocketJoined = () => {
     if (!socket || !user) return;
-    const joinData = { email: normalizeEmail(user.email) };
-    if (user.profilePic) {
-      joinData.profilePic = user.profilePic;
-    }
-    socket.emit("join", joinData);
+    const jd = {
+      email: normalizeEmail(user.email),
+      displayName: displayName || null,
+      bio: bio || null,
+    };
+    if (user.profilePic) jd.profilePic = user.profilePic;
+    socket.emit("join", jd);
   };
 
   const performLogout = () => {
