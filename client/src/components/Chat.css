@@ -893,7 +893,7 @@ body {
   gap: 2px;
 }
 
-.user-name {
+.chat-layout .user-name {
   font-weight: 600;
   font-size: 13px;
   color: var(--text-primary);
