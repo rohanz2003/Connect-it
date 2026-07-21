@@ -3223,6 +3223,49 @@ function Chat({ user: currentUser }) {
               <p>{selectedUser ? <LastSeen userId={selectedUser} /> : "Choose a conversation or create a new one."}</p>
             </div>
           </div>
+          <div className="chat-header-actions">
+            {selectedUser && (
+              <>
+                <button id="voice-call-btn" className="icon-btn call-btn" title="Voice call" onClick={() => startCall(selectedUser, "audio")} disabled={callState !== "idle"}>
+                  <Phone size={17} />
+                </button>
+                <button id="video-call-btn" className="icon-btn call-btn video-call-btn" title="Video call" onClick={() => startCall(selectedUser, "video")} disabled={callState !== "idle"}>
+                  <Video size={17} />
+                </button>
+                <button className="icon-btn clear-chat-btn" title="Clear chat" onClick={handleClearCurrentChat}>
+                  <Trash2 size={16} />
+                </button>
+                {isAcceptedChat(selectedUser) && (
+                  <button className="icon-btn remove-friend-btn" title="Remove as friend" onClick={() => handleRemoveFriend(selectedUser)}>
+                    <UserMinus size={16} />
+                  </button>
+                )}
+                <button className="icon-btn close-btn" title="Close chat" onClick={() => { setSelectedUser(null); setIsChatMinimized(false); }}>
+                  <X size={18} />
+                </button>
+              </>
+            )}
+            {!selectedUser && (
+              <>
+                <button className="icon-btn mobile-notif-btn" title="Notifications" onClick={() => setActiveTab("notifications")}>
+                  <Bell size={18} />
+                  {(pendingRequests.length + unreadNotifications) > 0 && <span className="mobile-notif-badge">{(pendingRequests.length + unreadNotifications) > 9 ? "9+" : (pendingRequests.length + unreadNotifications)}</span>}
+                </button>
+                <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
+                  <Settings size={18} />
+                </button>
+                <button className="icon-btn" title="Dark mode" onClick={() => setIsDarkMode((prev) => !prev)}>
+                  {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+                </button>
+                <button className="icon-btn" title="Invite" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }}>
+                  <UserPlus size={18} />
+                </button>
+                <button className="icon-btn" title="Analytics" onClick={() => setActiveTab("analytics")}>
+                  <Layers size={18} />
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {!isChatMinimized && (
@@ -3565,49 +3608,6 @@ function Chat({ user: currentUser }) {
         <input id="attach-audio" type="file" accept="audio/*" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
         <input id="attach-document" type="file" accept=".pdf,.doc,.docx,.txt,.rtf" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
         <input id="attach-file" type="file" accept="*/*" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
-
-        <div className="mobile-footer">
-          <div className="mobile-footer-actions">
-            {selectedUser && (
-              <>
-                <button id="voice-call-btn" className="icon-btn call-btn" title="Voice call" onClick={() => startCall(selectedUser, "audio")} disabled={callState !== "idle"}>
-                  <Phone size={17} />
-                </button>
-                <button id="video-call-btn" className="icon-btn call-btn video-call-btn" title="Video call" onClick={() => startCall(selectedUser, "video")} disabled={callState !== "idle"}>
-                  <Video size={17} />
-                </button>
-                <button className="icon-btn clear-chat-btn" title="Clear chat" onClick={handleClearCurrentChat}>
-                  <Trash2 size={16} />
-                </button>
-                {isAcceptedChat(selectedUser) && (
-                  <button className="icon-btn remove-friend-btn" title="Remove as friend" onClick={() => handleRemoveFriend(selectedUser)}>
-                    <UserMinus size={16} />
-                  </button>
-                )}
-                <button className="icon-btn close-btn" title="Close chat" onClick={() => { setSelectedUser(null); setIsChatMinimized(false); }}>
-                  <X size={18} />
-                </button>
-              </>
-            )}
-            {!selectedUser && (
-              <>
-                <button className="icon-btn mobile-notif-btn" title="Notifications" onClick={() => setActiveTab("notifications")}>
-                  <Bell size={18} />
-                  {(pendingRequests.length + unreadNotifications) > 0 && <span className="mobile-notif-badge">{(pendingRequests.length + unreadNotifications) > 9 ? "9+" : (pendingRequests.length + unreadNotifications)}</span>}
-                </button>
-                <button className="icon-btn" title="Invite" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }}>
-                  <UserPlus size={18} />
-                </button>
-                <button className="icon-btn" title="Dark mode" onClick={() => setIsDarkMode((prev) => !prev)}>
-                  {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-                </button>
-                <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
-                  <Settings size={18} />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
       </motion.main>
 
       {showLogoutConfirm && (
