@@ -2857,13 +2857,6 @@ function Chat({ user: currentUser }) {
             </div>
           </button>
           <button
-            className={`tab ${activeTab === "analytics" ? "active" : ""}`}
-            onClick={() => setActiveTab("analytics")}
-            title="Activity"
-          >
-            <Layers size={18} />
-          </button>
-          <button
             className={`tab ${activeTab === "archive" ? "active" : ""}`}
             onClick={() => setActiveTab("archive")}
             title="Archived Chats"
