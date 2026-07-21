@@ -2822,7 +2822,7 @@ function Chat({ user: currentUser }) {
           </button>
         </div>
 
-        <div className="sidebar-tabs">
+        <div className="sidebar-tabs sidebar-tabs-desktop">
           <button
             className={`tab ${activeTab === "recent" ? "active" : ""}`}
             onClick={() => setActiveTab("recent")}
@@ -2873,6 +2873,45 @@ function Chat({ user: currentUser }) {
             <div style={{ position: 'relative' }}>
               <UserPlus size={18} />
             </div>
+          </button>
+        </div>
+
+        <div className="sidebar-tabs sidebar-tabs-mobile">
+          <button
+            className={`tab ${activeTab === "recent" ? "active" : ""}`}
+            onClick={() => setActiveTab("recent")}
+            title="Recent Chats"
+          >
+            <History size={18} />
+            {totalUnread > 0 && <span className="tab-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
+          </button>
+          <button
+            className="tab"
+            onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }}
+            title="Invite"
+          >
+            <UserPlus size={18} />
+          </button>
+          <button
+            className="tab"
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+          >
+            <Settings size={18} />
+          </button>
+          <button
+            className="tab"
+            onClick={() => { setShowSettings(false); setShowLogoutConfirm(true); }}
+            title="Logout"
+          >
+            <LogOut size={18} />
+          </button>
+          <button
+            className="tab"
+            onClick={() => { setShowSettings(false); setShowDeleteConfirm(true); }}
+            title="Delete account"
+          >
+            <Trash2 size={18} />
           </button>
         </div>
 
@@ -3253,15 +3292,6 @@ function Chat({ user: currentUser }) {
                 </button>
                 <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
                   <Settings size={18} />
-                </button>
-                <button className="icon-btn" title="Dark mode" onClick={() => setIsDarkMode((prev) => !prev)}>
-                  {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-                </button>
-                <button className="icon-btn" title="Invite" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }}>
-                  <UserPlus size={18} />
-                </button>
-                <button className="icon-btn" title="Analytics" onClick={() => setActiveTab("analytics")}>
-                  <Layers size={18} />
                 </button>
               </>
             )}

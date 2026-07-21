@@ -651,6 +651,25 @@ body {
   animation: glowPulse 2s ease-in-out infinite;
 }
 
+@media (min-width: 768px) {
+  .sidebar-tabs-mobile {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .sidebar-tabs-desktop {
+    display: none !important;
+  }
+  .sidebar-tabs-mobile {
+    display: flex;
+    gap: 2px;
+    padding: 8px;
+    border-bottom: 1px solid var(--border-color);
+    justify-content: center;
+  }
+}
+
 .tab-badge {
   background: var(--danger-color, #ef4444);
   color: white;
