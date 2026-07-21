@@ -2898,7 +2898,7 @@ function Chat({ user: currentUser }) {
                   <div
                     key={`recent-${i}`}
                     className={`user-item ${selectedUser === u ? "active" : ""}`}
-                    onClick={() => handleUserSelect(u)}
+                    onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}
                   >
                     <div className="avatar-wrap">
                       <Avatar
@@ -2951,7 +2951,7 @@ function Chat({ user: currentUser }) {
                 <div
                   key={`online-${i}`}
                   className={`user-item ${selectedUser === u ? "active" : ""}`}
-                  onClick={() => handleUserSelect(u)}
+                  onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}
                 >
                   <div className="avatar-wrap">
                       <Avatar
@@ -3057,7 +3057,7 @@ function Chat({ user: currentUser }) {
                     </div>
                     <div className="user-item-actions">
                       {action === "chat" ? (
-                        <button className="ig-icon-btn chat" onClick={() => handleUserSelect(u.email)} title="Open chat">
+                        <button className="ig-icon-btn chat" onClick={() => { handleUserSelect(u.email); setActiveTab("chat"); }} title="Open chat">
                           <MessageCircle size={16} />
                         </button>
                       ) : action === "request_sent" ? (
