@@ -3706,9 +3706,9 @@ function Chat({ user: currentUser }) {
             <span>Faster workflow</span>
           </div>
           <div className="action-list">
-            <button className="action-pill"><PlusCircle size={16} /> Start new chat</button>
-            <button className="action-pill"><Users size={16} /> Invite team member</button>
-            <button className="action-pill"><Layers size={16} /> View activity</button>
+            <button className="action-pill" onClick={() => { setSelectedUser(null); setActiveTab("all"); }}><PlusCircle size={16} /> Start new chat</button>
+            <button className="action-pill" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }}><Users size={16} /> Invite team member</button>
+            <button className="action-pill" onClick={() => setActiveTab("analytics")}><Layers size={16} /> View activity</button>
           </div>
         </div>
       </aside>
