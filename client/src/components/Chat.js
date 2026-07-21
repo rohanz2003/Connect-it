@@ -2857,6 +2857,13 @@ function Chat({ user: currentUser }) {
             </div>
           </button>
           <button
+            className={`tab ${activeTab === "analytics" ? "active" : ""}`}
+            onClick={() => setActiveTab("analytics")}
+            title="Activity"
+          >
+            <Layers size={18} />
+          </button>
+          <button
             className={`tab ${activeTab === "archive" ? "active" : ""}`}
             onClick={() => setActiveTab("archive")}
             title="Archived Chats"
@@ -2877,13 +2884,13 @@ function Chat({ user: currentUser }) {
           </button>
         </div>
 
-        <div className={`sidebar-search ${activeTab === "calls" ? "mobile-hidden" : ""}`}>
+        <div className={`sidebar-search ${activeTab === "calls" || activeTab === "analytics" ? "mobile-hidden" : ""}`}>
           <Search size={16} />
           <input
             type="search"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search online users" : activeTab === "calls" ? "Search call history" : activeTab === "all" ? "Search all users" : "Search archived chats"}
+            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search online users" : activeTab === "calls" ? "Search call history" : activeTab === "analytics" ? "Search analytics" : activeTab === "all" ? "Search all users" : "Search archived chats"}
           />
         </div>
 
@@ -3085,6 +3092,25 @@ function Chat({ user: currentUser }) {
           </div>
         )}
 
+        {activeTab === "analytics" && (
+          <div className="sidebar-section" style={{ padding: "16px", gap: "16px", display: "flex", flexDirection: "column" }}>
+            <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+              <div className="stat-item" style={{ textAlign: "center" }}>
+                <span style={{ display: "block", fontSize: "24px", fontWeight: 700, color: "var(--text-primary)" }}>{recentChats.length}</span>
+                <small style={{ fontSize: "11px", color: "var(--text-light)" }}>Active chats</small>
+              </div>
+              <div className="stat-item" style={{ textAlign: "center" }}>
+                <span style={{ display: "block", fontSize: "24px", fontWeight: 700, color: "var(--text-primary)" }}>{Object.keys(chatHistory).reduce((s, p) => s + getUnreadCount(p), 0)}</span>
+                <small style={{ fontSize: "11px", color: "var(--text-light)" }}>Unread</small>
+              </div>
+              <div className="stat-item" style={{ textAlign: "center" }}>
+                <span style={{ display: "block", fontSize: "24px", fontWeight: 700, color: "var(--text-primary)" }}>{otherOnlineUsers.length}</span>
+                <small style={{ fontSize: "11px", color: "var(--text-light)" }}>Online</small>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="sidebar-footer">
           <div className="sidebar-footer-actions">
             <button className="sidebar-footer-btn" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }} title="Invite team member">
@@ -3134,7 +3160,7 @@ function Chat({ user: currentUser }) {
         <div className={`sidebar-search ${activeTab === "analytics" ? "mobile-hidden" : ""}`}>
           <Search size={16} />
           <input type="search" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search contacts" : activeTab === "all" ? "Search all users" : "Search archived chats"} />
+            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search contacts" : activeTab === "analytics" ? "Search analytics" : activeTab === "all" ? "Search all users" : "Search archived chats"} />
         </div>
         <div className="mobile-page-body">
           {activeTab === "recent" && renderTabContent("mobile-recent")}
@@ -3152,6 +3178,24 @@ function Chat({ user: currentUser }) {
           )}
           {activeTab === "archive" && renderTabContent("mobile-archive")}
           {activeTab === "all" && renderTabContent("mobile-all")}
+          {activeTab === "analytics" && (
+            <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+                <div className="stat-item" style={{ textAlign: "center", background: "var(--background-white)", borderRadius: "12px", padding: "16px 8px", border: "1px solid var(--border-color)" }}>
+                  <span style={{ display: "block", fontSize: "28px", fontWeight: 700, color: "var(--text-primary)" }}>{recentChats.length}</span>
+                  <small style={{ fontSize: "12px", color: "var(--text-light)" }}>Active chats</small>
+                </div>
+                <div className="stat-item" style={{ textAlign: "center", background: "var(--background-white)", borderRadius: "12px", padding: "16px 8px", border: "1px solid var(--border-color)" }}>
+                  <span style={{ display: "block", fontSize: "28px", fontWeight: 700, color: "var(--text-primary)" }}>{Object.keys(chatHistory).reduce((s, p) => s + getUnreadCount(p), 0)}</span>
+                  <small style={{ fontSize: "12px", color: "var(--text-light)" }}>Unread</small>
+                </div>
+                <div className="stat-item" style={{ textAlign: "center", background: "var(--background-white)", borderRadius: "12px", padding: "16px 8px", border: "1px solid var(--border-color)" }}>
+                  <span style={{ display: "block", fontSize: "28px", fontWeight: 700, color: "var(--text-primary)" }}>{otherOnlineUsers.length}</span>
+                  <small style={{ fontSize: "12px", color: "var(--text-light)" }}>Online</small>
+                </div>
+              </div>
+            </div>
+          )}
           {activeTab === "notifications" && renderTabContent("mobile-notifications")}
         </div>
       </motion.div>
