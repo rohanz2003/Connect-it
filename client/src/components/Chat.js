@@ -4135,6 +4135,7 @@ function Chat({ user: currentUser }) {
       {/* Story Viewer Modal */}
       {viewingStory && (
         <StoryViewer
+          key={`${viewingStory.userEmail}-${viewingStory.stories.length}`}
           userEmail={viewingStory.userEmail}
           stories={viewingStory.stories}
           userProfiles={userProfiles}

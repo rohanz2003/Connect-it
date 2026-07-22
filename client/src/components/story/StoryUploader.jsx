@@ -43,7 +43,7 @@ export default function StoryUploader({ onClose }) {
   return (
     <div className="story-uploader-overlay" onClick={onClose}>
       <div className="story-uploader-modal" onClick={e => e.stopPropagation()} onDragOver={e => e.preventDefault()} onDrop={handleDrop}>
-        <button className="story-uploader-close" onClick={onClose}><X size={20} /></button>
+        <button className="story-uploader-close" onClick={(e) => { e.stopPropagation(); onClose(); }}><X size={20} /></button>
         <h3 className="story-uploader-title">Create Story</h3>
 
         {!preview ? (

@@ -18,12 +18,14 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
   const [progress, setProgress] = useState(0);
   const [paused, setPaused] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
+  const [showViewers, setShowViewers] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState([]);
   const timerRef = useRef(null);
   const elapsedRef = useRef(0);
   const startTimeRef = useRef(null);
   const story = stories[currentIndex];
+  const viewerList = story?.views || [];
 
   const isOwner = user?.email === story?.user;
 
@@ -120,13 +122,12 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
 
   if (!story || !userEmail) return null;
 
-  const viewerList = story.views || [];
   const myView = viewerList.find(v => v.viewer === user?.email);
 
   return (
     <div className="story-viewer-overlay" onClick={onClose}>
       <div className="story-viewer-container" onClick={e => e.stopPropagation()}>
-        <button className="story-viewer-close" onClick={onClose}><X size={22} /></button>
+        <button className="story-viewer-close" onClick={(e) => { e.stopPropagation(); onClose(); }}><X size={22} /></button>
 
         <div className="story-progress-bar">
           {stories.map((s, i) => (
@@ -176,10 +177,10 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
 
         {isOwner ? (
           <div className="story-viewer-bottom">
-            <div className="story-viewer-views-footer">
+            <button className="story-viewer-views-footer" onClick={() => setShowViewers(true)}>
               <Eye size={16} />
               <span>{viewerList.length > 0 ? `Viewed by ${viewerList.length}` : "No views yet"}</span>
-            </div>
+            </button>
           </div>
         ) : (
           <div className="story-viewer-bottom">
@@ -208,6 +209,29 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Viewers popup */}
+        {showViewers && (
+          <div className="story-viewers-overlay" onClick={() => setShowViewers(false)}>
+            <div className="story-viewers-popup" onClick={e => e.stopPropagation()}>
+              <div className="story-viewers-popup-header">
+                <span>Viewed by {viewerList.length}</span>
+                <button onClick={() => setShowViewers(false)}><X size={16} /></button>
+              </div>
+              <div className="story-viewers-popup-list">
+                {viewerList.length > 0 ? viewerList.map((v, i) => (
+                  <div key={i} className="story-viewers-popup-item">
+                    <Avatar src={userProfiles?.[v.viewer]} email={v.viewer} size={32} />
+                    <span className="story-viewers-popup-name">{getDisplayName?.(v.viewer) || v.viewer?.split("@")[0]}</span>
+                    {v.reaction && <span className="story-viewers-popup-reaction">{v.reaction}</span>}
+                  </div>
+                )) : (
+                  <div className="story-viewers-popup-empty">No views yet</div>
+                )}
+              </div>
             </div>
           </div>
         )}
