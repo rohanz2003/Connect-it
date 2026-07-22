@@ -15,7 +15,7 @@ const messageSchema = new mongoose.Schema({
   text: mongoose.Schema.Types.Mixed,
   type: {
     type: String,
-    enum: ["text", "media"],
+    enum: ["text", "media", "story-comment"],
     default: "text",
   },
   mediaType: String,

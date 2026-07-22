@@ -1,4 +1,5 @@
 const Story = require("../models/Story");
+const Message = require("../models/Message");
 const ChatRequest = require("../models/ChatRequest");
 const { normalizeEmail } = require("../utils/socketAuth");
 
@@ -139,6 +140,33 @@ exports.commentOnStory = async (req, res) => {
 
     story.comments.push({ user, text: text.trim(), createdAt: new Date() });
     await story.save();
+
+    // Send a chat message to the story owner
+    try {
+      const msg = await Message.create({
+        sender: user,
+        receiver: story.user,
+        text: text.trim(),
+        type: "story-comment",
+        timestamp: new Date(),
+        status: "sent",
+      });
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(story.user).emit("receive-message", {
+          _id: msg._id,
+          sender: user,
+          receiver: story.user,
+          text: text.trim(),
+          type: "story-comment",
+          timestamp: msg.timestamp,
+          status: "sent",
+        });
+      }
+    } catch (msgErr) {
+      console.warn("Failed to send story-comment message:", msgErr.message);
+    }
 
     res.json({ success: true, comments: story.comments });
   } catch (err) {

@@ -6978,6 +6978,22 @@ body.dark-mode .incoming-call-card,
   right: 8px;
 }
 
+/* Views footer (shown to story owner) */
+.story-viewer-views-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  color: rgba(255,255,255,0.6);
+  font-size: 13px;
+  flex: 1;
+}
+
+.story-viewer-views-footer svg {
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
 /* Bottom */
 .story-viewer-bottom {
   display: flex;
@@ -7360,4 +7376,34 @@ body.dark-mode .incoming-call-card,
 
 .dark .story-privacy-btn {
   border-color: rgba(255,255,255,0.08);
+}
+
+/* Story comment dot in recent chat list */
+.story-comment-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  flex-shrink: 0;
+  box-shadow: 0 0 4px rgba(239,68,68,0.5);
+}
+
+.story-comment-last {
+  color: #ef4444 !important;
+  font-weight: 600;
+}
+
+/* Story comment badge in chat messages */
+.story-comment-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #ef4444;
+  margin-right: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.12);
+  vertical-align: middle;
 }

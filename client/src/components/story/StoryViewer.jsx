@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { X, ChevronLeft, ChevronRight, Send, Heart, Smile, Laugh, Flame, Star, Eye } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Send, Heart, Smile, Laugh, Flame, Star, Eye, PlusCircle } from "lucide-react";
 import Avatar from "../Avatar";
 import { useStories } from "../../context/StoryContext";
 import { formatMessageTime } from "../../utils/timeFormatter";
@@ -12,18 +12,18 @@ const REACTIONS = [
   { emoji: "\u2B50", label: "Star", icon: <Star size={18} /> },
 ];
 
-export default function StoryViewer({ userEmail, stories, userProfiles, getDisplayName, user, onClose }) {
+export default function StoryViewer({ userEmail, stories, userProfiles, getDisplayName, user, onClose, onAddStory }) {
   const { viewStory, reactToStory, commentOnStory } = useStories();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [showReactions, setShowReactions] = useState(false);
   const [commentText, setCommentText] = useState("");
-  const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState([]);
   const [showViewers, setShowViewers] = useState(false);
-  const progressRef = useRef(null);
   const timerRef = useRef(null);
   const story = stories[currentIndex];
+
+  const isOwner = user?.email === story?.user;
 
   const duration = story?.mediaType === "video" ? 8000 : 5000;
 
@@ -96,10 +96,8 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
   return (
     <div className="story-viewer-overlay" onClick={onClose}>
       <div className="story-viewer-container" onClick={e => e.stopPropagation()}>
-        {/* Close button */}
         <button className="story-viewer-close" onClick={onClose}><X size={22} /></button>
 
-        {/* Progress bars */}
         <div className="story-progress-bar">
           {stories.map((s, i) => (
             <div key={s._id} className="story-progress-segment">
@@ -113,7 +111,6 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
           ))}
         </div>
 
-        {/* Header */}
         <div className="story-viewer-header">
           <div className="story-viewer-user">
             <Avatar src={userProfiles?.[userEmail]} email={userEmail} size={36} />
@@ -123,6 +120,11 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
             </div>
           </div>
           <div className="story-viewer-actions-header">
+            {isOwner && onAddStory && (
+              <button className="story-viewer-action-btn" onClick={onAddStory} title="Add story">
+                <PlusCircle size={18} />
+              </button>
+            )}
             <button className="story-viewer-action-btn" onClick={() => setShowViewers(!showViewers)} title="Views">
               <Eye size={18} />
               <span>{viewerList.length}</span>
@@ -130,7 +132,6 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
           </div>
         </div>
 
-        {/* Media */}
         <div className="story-viewer-media">
           {story.mediaType === "video" ? (
             <video src={story.mediaUrl} autoPlay muted className="story-viewer-video" />
@@ -140,7 +141,6 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
           {story.caption && <p className="story-viewer-caption">{story.caption}</p>}
         </div>
 
-        {/* Navigation */}
         {currentIndex > 0 && (
           <button className="story-nav-btn story-nav-prev" onClick={goPrev}><ChevronLeft size={28} /></button>
         )}
@@ -148,53 +148,46 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
           <button className="story-nav-btn story-nav-next" onClick={goNext}><ChevronRight size={28} /></button>
         )}
 
-        {/* Bottom actions */}
-        <div className="story-viewer-bottom">
-          <div className="story-viewer-input-wrap">
-            <input
-              className="story-viewer-input"
-              placeholder="Send a message..."
-              value={commentText}
-              onChange={e => setCommentText(e.target.value)}
-              onKeyDown={handleKeyDown}
-            />
-            <button className="story-viewer-send-btn" onClick={handleCommentSend} disabled={!commentText.trim()}>
-              <Send size={18} />
-            </button>
-          </div>
-          <div className="story-viewer-reactions-wrap">
-            <button className="story-viewer-emoji-btn" onClick={() => setShowReactions(!showReactions)}>
-              {myView?.reaction ? <span style={{ fontSize: 22 }}>{myView.reaction}</span> : <Heart size={20} />}
-            </button>
-            {showReactions && (
-              <div className="story-reactions-popup">
-                {REACTIONS.map(r => (
-                  <button key={r.emoji} className="story-reaction-btn" onClick={() => handleReaction(r.emoji)} title={r.label}>
-                    {r.emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Comments panel */}
-        {showComments && comments.length > 0 && (
-          <div className="story-comments-panel">
-            <div className="story-comments-header">
-              <span>Comments ({comments.length})</span>
-              <button onClick={() => setShowComments(false)}><X size={16} /></button>
+        {/* Bottom: owner sees viewer list; others see comment input + reactions */}
+        {isOwner ? (
+          <div className="story-viewer-bottom">
+            <div className="story-viewer-views-footer">
+              <Eye size={16} />
+              <span>Viewed by {viewerList.length > 0 ? viewerList.map(v => getDisplayName?.(v.viewer) || v.viewer?.split("@")[0]).join(", ") : "no one yet"}</span>
             </div>
-            {comments.map((c, i) => (
-              <div key={i} className="story-comment-item">
-                <strong>{c.user?.split("@")[0]}</strong>
-                <span>{c.text}</span>
-              </div>
-            ))}
+          </div>
+        ) : (
+          <div className="story-viewer-bottom">
+            <div className="story-viewer-input-wrap">
+              <input
+                className="story-viewer-input"
+                placeholder="Send a message..."
+                value={commentText}
+                onChange={e => setCommentText(e.target.value)}
+                onKeyDown={handleKeyDown}
+              />
+              <button className="story-viewer-send-btn" onClick={handleCommentSend} disabled={!commentText.trim()}>
+                <Send size={18} />
+              </button>
+            </div>
+            <div className="story-viewer-reactions-wrap">
+              <button className="story-viewer-emoji-btn" onClick={() => setShowReactions(!showReactions)}>
+                {myView?.reaction ? <span style={{ fontSize: 22 }}>{myView.reaction}</span> : <Heart size={20} />}
+              </button>
+              {showReactions && (
+                <div className="story-reactions-popup">
+                  {REACTIONS.map(r => (
+                    <button key={r.emoji} className="story-reaction-btn" onClick={() => handleReaction(r.emoji)} title={r.label}>
+                      {r.emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Viewers panel */}
+        {/* Viewers panel (togglable for everyone) */}
         {showViewers && (
           <div className="story-viewers-panel">
             <div className="story-viewers-header">
@@ -202,13 +195,15 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
               <button onClick={() => setShowViewers(false)}><X size={16} /></button>
             </div>
             <div className="story-viewers-list">
-              {viewerList.map((v, i) => (
+              {viewerList.length > 0 ? viewerList.map((v, i) => (
                 <div key={i} className="story-viewer-item">
                   <Avatar src={userProfiles?.[v.viewer]} email={v.viewer} size={28} />
                   <span>{getDisplayName?.(v.viewer) || v.viewer?.split("@")[0]}</span>
                   {v.reaction && <span style={{ marginLeft: "auto", fontSize: 18 }}>{v.reaction}</span>}
                 </div>
-              ))}
+              )) : (
+                <div className="story-viewer-item" style={{ opacity: 0.5 }}>No views yet</div>
+              )}
             </div>
           </div>
         )}

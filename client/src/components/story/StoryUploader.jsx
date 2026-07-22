@@ -23,7 +23,10 @@ export default function StoryUploader({ onClose }) {
     if (!file) return;
     const result = await uploadStory(file, privacy, caption);
     if (result) {
-      onClose();
+      setFile(null);
+      setPreview(null);
+      setCaption("");
+      setPrivacy("public");
     }
   };
 
