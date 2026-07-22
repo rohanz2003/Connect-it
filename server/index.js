@@ -115,6 +115,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/requests", requestRoutes);
+app.use("/api/stories", require("./routes/storyRoutes"));
 
 // Email test endpoint — POST /api/test-email { "to": "you@gmail.com" }
 app.post("/api/test-email", async (req, res) => {

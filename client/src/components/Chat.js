@@ -56,6 +56,10 @@ import CallHistory from "./call/CallHistory";
 import Avatar from "./Avatar";
 import LastSeen from "./LastSeen";
 import ErrorBoundary from "./ErrorBoundary";
+import { useStories } from "../context/StoryContext";
+import StoryCircle from "./story/StoryCircle";
+import StoryViewer from "./story/StoryViewer";
+import StoryUploader from "./story/StoryUploader";
 import { auth } from "../firebase";
 import { EmailAuthProvider, reauthenticateWithCredential, deleteUser } from "firebase/auth";
 import useSocket from "../hooks/useSocket";
@@ -183,6 +187,9 @@ function Chat({ user: currentUser }) {
     toggleSpeaker,
   } = useCall();
 
+  // Stories
+  const { stories, viewingStory, setViewingStory, fetchStories } = useStories();
+
   const unseenMissedCount = (callHistory || []).filter(
     c => c.status === "missed" && (!callsTabOpenedAt || c.timestamp > callsTabOpenedAt)
   ).length;
@@ -291,6 +298,7 @@ function Chat({ user: currentUser }) {
     return [];
   });
 
+  const [showStoryUploader, setShowStoryUploader] = useState(false);
 
   // Use Ref to track selectedUser for the socket listener to avoid stale closures
   const selectedUserRef = useRef(selectedUser);
@@ -2896,6 +2904,52 @@ function Chat({ user: currentUser }) {
           </button>
         </div>
 
+        {/* Stories */}
+        <div className="stories-section">
+          <div className="stories-section-header">
+            <span>Stories</span>
+            <button className="stories-add-btn" onClick={() => setShowStoryUploader(true)} title="Add story">
+              <Camera size={16} />
+            </button>
+          </div>
+          <div className="stories-scroll">
+            {/* Your own story — always first */}
+            {(() => {
+              const myGroup = stories.find(g => g.user === user?.email);
+              return (
+                <div
+                  className="story-circle-wrap"
+                  onClick={() => myGroup ? setViewingStory({ userEmail: user.email, stories: myGroup.stories }) : setShowStoryUploader(true)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <div className={`story-circle-ring ${myGroup?.hasUnseen ? "unseen" : myGroup ? "seen" : "add-story"}`}>
+                    <div className="story-circle-avatar" style={{ position: "relative" }}>
+                      <Avatar src={getAvatar(user?.email)} email={user?.email} size={50} />
+                      {!myGroup && (
+                        <span style={{ position: "absolute", bottom: 0, right: -2, background: "var(--primary-color, #3b82f6)", color: "#fff", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, border: "2px solid var(--background-sidebar, #1e293b)" }}>+</span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="story-circle-name">{myGroup ? "Your story" : "Add story"}</span>
+                </div>
+              );
+            })()}
+
+            {/* Other users' stories */}
+            {stories.filter(g => g.user !== user?.email).map(group => (
+              <StoryCircle
+                key={group.user}
+                userEmail={group.user}
+                displayName={getDisplayName(group.user)}
+                avatarSrc={getAvatar(group.user)}
+                hasUnseen={group.hasUnseen}
+                hasStory
+                onClick={() => setViewingStory({ userEmail: group.user, stories: group.stories })}
+              />
+            ))}
+          </div>
+        </div>
+
         <div className="sidebar-tabs">
           <button
             className={`tab ${activeTab === "recent" ? "active" : ""}`}
@@ -4076,6 +4130,23 @@ function Chat({ user: currentUser }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Story Viewer Modal */}
+      {viewingStory && (
+        <StoryViewer
+          userEmail={viewingStory.userEmail}
+          stories={viewingStory.stories}
+          userProfiles={userProfiles}
+          getDisplayName={getDisplayName}
+          user={user}
+          onClose={() => { setViewingStory(null); fetchStories(); }}
+        />
+      )}
+
+      {/* Story Uploader Modal */}
+      {showStoryUploader && (
+        <StoryUploader onClose={() => setShowStoryUploader(false)} />
       )}
     </div>
   );

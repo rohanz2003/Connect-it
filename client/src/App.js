@@ -10,6 +10,7 @@ import Admin from "./components/Admin";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { CallProvider } from "./context/CallContext";
 import { SocketProvider } from "./context/SocketContext";
+import { StoryProvider } from "./context/StoryContext";
 import GlobalCallOverlay from "./components/call/GlobalCallOverlay";
 import authAxios from "./services/authAxios";
 
@@ -114,7 +115,9 @@ function App() {
           element={
             <PrivateRoute loading={loading} user={user}>
               <ErrorBoundary>
-                <Chat user={user} />
+                <StoryProvider user={user}>
+                  <Chat user={user} />
+                </StoryProvider>
               </ErrorBoundary>
             </PrivateRoute>
           }
