@@ -299,6 +299,7 @@ function Chat({ user: currentUser }) {
   });
 
   const [showStoryUploader, setShowStoryUploader] = useState(false);
+  const storyViewerOpenCount = useRef(0);
 
   // Use Ref to track selectedUser for the socket listener to avoid stale closures
   const selectedUserRef = useRef(selectedUser);
@@ -4135,13 +4136,13 @@ function Chat({ user: currentUser }) {
       {/* Story Viewer Modal */}
       {viewingStory && (
         <StoryViewer
-          key={`${viewingStory.userEmail}-${viewingStory.stories.length}`}
+          key={storyViewerOpenCount.current}
           userEmail={viewingStory.userEmail}
           stories={viewingStory.stories}
           userProfiles={userProfiles}
           getDisplayName={getDisplayName}
           user={user}
-          onClose={() => { setViewingStory(null); fetchStories(); }}
+          onClose={() => { storyViewerOpenCount.current += 1; setViewingStory(null); fetchStories(); }}
           onAddStory={() => { setViewingStory(null); setShowStoryUploader(true); }}
         />
       )}
