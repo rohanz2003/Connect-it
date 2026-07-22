@@ -3847,11 +3847,8 @@ function Chat({ user: currentUser }) {
         requestStatuses={requestStatuses}
         onSendMessage={(email) => {
           setProfilePreviewUser(null);
-          const existing = acceptedChatPartners.find(c => normalizeEmail(c.userEmail) === normalizeEmail(email));
-          if (existing) {
-            setSelectedUser(normalizeEmail(email));
-            setActiveTab("chats");
-          }
+          handleUserSelect(email);
+          setActiveTab("chat");
         }}
         onChangePhoto={handleUpdateProfilePic}
         onRemovePhoto={handleRemoveProfilePic}
