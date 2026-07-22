@@ -184,11 +184,6 @@ const ProfileViewer = ({
                   <MessageCircle size={18} /> Message
                 </button>
               )}
-              {avatarSrc && (
-                <button className="pv-action" onClick={() => onViewFullImage?.(avatarSrc, "profile", displayName, user.isOwn)}>
-                  <Eye size={18} /> View Photo
-                </button>
-              )}
               {user.isOwn && (
                 <>
                   <label className="pv-action primary" htmlFor="pv-change-photo">
