@@ -6857,6 +6857,10 @@ body.dark-mode .incoming-call-card,
   transition: width 0.05s linear;
 }
 
+.story-progress-fill.paused {
+  background: rgba(255,255,255,0.5);
+}
+
 /* Header */
 .story-viewer-header {
   display: flex;
@@ -6982,16 +6986,17 @@ body.dark-mode .incoming-call-card,
 .story-viewer-views-footer {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
   padding: 10px 16px;
-  color: rgba(255,255,255,0.6);
-  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+  font-size: 12px;
   flex: 1;
 }
 
 .story-viewer-views-footer svg {
   flex-shrink: 0;
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
 /* Bottom */

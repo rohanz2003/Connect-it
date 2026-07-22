@@ -16,11 +16,13 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
   const { viewStory, reactToStory, commentOnStory } = useStories();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [paused, setPaused] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState([]);
-  const [showViewers, setShowViewers] = useState(false);
   const timerRef = useRef(null);
+  const elapsedRef = useRef(0);
+  const startTimeRef = useRef(null);
   const story = stories[currentIndex];
 
   const isOwner = user?.email === story?.user;
@@ -33,28 +35,55 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
     }
   }, [story, viewStory]);
 
-  useEffect(() => {
-    if (!story?._id) return;
-    markViewed();
-    setProgress(0);
-    setComments(story.comments || []);
-    setShowReactions(false);
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
 
-    const startTime = Date.now();
+  const startTimer = useCallback(() => {
+    clearTimer();
+    startTimeRef.current = Date.now();
     timerRef.current = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const pct = Math.min((elapsed / duration) * 100, 100);
+      const additional = Date.now() - startTimeRef.current;
+      const total = elapsedRef.current + additional;
+      const pct = Math.min((total / duration) * 100, 100);
       setProgress(pct);
       if (pct >= 100) {
-        clearInterval(timerRef.current);
+        clearTimer();
         goNext();
       }
     }, 50);
+  }, [duration]);
 
-    return () => { clearInterval(timerRef.current); };
+  useEffect(() => {
+    if (!story?._id) return;
+    markViewed();
+    elapsedRef.current = 0;
+    setProgress(0);
+    setPaused(false);
+    setComments(story.comments || []);
+    setShowReactions(false);
+    startTimer();
+
+    return () => { clearTimer(); };
   }, [currentIndex, story?._id]);
 
+  const togglePause = () => {
+    if (paused) {
+      elapsedRef.current += Date.now() - startTimeRef.current;
+      setPaused(false);
+      startTimer();
+    } else {
+      clearTimer();
+      elapsedRef.current += Date.now() - startTimeRef.current;
+      setPaused(true);
+    }
+  };
+
   const goNext = () => {
+    clearTimer();
     if (currentIndex < stories.length - 1) {
       setCurrentIndex(i => i + 1);
     } else {
@@ -63,6 +92,7 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
   };
 
   const goPrev = () => {
+    clearTimer();
     if (currentIndex > 0) {
       setCurrentIndex(i => i - 1);
     }
@@ -102,7 +132,7 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
           {stories.map((s, i) => (
             <div key={s._id} className="story-progress-segment">
               <div
-                className="story-progress-fill"
+                className={`story-progress-fill ${i === currentIndex && paused ? "paused" : ""}`}
                 style={{
                   width: i < currentIndex ? "100%" : i === currentIndex ? `${progress}%` : "0%",
                 }}
@@ -125,14 +155,10 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
                 <PlusCircle size={18} />
               </button>
             )}
-            <button className="story-viewer-action-btn" onClick={() => setShowViewers(!showViewers)} title="Views">
-              <Eye size={18} />
-              <span>{viewerList.length}</span>
-            </button>
           </div>
         </div>
 
-        <div className="story-viewer-media">
+        <div className="story-viewer-media" onClick={togglePause}>
           {story.mediaType === "video" ? (
             <video src={story.mediaUrl} autoPlay muted className="story-viewer-video" />
           ) : (
@@ -141,19 +167,18 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
           {story.caption && <p className="story-viewer-caption">{story.caption}</p>}
         </div>
 
-        {currentIndex > 0 && (
+        {currentIndex > 0 && !paused && (
           <button className="story-nav-btn story-nav-prev" onClick={goPrev}><ChevronLeft size={28} /></button>
         )}
-        {currentIndex < stories.length - 1 && (
+        {currentIndex < stories.length - 1 && !paused && (
           <button className="story-nav-btn story-nav-next" onClick={goNext}><ChevronRight size={28} /></button>
         )}
 
-        {/* Bottom: owner sees viewer list; others see comment input + reactions */}
         {isOwner ? (
           <div className="story-viewer-bottom">
             <div className="story-viewer-views-footer">
               <Eye size={16} />
-              <span>Viewed by {viewerList.length > 0 ? viewerList.map(v => getDisplayName?.(v.viewer) || v.viewer?.split("@")[0]).join(", ") : "no one yet"}</span>
+              <span>{viewerList.length > 0 ? `Viewed by ${viewerList.length}` : "No views yet"}</span>
             </div>
           </div>
         ) : (
@@ -182,27 +207,6 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
                     </button>
                   ))}
                 </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Viewers panel (togglable for everyone) */}
-        {showViewers && (
-          <div className="story-viewers-panel">
-            <div className="story-viewers-header">
-              <span>Viewed by {viewerList.length}</span>
-              <button onClick={() => setShowViewers(false)}><X size={16} /></button>
-            </div>
-            <div className="story-viewers-list">
-              {viewerList.length > 0 ? viewerList.map((v, i) => (
-                <div key={i} className="story-viewer-item">
-                  <Avatar src={userProfiles?.[v.viewer]} email={v.viewer} size={28} />
-                  <span>{getDisplayName?.(v.viewer) || v.viewer?.split("@")[0]}</span>
-                  {v.reaction && <span style={{ marginLeft: "auto", fontSize: 18 }}>{v.reaction}</span>}
-                </div>
-              )) : (
-                <div className="story-viewer-item" style={{ opacity: 0.5 }}>No views yet</div>
               )}
             </div>
           </div>

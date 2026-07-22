@@ -2427,7 +2427,7 @@ function Chat({ user: currentUser }) {
           <div className="sidebar-list">
             {filteredRecentChats.length > 0 ? filteredRecentChats.map((u, i) => {
               const unreadCount = getUnreadCount(u);
-              const isStoryComment = (chatHistory[normalizeEmail(u)] || []).some(m => m.type === "story-comment");
+              const unreadStoryComment = unreadCount > 0 && (chatHistory[normalizeEmail(u)] || []).some(m => m.type === "story-comment");
               return (
                 <div key={`mr-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}>
                   <div className="avatar-wrap">
@@ -2436,11 +2436,11 @@ function Chat({ user: currentUser }) {
                   </div>
                   <div className="user-item-copy">
                     <span className="user-name">{getDisplayName(u)}</span>
-                    <span className={`user-last ${isStoryComment ? "story-comment-last" : ""}`}>{isStoryComment ? "Commented on your story" : (isUserOnline(u) ? "Online" : formatLastSeen(lastSeen[u]))}</span>
+                    <span className={`user-last ${unreadStoryComment ? "story-comment-last" : ""}`}>{unreadStoryComment ? "Commented on your story" : (isUserOnline(u) ? "Online" : formatLastSeen(lastSeen[u]))}</span>
                   </div>
                   <div className="user-item-actions">
                     {unreadCount > 0 && <span className="unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
-                    {isStoryComment && <span className="story-comment-dot" />}
+                    {unreadStoryComment && <span className="story-comment-dot" />}
                     <button className="remove-recent-btn" onClick={(e) => handleArchiveChat(e, u)} title="Archive chat">
                       <Archive size={14} />
                     </button>
@@ -3019,7 +3019,7 @@ function Chat({ user: currentUser }) {
             <div className="sidebar-list">
               {filteredRecentChats.length > 0 ? filteredRecentChats.map((u, i) => {
                 const unreadCount = getUnreadCount(u);
-                const isStoryComment = (chatHistory[normalizeEmail(u)] || []).some(m => m.type === "story-comment");
+                const unreadStoryComment = unreadCount > 0 && (chatHistory[normalizeEmail(u)] || []).some(m => m.type === "story-comment");
                 return (
                   <div
                     key={`recent-${i}`}
@@ -3038,15 +3038,15 @@ function Chat({ user: currentUser }) {
                     </div>
                     <div className="user-item-copy">
                       <span className="user-name">{getDisplayName(u)}</span>
-                      <span className={`user-last ${isStoryComment ? "story-comment-last" : ""}`}>
-                        {isStoryComment ? "Commented on your story" : (isUserOnline(u) ? "Online" : formatLastSeen(lastSeen[u]))}
+                      <span className={`user-last ${unreadStoryComment ? "story-comment-last" : ""}`}>
+                        {unreadStoryComment ? "Commented on your story" : (isUserOnline(u) ? "Online" : formatLastSeen(lastSeen[u]))}
                       </span>
                     </div>
                     <div className="user-item-actions">
                       {unreadCount > 0 && (
                         <span className="unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
                       )}
-                      {isStoryComment && <span className="story-comment-dot" />}
+                      {unreadStoryComment && <span className="story-comment-dot" />}
                       <button
                         className="remove-recent-btn"
                         onClick={(e) => handleArchiveChat(e, u)}
