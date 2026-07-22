@@ -18,6 +18,11 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
     }
     userId = userId.trim().toLowerCase();
 
+    if (userId !== socket.data.authEmail) {
+      console.warn(`Socket ${socket.id} tried to join as ${userId} but auth is ${socket.data.authEmail}`);
+      return;
+    }
+
     registerSocket(socket.id, userId);
 
     if (!users[userId]) {
@@ -198,6 +203,7 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
     if (!userIdRaw) return;
 
     const userId = userIdRaw.toLowerCase().trim();
+    if (userId !== socket.data.authEmail) return;
     if (!users[userId]) return;
 
     users[userId].delete(socket.id);
@@ -217,6 +223,10 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
     const email = data?.email?.toLowerCase()?.trim();
     if (!email) {
       console.warn("update-profile: email is missing");
+      return;
+    }
+    if (email !== socket.data.authEmail) {
+      console.warn(`Socket ${socket.id} tried to update profile for ${email} but auth is ${socket.data.authEmail}`);
       return;
     }
 
@@ -277,6 +287,10 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
     const email = data?.email?.toLowerCase()?.trim();
     if (!email) {
       console.warn("remove-profile-pic: email is missing");
+      return;
+    }
+    if (email !== socket.data.authEmail) {
+      console.warn(`Socket ${socket.id} tried to remove profile pic for ${email} but auth is ${socket.data.authEmail}`);
       return;
     }
 

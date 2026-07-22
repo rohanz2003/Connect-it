@@ -1132,6 +1132,9 @@ function Chat({ user: currentUser }) {
 
     // Listen for incoming messages globally (even when not in the room)
     const handleIncomingMessage = (msg) => {
+      const myEmail = normalizeEmail(user.email);
+      if (normalizeEmail(msg.sender) !== myEmail && normalizeEmail(msg.receiver) !== myEmail) return;
+
       const otherParty = getOtherParty(msg, user.email);
       const isActiveChat =
         selectedUserRef.current &&
@@ -1437,10 +1440,14 @@ function Chat({ user: currentUser }) {
     return () => clearInterval(interval);
   }, [socket, user]);
 
+  const syncChatRef = useRef(null);
+
   useEffect(() => {
     const syncChat = async () => {
       if (!user || !selectedUser || !socket) return;
       const partner = normalizeEmail(selectedUser);
+
+      syncChatRef.current = partner;
 
       console.log(`[chat] Joining room and fetching history: ${user.email} <-> ${partner}`);
 
@@ -1453,6 +1460,10 @@ function Chat({ user: currentUser }) {
       // 3. Fetch full history from Database (Fixes the "no msg show" issue)
       try {
         const response = await fetchMessages(user.email, partner);
+
+        // Ignore stale response if user switched during fetch
+        if (syncChatRef.current !== partner) return;
+
         const history = Array.isArray(response) ? response : (response?.messages || []);
         
         setChatHistory(prev => {
@@ -3848,7 +3859,6 @@ function Chat({ user: currentUser }) {
         onSendMessage={(email) => {
           setProfilePreviewUser(null);
           handleUserSelect(email);
-          setActiveTab("chat");
         }}
         onChangePhoto={handleUpdateProfilePic}
         onRemovePhoto={handleRemoveProfilePic}
