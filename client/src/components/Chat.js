@@ -63,6 +63,7 @@ import { formatLastSeen, formatMessageTime } from "../utils/timeFormatter";
 import { validateImageFile, compressImage } from "../utils/imageUtils";
 import { getDeviceInfo } from "../utils/deviceDetector";
 import { subscribeToPush } from "../utils/pushHelper";
+import { broadcastEvent, onBroadcastEvent } from "../utils/crossTabNotifications";
 import { fetchMessages, fetchRecentChats } from "../services/messageService";
 import { fetchAllUsers, fetchPendingRequests, fetchSentRequests, fetchRequestStatuses, sendRequest, unsendRequest, respondToRequest, fetchAcceptedChatsWithMessages, removeFriend } from "../services/requestService";
 import authAxios from "../services/authAxios";
@@ -271,6 +272,7 @@ function Chat({ user: currentUser }) {
   });
   const [recentAlerts, setRecentAlerts] = useState([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [crossTabPopup, setCrossTabPopup] = useState(null);
   const emojiPickerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -719,6 +721,26 @@ function Chat({ user: currentUser }) {
 
     // Subscribe to push notifications
     subscribeToPush(user.email.toLowerCase());
+
+    const cleanupCrossTab = onBroadcastEvent((event) => {
+      if (event.type === "message" && normalizeEmail(event.sender) !== normalizeEmail(user.email)) {
+        setCrossTabPopup({
+          type: "message",
+          title: event.senderName || event.sender?.split("@")[0] || "Someone",
+          body: event.preview || "Sent you a message",
+          timestamp: Date.now(),
+        });
+        setTimeout(() => setCrossTabPopup(null), 5000);
+      } else if (event.type === "call") {
+        setCrossTabPopup({
+          type: "call",
+          title: event.senderName || event.sender?.split("@")[0] || "Someone",
+          body: event.callType === "video" ? "Video calling you" : "Calling you",
+          timestamp: Date.now(),
+        });
+        setTimeout(() => setCrossTabPopup(null), 5000);
+      }
+    });
 
     const handleOnlineUsers = (users) => {
       if (socket) socket.currentOnlineUsers = users;
@@ -1169,6 +1191,7 @@ function Chat({ user: currentUser }) {
         });
         const payload = buildMessageNotificationPayload({ senderName, preview, unreadCount });
         showBrowserNotification(payload.title, payload.body, { tag: payload.tag });
+        broadcastEvent({ type: "message", senderName, sender: msg.sender, preview });
       }
     };
 
@@ -1345,6 +1368,7 @@ function Chat({ user: currentUser }) {
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
+      if (cleanupCrossTab) cleanupCrossTab();
       document.removeEventListener("visibilitychange", emitVisiblePresence);
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("focus", handleFocus);
@@ -2766,6 +2790,35 @@ function Chat({ user: currentUser }) {
             background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white',
             borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontSize: '16px'
           }}>×</button>
+        </div>
+      )}
+      {crossTabPopup && (
+        <div style={{
+          position: 'fixed', top: 16, right: 16, zIndex: 10000,
+          background: crossTabPopup.type === "call" ? 'linear-gradient(135deg, #7c3aed, #3b82f6)' : '#1e293b',
+          color: 'white', padding: '14px 20px', borderRadius: 12,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
+          display: 'flex', alignItems: 'center', gap: 12,
+          minWidth: 280, maxWidth: 380,
+          animation: 'slideInRight 0.3s ease'
+        }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: '50%',
+            background: crossTabPopup.type === "call" ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18, flexShrink: 0
+          }}>
+            {crossTabPopup.type === "call" ? "📞" : "💬"}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{crossTabPopup.title}</div>
+            <div style={{ fontSize: 13, opacity: 0.85, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{crossTabPopup.body}</div>
+          </div>
+          <button onClick={() => setCrossTabPopup(null)} style={{
+            background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white',
+            borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 14,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+          }}>✕</button>
         </div>
       )}
       <div className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`} onClick={() => setSidebarOpen(false)} />

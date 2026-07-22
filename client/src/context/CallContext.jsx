@@ -9,6 +9,7 @@ import {
   saveCallEvent,
 } from "../utils/callHelpers";
 import { playRingtone, stopRingtone, playConnectSound, playEndSound } from "../utils/callSounds";
+import { broadcastEvent } from "../utils/crossTabNotifications";
 import socket from "../services/socketService";
 
 const CallContext = createContext(null);
@@ -139,6 +140,7 @@ export function CallProvider({ children, user }) {
       setIncomingCall({ from, type, signal });
       setCallState("ringing");
       pendingIceCandidatesRef.current = []; // Clear queue for new call
+      broadcastEvent({ type: "call", sender: from, callType: type, senderName: from?.split("@")[0] || "Someone" });
     };
 
     const handleAccepted = ({ signal, from }) => {
