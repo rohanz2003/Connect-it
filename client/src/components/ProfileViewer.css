@@ -138,6 +138,8 @@
 }
 
 .pv-avatar-fallback {
+  width: 160px !important;
+  height: 160px !important;
   display: block;
   margin: 0 auto;
 }
@@ -418,6 +420,10 @@
   .pv-avatar-img {
     width: 130px;
     height: 130px;
+  }
+  .pv-avatar-fallback {
+    width: 130px !important;
+    height: 130px !important;
   }
   .pv-name {
     font-size: 18px;
