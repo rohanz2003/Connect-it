@@ -182,6 +182,10 @@ function Chat({ user: currentUser }) {
     toggleSpeaker,
   } = useCall();
 
+  const unseenMissedCount = (callHistory || []).filter(
+    c => c.status === "missed" && (!callsTabOpenedAt || c.timestamp > callsTabOpenedAt)
+  ).length;
+
   const [user, setUser] = useState(null);
   const [message, setMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -241,6 +245,7 @@ function Chat({ user: currentUser }) {
     try { return JSON.parse(localStorage.getItem(`archivedChats_${localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")).email : ""}`) || "[]"); } catch { return []; }
   });
   const [activeTab, setActiveTab] = useState("recent");
+  const [callsTabOpenedAt, setCallsTabOpenedAt] = useState(null);
   const [displayName, setDisplayName] = useState(() => {
     try { return JSON.parse(localStorage.getItem("user") || "{}").displayName || ""; } catch { return ""; }
   });
@@ -2844,14 +2849,14 @@ function Chat({ user: currentUser }) {
           </button>
           <button
             className={`tab ${activeTab === "calls" ? "active" : ""}`}
-            onClick={() => setActiveTab("calls")}
+            onClick={() => { setActiveTab("calls"); setCallsTabOpenedAt(Date.now()); }}
             title="Call History"
           >
             <div style={{ position: 'relative' }}>
               <PhoneCall size={18} />
-              {callHistory.filter(c => c.status === "missed").length > 0 && (
+              {unseenMissedCount > 0 && (
                 <span className="tab-badge missed-badge" style={{ position: 'absolute', top: -8, right: -12 }}>
-                  {callHistory.filter(c => c.status === "missed").length}
+                  {unseenMissedCount}
                 </span>
               )}
             </div>
@@ -3872,11 +3877,11 @@ function Chat({ user: currentUser }) {
           <span>Online</span>
         </button>
         <button className={`bottom-nav-btn ${activeTab === "all" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("all"); setSidebarOpen(false); }}><UserPlus size={18} /><span>People</span></button>
-        <button className={`bottom-nav-btn ${activeTab === "calls" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("calls"); setSidebarOpen(false); }}>
+        <button className={`bottom-nav-btn ${activeTab === "calls" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("calls"); setSidebarOpen(false); setCallsTabOpenedAt(Date.now()); }}>
           <span className="bottom-nav-icon-wrap">
             <PhoneCall size={18} />
-            {callHistory.filter(c => c.status === "missed").length > 0 && (
-              <span className="bottom-nav-badge">{callHistory.filter(c => c.status === "missed").length}</span>
+            {unseenMissedCount > 0 && (
+              <span className="bottom-nav-badge">{unseenMissedCount}</span>
             )}
           </span>
           <span>Calls</span>

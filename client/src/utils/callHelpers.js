@@ -22,7 +22,11 @@ export const getCallStatusColor = (status) => {
   }
 };
 
-const CALL_HISTORY_KEY = "call_history";
+const getCallHistoryKey = (userEmail) => {
+  const suffix = userEmail ? `_${normalizeForStorage(userEmail)}` : "";
+  return `call_history${suffix}`;
+};
+
 const VALID_STATUSES = new Set(["missed", "incoming", "outgoing"]);
 
 const normalizeCallEntry = (entry, index = 0) => {
@@ -43,40 +47,44 @@ const normalizeCallEntry = (entry, index = 0) => {
   };
 };
 
-export const saveCallToHistory = (entry) => {
+export const saveCallToHistory = (entry, userEmail) => {
   try {
-    const existing = JSON.parse(localStorage.getItem(CALL_HISTORY_KEY) || "[]");
+    const key = getCallHistoryKey(userEmail);
+    const existing = JSON.parse(localStorage.getItem(key) || "[]");
     existing.unshift(normalizeCallEntry({
       ...entry,
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       timestamp: Date.now(),
     }));
     if (existing.length > 200) existing.length = 200;
-    localStorage.setItem(CALL_HISTORY_KEY, JSON.stringify(existing));
+    localStorage.setItem(key, JSON.stringify(existing));
   } catch (e) {
     console.warn("Failed to save call history", e);
   }
 };
 
-export const getCallHistory = () => {
+export const getCallHistory = (userEmail) => {
   try {
-    const existing = JSON.parse(localStorage.getItem(CALL_HISTORY_KEY) || "[]");
+    const key = getCallHistoryKey(userEmail);
+    const existing = JSON.parse(localStorage.getItem(key) || "[]");
     return existing.map(normalizeCallEntry);
   } catch (e) {
     return [];
   }
 };
 
-export const clearCallHistory = () => {
+export const clearCallHistory = (userEmail) => {
   try {
-    localStorage.removeItem(CALL_HISTORY_KEY);
+    const key = getCallHistoryKey(userEmail);
+    localStorage.removeItem(key);
   } catch (e) {}
 };
 
-export const deleteCallHistoryEntry = (id) => {
+export const deleteCallHistoryEntry = (id, userEmail) => {
   try {
-    const existing = getCallHistory().filter((entry) => entry.id !== id);
-    localStorage.setItem(CALL_HISTORY_KEY, JSON.stringify(existing));
+    const key = getCallHistoryKey(userEmail);
+    const existing = getCallHistory(userEmail).filter((entry) => entry.id !== id);
+    localStorage.setItem(key, JSON.stringify(existing));
   } catch (e) {
     console.warn("Failed to delete call history entry", e);
   }

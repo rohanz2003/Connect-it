@@ -60,13 +60,13 @@ export function CallProvider({ children, user }) {
   webrtcRef.current = webrtc;
 
   const refreshCallHistory = useCallback(() => {
-    setCallHistory(getCallHistory());
-  }, []);
+    setCallHistory(getCallHistory(user?.email));
+  }, [user]);
 
   const addCallHistoryEntry = useCallback((entry) => {
-    saveCallToHistory(entry);
+    saveCallToHistory(entry, user?.email);
     refreshCallHistory();
-  }, [refreshCallHistory]);
+  }, [refreshCallHistory, user]);
 
   const flushPendingIceCandidates = useCallback(() => {
     const peer = webrtcRef.current?.peerRef?.current;
@@ -84,18 +84,20 @@ export function CallProvider({ children, user }) {
   }, []);
 
   const clearAllCallHistory = useCallback(() => {
-    clearCallHistory();
+    clearCallHistory(user?.email);
     setCallHistory([]);
-  }, []);
+  }, [user]);
 
   const deleteCallHistoryItem = useCallback((id) => {
-    deleteCallHistoryEntry(id);
+    deleteCallHistoryEntry(id, user?.email);
     refreshCallHistory();
-  }, [refreshCallHistory]);
+  }, [refreshCallHistory, user]);
 
   useEffect(() => {
-    setCallHistory(getCallHistory());
-  }, []);
+    if (user?.email) {
+      setCallHistory(getCallHistory(user.email));
+    }
+  }, [user]);
 
   // Sound effects: ringtone on ringing, stop on any state change
   useEffect(() => {
