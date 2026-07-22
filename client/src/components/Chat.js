@@ -722,26 +722,6 @@ function Chat({ user: currentUser }) {
     // Subscribe to push notifications
     subscribeToPush(user.email.toLowerCase());
 
-    const cleanupCrossTab = onBroadcastEvent((event) => {
-      if (event.type === "message" && normalizeEmail(event.sender) !== normalizeEmail(user.email)) {
-        setCrossTabPopup({
-          type: "message",
-          title: event.senderName || event.sender?.split("@")[0] || "Someone",
-          body: event.preview || "Sent you a message",
-          timestamp: Date.now(),
-        });
-        setTimeout(() => setCrossTabPopup(null), 5000);
-      } else if (event.type === "call") {
-        setCrossTabPopup({
-          type: "call",
-          title: event.senderName || event.sender?.split("@")[0] || "Someone",
-          body: event.callType === "video" ? "Video calling you" : "Calling you",
-          timestamp: Date.now(),
-        });
-        setTimeout(() => setCrossTabPopup(null), 5000);
-      }
-    });
-
     const handleOnlineUsers = (users) => {
       if (socket) socket.currentOnlineUsers = users;
       setOnlineUsers(users);
@@ -1368,13 +1348,37 @@ function Chat({ user: currentUser }) {
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
-      if (cleanupCrossTab) cleanupCrossTab();
       document.removeEventListener("visibilitychange", emitVisiblePresence);
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [socket, user, displayName, bio]);
+
+  // Cross-tab notification listener
+  useEffect(() => {
+    if (!user?.email) return;
+    const cleanup = onBroadcastEvent((event) => {
+      if (event.type === "message" && normalizeEmail(event.sender) !== normalizeEmail(user.email)) {
+        setCrossTabPopup({
+          type: "message",
+          title: event.senderName || event.sender?.split("@")[0] || "Someone",
+          body: event.preview || "Sent you a message",
+          timestamp: Date.now(),
+        });
+        setTimeout(() => setCrossTabPopup(null), 5000);
+      } else if (event.type === "call") {
+        setCrossTabPopup({
+          type: "call",
+          title: event.senderName || event.sender?.split("@")[0] || "Someone",
+          body: event.callType === "video" ? "Video calling you" : "Calling you",
+          timestamp: Date.now(),
+        });
+        setTimeout(() => setCrossTabPopup(null), 5000);
+      }
+    });
+    return () => { if (cleanup) cleanup(); };
+  }, [user]);
 
   // Fetch profiles for online users when list changes (only fill unknown entries to avoid overwriting socket updates)
   const profileFetchTimerRef = useRef(null);
