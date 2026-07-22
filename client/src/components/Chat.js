@@ -3106,9 +3106,6 @@ function Chat({ user: currentUser }) {
 
         <div className="sidebar-footer">
           <div className="sidebar-footer-actions">
-            <button className="sidebar-footer-btn" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }} title="Invite team member">
-              <UserPlus size={18} />
-            </button>
             <button className="sidebar-footer-btn" onClick={() => setShowSettings(true)} title="Settings">
               <Settings size={18} />
             </button>
