@@ -2908,9 +2908,6 @@ function Chat({ user: currentUser }) {
         <div className="stories-section">
           <div className="stories-section-header">
             <span>Stories</span>
-            <button className="stories-add-btn" onClick={() => setShowStoryUploader(true)} title="Add story">
-              <Camera size={16} />
-            </button>
           </div>
           <div className="stories-scroll">
             {/* Your own story — always first */}
@@ -2922,13 +2919,9 @@ function Chat({ user: currentUser }) {
                   onClick={() => myGroup ? setViewingStory({ userEmail: user.email, stories: myGroup.stories }) : setShowStoryUploader(true)}
                   style={{ cursor: "pointer" }}
                 >
-                  <div className={`story-circle-ring ${myGroup?.hasUnseen ? "unseen" : myGroup ? "seen" : "add-story"}`}>
-                    <div className="story-circle-avatar" style={{ position: "relative" }}>
-                      <Avatar src={getAvatar(user?.email)} email={user?.email} size={50} />
-                      {!myGroup && (
-                        <span style={{ position: "absolute", bottom: 0, right: -2, background: "var(--primary-color, #3b82f6)", color: "#fff", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, border: "2px solid var(--background-sidebar, #1e293b)" }}>+</span>
-                      )}
-                    </div>
+                  <div className="story-circle-own">
+                    <Avatar src={getAvatar(user?.email)} email={user?.email} size={48} />
+                    {!myGroup && <span className="story-circle-add-badge">+</span>}
                   </div>
                   <span className="story-circle-name">{myGroup ? "Your story" : "Add story"}</span>
                 </div>

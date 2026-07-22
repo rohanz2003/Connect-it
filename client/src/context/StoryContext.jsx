@@ -27,15 +27,12 @@ export function StoryProvider({ children, user }) {
     if (!user?.email) return null;
     setStoryUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const uploadRes = await authAxios.post("/api/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+      const mediaUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
       });
-
-      const mediaUrl = uploadRes.data?.url || uploadRes.data?.fileUrl;
-      if (!mediaUrl) throw new Error("Upload failed - no URL returned");
 
       const res = await authAxios.post("/api/stories", {
         mediaUrl,
