@@ -3707,8 +3707,8 @@ function Chat({ user: currentUser }) {
             <Home size={20} />
           </div>
           <p>Start a new chat, review mentions, and stay updated with your team activity.</p>
-          <button className="action-pill feedback-nav-btn" onClick={() => navigate("/feedback")} style={{ marginTop: 12, width: "100%", justifyContent: "center" }}>
-            <MessageSquare size={16} /> Share Feedback
+          <button className="action-pill" onClick={() => { setSelectedUser(null); setActiveTab("all"); }} style={{ marginTop: 12, width: "100%", justifyContent: "center" }}>
+            <PlusCircle size={16} /> Start new chat
           </button>
         </div>
 
@@ -3740,7 +3740,7 @@ function Chat({ user: currentUser }) {
             <span>Faster workflow</span>
           </div>
           <div className="action-list">
-            <button className="action-pill" onClick={() => { setSelectedUser(null); setActiveTab("all"); }}><PlusCircle size={16} /> Start new chat</button>
+            <button className="action-pill" onClick={() => navigate("/feedback")}><MessageSquare size={16} /> Share Feedback</button>
             <button className="action-pill" onClick={async () => { try { await navigator.clipboard.writeText("https://connect-it.vercel.app/"); alert("Invite link copied!"); } catch(e) { prompt("Copy this link:", "https://connect-it.vercel.app/"); } }}><Users size={16} /> Invite team member</button>
             <button className="action-pill" onClick={() => setActiveTab("analytics")}><Layers size={16} /> View activity</button>
           </div>

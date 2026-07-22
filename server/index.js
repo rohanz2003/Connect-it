@@ -13,6 +13,15 @@ const {
 const { connectDatabase, isDatabaseConnected } = require("./config/database");
 const { initFirebase, isFirebaseConfigured } = require("./config/firebase");
 
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("❌ Unhandled Rejection at:", promise, "reason:", reason?.message || reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("❌ Uncaught Exception:", err.message);
+  console.error(err.stack);
+});
+
 console.log("=== Server Starting ===");
 
 logEnvironmentDiagnostics();
@@ -179,8 +188,8 @@ app.get("/", (req, res) => {
 app.get("/api/analytics", async (req, res) => {
   try {
     const [totalUsers, totalMessages, acceptedRequests] = await Promise.all([
-      mongoose.connection.readyState === 1 ? User.countDocuments() : 0,
-      mongoose.connection.readyState === 1 ? Message.countDocuments() : 0,
+      mongoose.connection.readyState === 1 ? User.countDocuments({}) : 0,
+      mongoose.connection.readyState === 1 ? Message.countDocuments({}) : 0,
       mongoose.connection.readyState === 1 ? ChatRequest.countDocuments({ status: "accepted" }) : 0,
     ]);
     res.json({ success: true, totalUsers, totalMessages, acceptedRequests });
