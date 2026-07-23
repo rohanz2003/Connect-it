@@ -3269,13 +3269,13 @@ function Chat({ user: currentUser }) {
           <button className="mobile-page-back" onClick={() => setActiveTab("chat")}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <h3>{activeTab === "online" ? "Online Users" : activeTab === "people" ? "People" : activeTab === "calls" ? "Call History" : activeTab === "analytics" ? "Analytics" : activeTab === "archive" ? "Archive" : activeTab === "all" ? "All Users" : activeTab === "notifications" ? "Notifications" : "Recent Chats"}</h3>
+          <h3>{activeTab === "online" ? "Online Users" : activeTab === "people" ? "People" : activeTab === "stories" ? "Stories" : activeTab === "calls" ? "Call History" : activeTab === "analytics" ? "Analytics" : activeTab === "archive" ? "Archive" : activeTab === "all" ? "All Users" : activeTab === "notifications" ? "Notifications" : "Recent Chats"}</h3>
           <button className="mobile-page-notif-btn" title="Notifications" onClick={() => setActiveTab("notifications")}>
             <Bell size={18} />
             {(pendingRequests.length + unreadNotifications) > 0 && <span className="mobile-notif-badge">{(pendingRequests.length + unreadNotifications) > 9 ? "9+" : (pendingRequests.length + unreadNotifications)}</span>}
           </button>
         </div>
-        <div className={`sidebar-search ${activeTab === "analytics" ? "mobile-hidden" : ""}`}>
+        <div className={`sidebar-search ${activeTab === "analytics" || activeTab === "stories" ? "mobile-hidden" : ""}`}>
           <Search size={16} />
           <input type="search" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
             placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search contacts" : activeTab === "people" ? "Search people" : activeTab === "analytics" ? "Search analytics" : activeTab === "all" ? "Search all users" : "Search archived chats"} />
@@ -3355,6 +3355,36 @@ function Chat({ user: currentUser }) {
                   <div className="empty-list">No users found.</div>
                 )}
               </div>
+            </div>
+          )}
+          {activeTab === "stories" && (
+            <div className="stories-page">
+              <div className="stories-page-grid">
+                {(() => {
+                  const myGroup = stories.find(g => g.user === user?.email);
+                  return (
+                    <div className="stories-page-card" onClick={() => myGroup ? setViewingStory({ userEmail: user.email, stories: myGroup.stories }) : setShowStoryUploader(true)}>
+                      <div className="stories-page-avatar-wrap">
+                        <Avatar src={getAvatar(user?.email)} email={user?.email} size={64} />
+                        <div className="stories-page-add-btn"><Camera size={16} /></div>
+                      </div>
+                      <span className="stories-page-name">{myGroup ? "Your Story" : "Add Story"}</span>
+                    </div>
+                  );
+                })()}
+                {stories.filter(g => g.user !== user?.email).map(group => (
+                  <div key={group.user} className="stories-page-card" onClick={() => setViewingStory({ userEmail: group.user, stories: group.stories })}>
+                    <div className="stories-page-avatar-wrap">
+                      <Avatar src={getAvatar(group.user)} email={group.user} size={64} />
+                      <span className="stories-page-online-dot" />
+                    </div>
+                    <span className="stories-page-name">{getDisplayName(group.user)}</span>
+                  </div>
+                ))}
+              </div>
+              {stories.filter(g => g.user !== user?.email).length === 0 && (
+                <div className="empty-list" style={{ textAlign: "center", marginTop: 40 }}>No stories yet. Tap + to add your first story.</div>
+              )}
             </div>
           )}
           {activeTab === "archive" && renderTabContent("mobile-archive")}
@@ -4075,14 +4105,6 @@ function Chat({ user: currentUser }) {
           </span>
           <span>Recent</span>
         </button>
-        <button className={`bottom-nav-btn ${activeTab === "stories" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setShowStoryUploader(true); setSidebarOpen(false); }}>
-          <span className="bottom-nav-icon-wrap">
-            <div className="bottom-nav-story-btn">
-              <Camera size={20} />
-            </div>
-          </span>
-          <span>Story</span>
-        </button>
         <button className={`bottom-nav-btn ${activeTab === "calls" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("calls"); setSidebarOpen(false); setCallsTabOpenedAt(Date.now()); }}>
           <span className="bottom-nav-icon-wrap">
             <PhoneCall size={20} />
@@ -4092,11 +4114,26 @@ function Chat({ user: currentUser }) {
           </span>
           <span>Calls</span>
         </button>
+        <button className={`bottom-nav-btn ${activeTab === "stories" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("stories"); setSidebarOpen(false); }}>
+          <span className="bottom-nav-icon-wrap">
+            <div className="bottom-nav-story-btn">
+              <Camera size={20} />
+            </div>
+          </span>
+          <span>Story</span>
+        </button>
         <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("archive"); setSidebarOpen(false); }}>
           <Archive size={20} /><span>Archive</span>
         </button>
         <button className={`bottom-nav-btn ${activeTab === "people" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("people"); setSidebarOpen(false); }}>
-          <Users size={20} /><span>People</span>
+          <span className="bottom-nav-icon-wrap">
+            <Users size={20} />
+            {otherOnlineUsers.length > 0 && <span className="bottom-nav-green-dot">{otherOnlineUsers.length}</span>}
+          </span>
+          <span>People</span>
+        </button>
+        <button className={`bottom-nav-btn ${activeTab === "analytics" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("analytics"); setSidebarOpen(false); }}>
+          <BarChart3 size={20} /><span>Analytics</span>
         </button>
       </motion.nav>
 
