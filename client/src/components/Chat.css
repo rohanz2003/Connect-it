@@ -2784,105 +2784,88 @@ body {
    ============================================================================ */
 
 .stories-page {
-  padding: 16px;
+  padding: 16px 0;
   height: 100%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 .stories-page-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  padding-bottom: 16px;
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
 }
 
 .stories-page-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
-  padding: 12px 8px;
-  border-radius: var(--radius-md, 12px);
+  padding: 8px 4px;
   transition: var(--transition);
-  background: var(--background-white, #ffffff);
-  border: 1px solid var(--border-color, #e5e7eb);
+  flex-shrink: 0;
+  scroll-snap-align: start;
 }
 
-.stories-page-card:hover {
-  background: var(--primary-lighter, #f0f5ff);
-  border-color: var(--primary-color, #1565d8);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+.stories-page-card:active {
+  transform: scale(0.95);
 }
 
 .stories-page-avatar-wrap {
   position: relative;
-  width: 72px;
-  height: 72px;
+  width: 68px;
+  height: 68px;
 }
 
 .stories-page-avatar-wrap .story-avatar {
-  width: 64px;
-  height: 64px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
-  border: 3px solid var(--primary-color, #1565d8);
   object-fit: cover;
+  box-shadow: 0 0 0 2px var(--border-color, #e5e7eb);
 }
 
 .stories-page-add-btn {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: linear-gradient(135deg, #3b82f6, #1d4ed8);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 3px solid var(--background-white, #fff);
-  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+  border: 2px solid var(--background-white, #fff);
+  box-shadow: 0 1px 4px rgba(59, 130, 246, 0.4);
 }
 
 .stories-page-online-dot {
   position: absolute;
   bottom: 2px;
   right: 2px;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--success-color, #10b981);
-  border: 3px solid var(--background-white, #fff);
+  border: 2px solid var(--background-white, #fff);
 }
 
 .stories-page-name {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-primary, #1f2937);
   text-align: center;
-  max-width: 72px;
+  max-width: 64px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-@media (max-width: 480px) {
-  .stories-page-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-  }
-
-  .stories-page-card {
-    padding: 10px 6px;
-  }
-
-  .stories-page-avatar-wrap {
-    width: 64px;
-    height: 64px;
-  }
 
   .stories-page-avatar-wrap .story-avatar {
     width: 56px;
