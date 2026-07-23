@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import authAxios from "../services/authAxios";
-import socket from "../services/socketService";
+import { SocketContext } from "./SocketContext";
 
 const StoryContext = createContext(null);
 
 export function StoryProvider({ children, user }) {
+  const socket = useContext(SocketContext);
   const [stories, setStories] = useState([]);
   const [viewingStory, setViewingStory] = useState(null);
   const [storyUploading, setStoryUploading] = useState(false);
