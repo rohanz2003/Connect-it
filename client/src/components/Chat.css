@@ -232,9 +232,9 @@ body {
     left: -100%;
     width: 280px !important;
     height: 100%;
-    z-index: 200;
     box-shadow: var(--shadow-xl);
-    border-right: none;
+    border-right: none !important;
+    z-index: 200 !important;
     transition: left 0.3s ease;
   }
 
@@ -317,8 +317,8 @@ body {
     overflow: hidden;
     padding-bottom: 0;
     position: relative;
-    border-left: none;
-    border-right: none;
+    border-left: none !important;
+    border-right: none !important;
   }
 
   .chat-panel-header {
