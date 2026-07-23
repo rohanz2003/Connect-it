@@ -27,6 +27,7 @@ export default function StoryUploader({ onClose }) {
       setPreview(null);
       setCaption("");
       setPrivacy("public");
+      onClose();
     }
   };
 

@@ -3728,40 +3728,7 @@ function Chat({ user: currentUser }) {
                   <h2>Welcome back, {getDisplayName(user.email)}</h2>
                   <p className="welcome-subtitle">Real-time messaging platform for seamless team collaboration</p>
                 </motion.div>
-                {/* Mobile stories section in welcome */}
-                <div className="mobile-welcome-stories">
-                  <div className="mobile-stories-header">
-                    <span>Stories</span>
-                    <button className="stories-add-btn-sm" onClick={() => setShowStoryUploader(true)} title="Add story">
-                      <Camera size={14} />
-                    </button>
-                  </div>
-                  <div className="mobile-stories-scroll">
-                    {(() => {
-                      const myGroup = stories.find(g => g.user === user?.email);
-                      return (
-                        <div className="story-circle-wrap" onClick={() => myGroup ? setViewingStory({ userEmail: user.email, stories: myGroup.stories }) : setShowStoryUploader(true)} style={{ cursor: "pointer", flexShrink: 0 }}>
-                          <div className="story-circle-own" style={{ width: 48, height: 48 }}>
-                            <Avatar src={getAvatar(user?.email)} email={user?.email} size={46} />
-                            <span className="story-circle-add-badge" style={{ width: 18, height: 18, fontSize: 12, lineHeight: "18px" }}>+</span>
-                          </div>
-                          <span className="story-circle-name" style={{ fontSize: 10 }}>{myGroup ? "Your story" : "Add story"}</span>
-                        </div>
-                      );
-                    })()}
-                    {stories.filter(g => g.user !== user?.email).slice(0, 8).map(group => (
-                      <StoryCircle
-                        key={group.user}
-                        userEmail={group.user}
-                        displayName={getDisplayName(group.user)}
-                        avatarSrc={getAvatar(group.user)}
-                        hasUnseen={group.hasUnseen}
-                        hasStory
-                        onClick={() => setViewingStory({ userEmail: group.user, stories: group.stories })}
-                      />
-                    ))}
-                  </div>
-                </div>
+
                 <div className="welcome-quick-actions">
                   <button className="welcome-action-btn" onClick={() => setActiveTab("online")}>
                     <Users size={18} />

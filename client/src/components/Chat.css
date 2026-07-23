@@ -2655,56 +2655,6 @@ body {
   z-index: 2;
 }
 
-/* Mobile welcome stories section */
-.mobile-welcome-stories {
-  margin: 16px 0 8px;
-  padding: 0 16px;
-  width: 100%;
-  max-width: 400px;
-}
-
-.mobile-stories-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary, #6b7280);
-}
-
-.stories-add-btn-sm {
-  background: var(--border-light, #f3f4f6);
-  border: none;
-  color: var(--text-secondary, #6b7280);
-  cursor: pointer;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: var(--transition);
-}
-
-.stories-add-btn-sm:hover {
-  background: var(--border-color, #e5e7eb);
-  color: var(--primary-color);
-}
-
-.mobile-stories-scroll {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  padding-bottom: 4px;
-}
-
-.mobile-stories-scroll::-webkit-scrollbar {
-  display: none;
-}
-
 /* Welcome quick actions */
 .welcome-quick-actions {
   display: flex;
