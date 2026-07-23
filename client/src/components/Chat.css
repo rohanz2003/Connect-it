@@ -7016,12 +7016,19 @@ body.dark-mode .incoming-call-card,
   width: 54px;
   height: 54px;
   border-radius: 50%;
-  padding: 2px;
+  padding: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
-  border: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+.story-circle-ring.unseen {
+  background: conic-gradient(#25d366, #075e54, #25d366);
+}
+
+.story-circle-ring.seen {
+  background: var(--border-color, #e5e7eb);
 }
 
 .story-circle-avatar {
