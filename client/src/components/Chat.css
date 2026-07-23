@@ -2784,7 +2784,7 @@ body {
    ============================================================================ */
 
 .stories-page {
-  padding: 16px 0;
+  padding: 8px 0;
   height: 100%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -2793,17 +2793,17 @@ body {
 .stories-page-grid {
   display: flex;
   flex-direction: column;
-  padding: 8px 16px;
+  padding: 0 12px;
 }
 
 .stories-page-card {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   cursor: pointer;
-  padding: 10px 12px;
+  padding: 8px 12px;
   transition: var(--transition);
-  border-radius: 12px;
+  border-radius: 14px;
 }
 
 .stories-page-card:hover {
@@ -2815,17 +2815,40 @@ body {
 }
 
 .stories-page-avatar-wrap {
-  position: relative;
-  width: 52px;
-  height: 52px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.stories-page-avatar-wrap .story-avatar {
-  width: 48px;
-  height: 48px;
+.story-ring {
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.story-ring.unseen {
+  background: conic-gradient(#25d366, #075e54, #25d366);
+  padding: 3px;
+}
+
+.story-ring.seen {
+  background: var(--border-color, #e5e7eb);
+  padding: 3px;
+}
+
+.story-ring.my-story {
+  background: transparent;
+  padding: 0;
+}
+
+.story-ring > img,
+.story-ring > div {
+  flex-shrink: 0;
 }
 
 .stories-page-add-btn {
@@ -2844,19 +2867,8 @@ body {
   box-shadow: 0 1px 4px rgba(59, 130, 246, 0.4);
 }
 
-.stories-page-online-dot {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--success-color, #10b981);
-  border: 2px solid var(--background-white, #fff);
-}
-
 .stories-page-name {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text-primary, #1f2937);
   flex: 1;

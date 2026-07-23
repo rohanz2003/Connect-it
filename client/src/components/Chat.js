@@ -3365,8 +3365,10 @@ function Chat({ user: currentUser }) {
                   return (
                     <div className="stories-page-card" onClick={() => myGroup ? setViewingStory({ userEmail: user.email, stories: myGroup.stories }) : setShowStoryUploader(true)}>
                       <div className="stories-page-avatar-wrap">
-                        <Avatar src={getAvatar(user?.email)} email={user?.email} size={64} />
-                        <div className="stories-page-add-btn"><Camera size={16} /></div>
+                        <div className="story-ring my-story">
+                          <Avatar src={getAvatar(user?.email)} email={user?.email} size={48} />
+                          <div className="stories-page-add-btn"><Camera size={14} /></div>
+                        </div>
                       </div>
                       <span className="stories-page-name">{myGroup ? "Your Story" : "Add Story"}</span>
                     </div>
@@ -3375,8 +3377,9 @@ function Chat({ user: currentUser }) {
                 {stories.filter(g => g.user !== user?.email).map(group => (
                   <div key={group.user} className="stories-page-card" onClick={() => setViewingStory({ userEmail: group.user, stories: group.stories })}>
                     <div className="stories-page-avatar-wrap">
-                      <Avatar src={getAvatar(group.user)} email={group.user} size={64} />
-                      <span className="stories-page-online-dot" />
+                      <div className={`story-ring ${group.hasUnseen ? "unseen" : "seen"}`}>
+                        <Avatar src={getAvatar(group.user)} email={group.user} size={48} />
+                      </div>
                     </div>
                     <span className="stories-page-name">{getDisplayName(group.user)}</span>
                   </div>
