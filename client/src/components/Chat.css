@@ -2867,17 +2867,6 @@ body {
   white-space: nowrap;
 }
 
-  .stories-page-avatar-wrap .story-avatar {
-    width: 56px;
-    height: 56px;
-  }
-
-  .stories-page-name {
-    font-size: 11px;
-    max-width: 64px;
-  }
-}
-
 /* ============================================================================
    BOTTOM NAVIGATION (Mobile)
    ============================================================================ */
