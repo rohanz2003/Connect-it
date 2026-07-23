@@ -3269,7 +3269,7 @@ function Chat({ user: currentUser }) {
           <button className="mobile-page-back" onClick={() => setActiveTab("chat")}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <h3>{activeTab === "online" ? "Online Users" : activeTab === "calls" ? "Call History" : activeTab === "analytics" ? "Analytics" : activeTab === "archive" ? "Archive" : activeTab === "all" ? "All Users" : activeTab === "notifications" ? "Notifications" : "Recent Chats"}</h3>
+          <h3>{activeTab === "online" ? "Online Users" : activeTab === "people" ? "People" : activeTab === "calls" ? "Call History" : activeTab === "analytics" ? "Analytics" : activeTab === "archive" ? "Archive" : activeTab === "all" ? "All Users" : activeTab === "notifications" ? "Notifications" : "Recent Chats"}</h3>
           <button className="mobile-page-notif-btn" title="Notifications" onClick={() => setActiveTab("notifications")}>
             <Bell size={18} />
             {(pendingRequests.length + unreadNotifications) > 0 && <span className="mobile-notif-badge">{(pendingRequests.length + unreadNotifications) > 9 ? "9+" : (pendingRequests.length + unreadNotifications)}</span>}
@@ -3278,7 +3278,7 @@ function Chat({ user: currentUser }) {
         <div className={`sidebar-search ${activeTab === "analytics" ? "mobile-hidden" : ""}`}>
           <Search size={16} />
           <input type="search" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search contacts" : activeTab === "analytics" ? "Search analytics" : activeTab === "all" ? "Search all users" : "Search archived chats"} />
+            placeholder={activeTab === "recent" ? "Search conversations" : activeTab === "online" ? "Search contacts" : activeTab === "people" ? "Search people" : activeTab === "analytics" ? "Search analytics" : activeTab === "all" ? "Search all users" : "Search archived chats"} />
         </div>
         <div className="mobile-page-body">
           {activeTab === "recent" && renderTabContent("mobile-recent")}
@@ -3293,6 +3293,69 @@ function Chat({ user: currentUser }) {
                 startCall(email, type);
               }}
             />
+          )}
+          {activeTab === "people" && (
+            <div className="sidebar-section">
+              <div className="sidebar-section-title">Online Users</div>
+              <div className="sidebar-list">
+                {filteredOnlineUsers.length > 0 ? filteredOnlineUsers.map((u, i) => (
+                  <div key={`mc-online-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}>
+                    <div className="avatar-wrap">
+                      <Avatar src={getAvatar(u)} email={u} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u, false)} />
+                      <span className="status-dot online" />
+                    </div>
+                    <div className="user-item-copy">
+                      <span className="user-name">{getDisplayName(u)}</span>
+                      <span className="user-last">Available now</span>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="empty-list">No contacts are available right now.</div>
+                )}
+              </div>
+              <div className="sidebar-section-title" style={{ marginTop: 16 }}>All Users</div>
+              <div className="sidebar-list">
+                {filteredAllUsers.length > 0 ? filteredAllUsers.map((u, i) => {
+                  const isOnline = isUserOnline(u.email);
+                  const action = getUserRequestAction(u.email);
+                  return (
+                    <div key={`ma-all-${i}`} className="user-item">
+                      <div className="avatar-wrap">
+                        <Avatar src={getAvatar(u.email) || u.avatarUrl} email={u.email} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u.email, false)} />
+                        {isOnline && <span className="status-dot online" />}
+                      </div>
+                      <div className="user-item-copy">
+                        <span className="user-name">{getDisplayName(u.email)}</span>
+                        <span className="user-last">{isOnline ? "Online" : "Offline"}</span>
+                      </div>
+                      <div className="user-item-actions">
+                        {action === "chat" ? (
+                          <button className="ig-icon-btn chat" onClick={() => { handleUserSelect(u.email); setActiveTab("chat"); }} title="Open chat">
+                            <MessageCircle size={16} />
+                          </button>
+                        ) : action === "request_sent" ? (
+                          <button className="ig-icon-btn cancel" onClick={() => handleUnsendRequest(u.email)} title="Cancel request">
+                            <X size={16} />
+                          </button>
+                        ) : action === "request_received" ? (
+                          <span className="ig-requested-badge">R</span>
+                        ) : action === "rejected" ? (
+                          <button className="ig-icon-btn send" onClick={() => handleSendRequest(u.email)} title="Send request">
+                            <UserPlus size={16} />
+                          </button>
+                        ) : (
+                          <button className="ig-icon-btn send" onClick={() => handleSendRequest(u.email)} title="Send chat request">
+                            <UserPlus size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <div className="empty-list">No users found.</div>
+                )}
+              </div>
+            </div>
           )}
           {activeTab === "archive" && renderTabContent("mobile-archive")}
           {activeTab === "all" && renderTabContent("mobile-all")}
@@ -3327,88 +3390,66 @@ function Chat({ user: currentUser }) {
         {/* Incoming call overlay - shown globally over the entire app */}
 
         <div className="chat-panel-header">
-          <button className="mobile-menu-btn" onClick={() => { if (selectedUser) { setSelectedUser(null); setSidebarOpen(true); } else { setSidebarOpen(!sidebarOpen); } }} aria-label={selectedUser ? "Back" : "Open menu"}>
+          <button className="mobile-menu-btn" onClick={() => {
+            if (selectedUser) { setSelectedUser(null); }
+            else { setSidebarOpen(!sidebarOpen); }
+          }} aria-label={selectedUser ? "Back" : "Open menu"}>
             {selectedUser ? (
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             ) : (
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             )}
           </button>
-          <div className="chat-panel-title">
+          <div className="chat-panel-title" onClick={() => {
+            if (selectedUser) {
+              handleAvatarClick({ stopPropagation: () => {} }, selectedUser, false);
+            } else {
+              handleAvatarClick({ stopPropagation: () => {} }, user.email, true);
+            }
+          }}>
             <div className="header-avatar-wrap">
               <Avatar
-                src={selectedUser ? getAvatar(selectedUser) : null}
-                email={selectedUser || "default"}
-                size={40}
+                src={selectedUser ? getAvatar(selectedUser) : (getAvatar(user.email) || user.profilePic)}
+                email={selectedUser || user.email}
+                size={36}
                 className="header-avatar"
-                onClick={() => selectedUser && handleAvatarClick({ stopPropagation: () => {} }, selectedUser, false)}
               />
+              {(selectedUser ? isUserOnline(selectedUser) : isUserOnline(user.email)) && <span className="header-status-dot" />}
             </div>
             <div>
-              <h3>{selectedUser ? getDisplayName(selectedUser) : "Welcome to Connect"}</h3>
-              <p>{selectedUser ? <LastSeen userId={selectedUser} /> : "Choose a conversation or create a new one."}</p>
+              <h3>{selectedUser ? getDisplayName(selectedUser) : getDisplayName(user.email)}</h3>
+              <p>{selectedUser ? <LastSeen userId={selectedUser} /> : (isUserOnline(user.email) ? "Online" : "Offline")}</p>
             </div>
           </div>
           <div className="chat-header-actions">
             {selectedUser && (
               <>
-                {/* Voice & Video Call Buttons */}
-                <button
-                  id="voice-call-btn"
-                  className="icon-btn call-btn"
-                  title="Voice call"
-                  onClick={() => startCall(selectedUser, "audio")}
-                  disabled={callState !== "idle"}
-                >
+                <button id="voice-call-btn" className="icon-btn call-btn" title="Voice call"
+                  onClick={() => startCall(selectedUser, "audio")} disabled={callState !== "idle"}>
                   <Phone size={17} />
                 </button>
-                <button
-                  id="video-call-btn"
-                  className="icon-btn call-btn video-call-btn"
-                  title="Video call"
-                  onClick={() => startCall(selectedUser, "video")}
-                  disabled={callState !== "idle"}
-                >
+                <button id="video-call-btn" className="icon-btn call-btn video-call-btn" title="Video call"
+                  onClick={() => startCall(selectedUser, "video")} disabled={callState !== "idle"}>
                   <Video size={17} />
                 </button>
-                <button
-                  className="icon-btn clear-chat-btn"
-                  title="Clear chat for you only"
-                  onClick={handleClearCurrentChat}
-                >
-                  <Trash2 size={16} />
-                </button>
-                {isAcceptedChat(selectedUser) && (
-                <button
-                  className="icon-btn remove-friend-btn"
-                  title="Remove as friend"
-                  onClick={() => handleRemoveFriend(selectedUser)}
-                >
-                  <UserMinus size={16} />
-                </button>
-                )}
-                <button 
-                  className="icon-btn close-btn" 
-                  title="Close chat"
-                  onClick={() => {
-                    setSelectedUser(null);
-                    setIsChatMinimized(false);
-                  }}
-                >
+                <button className="icon-btn close-btn" title="Close chat"
+                  onClick={() => { setSelectedUser(null); setIsChatMinimized(false); }}>
                   <X size={18} />
                 </button>
               </>
             )}
-            {!selectedUser && !showSettings && (
-              <button className="icon-btn mobile-notif-btn" title="Notifications" onClick={() => setActiveTab("notifications")}>
-                <Bell size={18} />
-                {(pendingRequests.length + unreadNotifications) > 0 && <span className="mobile-notif-badge">{(pendingRequests.length + unreadNotifications) > 9 ? "9+" : (pendingRequests.length + unreadNotifications)}</span>}
-              </button>
-            )}
             {!selectedUser && (
-              <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
-                <Settings size={18} />
-              </button>
+              <>
+                <button className="icon-btn mobile-notif-btn" title="Notifications" onClick={() => setActiveTab("notifications")}>
+                  <Bell size={18} />
+                  {(pendingRequests.length + unreadNotifications) > 0 && <span className="mobile-notif-badge">
+                    {(pendingRequests.length + unreadNotifications) > 9 ? "9+" : (pendingRequests.length + unreadNotifications)}
+                  </span>}
+                </button>
+                <button className="icon-btn" title="Settings" onClick={() => setShowSettings(true)}>
+                  <Settings size={18} />
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -3654,6 +3695,50 @@ function Chat({ user: currentUser }) {
                   <h2>Welcome back, {getDisplayName(user.email)}</h2>
                   <p className="welcome-subtitle">Real-time messaging platform for seamless team collaboration</p>
                 </motion.div>
+                {/* Mobile stories section in welcome */}
+                <div className="mobile-welcome-stories">
+                  <div className="mobile-stories-header">
+                    <span>Stories</span>
+                    <button className="stories-add-btn-sm" onClick={() => setShowStoryUploader(true)} title="Add story">
+                      <Camera size={14} />
+                    </button>
+                  </div>
+                  <div className="mobile-stories-scroll">
+                    {(() => {
+                      const myGroup = stories.find(g => g.user === user?.email);
+                      return (
+                        <div className="story-circle-wrap" onClick={() => myGroup ? setViewingStory({ userEmail: user.email, stories: myGroup.stories }) : setShowStoryUploader(true)} style={{ cursor: "pointer", flexShrink: 0 }}>
+                          <div className="story-circle-own" style={{ width: 48, height: 48 }}>
+                            <Avatar src={getAvatar(user?.email)} email={user?.email} size={46} />
+                            <span className="story-circle-add-badge" style={{ width: 18, height: 18, fontSize: 12, lineHeight: "18px" }}>+</span>
+                          </div>
+                          <span className="story-circle-name" style={{ fontSize: 10 }}>{myGroup ? "Your story" : "Add story"}</span>
+                        </div>
+                      );
+                    })()}
+                    {stories.filter(g => g.user !== user?.email).slice(0, 8).map(group => (
+                      <StoryCircle
+                        key={group.user}
+                        userEmail={group.user}
+                        displayName={getDisplayName(group.user)}
+                        avatarSrc={getAvatar(group.user)}
+                        hasUnseen={group.hasUnseen}
+                        hasStory
+                        onClick={() => setViewingStory({ userEmail: group.user, stories: group.stories })}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="welcome-quick-actions">
+                  <button className="welcome-action-btn" onClick={() => setActiveTab("online")}>
+                    <Users size={18} />
+                    <span>Find People</span>
+                  </button>
+                  <button className="welcome-action-btn" onClick={() => setActiveTab("recent")}>
+                    <History size={18} />
+                    <span>Recent Chats</span>
+                  </button>
+                </div>
               </motion.div>
             </div>
           )}
@@ -3980,33 +4065,39 @@ function Chat({ user: currentUser }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut", delay: 0.2 }}
       >
-        <button className={`bottom-nav-btn ${activeTab === "chat" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("chat"); setSidebarOpen(false); }}><MessageCircle size={18} /><span>Chat</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "chat" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("chat"); setSidebarOpen(false); }}>
+          <MessageCircle size={20} /><span>Chat</span>
+        </button>
         <button className={`bottom-nav-btn ${activeTab === "recent" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("recent"); setSidebarOpen(false); }}>
           <span className="bottom-nav-icon-wrap">
-            <History size={18} />
+            <History size={20} />
             {totalUnread > 0 && <span className="bottom-nav-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
           </span>
           <span>Recent</span>
         </button>
-        <button className={`bottom-nav-btn ${activeTab === "online" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("online"); setSidebarOpen(false); }}>
+        <button className={`bottom-nav-btn ${activeTab === "stories" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setShowStoryUploader(true); setSidebarOpen(false); }}>
           <span className="bottom-nav-icon-wrap">
-            <Users size={18} />
-            {filteredOnlineUsers.length > 0 && <span className="bottom-nav-green-dot">{filteredOnlineUsers.length}</span>}
+            <div className="bottom-nav-story-btn">
+              <Camera size={20} />
+            </div>
           </span>
-          <span>Online</span>
+          <span>Story</span>
         </button>
-        <button className={`bottom-nav-btn ${activeTab === "all" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("all"); setSidebarOpen(false); }}><UserPlus size={18} /><span>People</span></button>
         <button className={`bottom-nav-btn ${activeTab === "calls" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("calls"); setSidebarOpen(false); setCallsTabOpenedAt(Date.now()); }}>
           <span className="bottom-nav-icon-wrap">
-            <PhoneCall size={18} />
+            <PhoneCall size={20} />
             {unseenMissedCount > 0 && (
               <span className="bottom-nav-badge">{unseenMissedCount}</span>
             )}
           </span>
           <span>Calls</span>
         </button>
-        <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("archive"); setSidebarOpen(false); }}><Archive size={18} /><span>Archive</span></button>
-        <button className="bottom-nav-btn" onClick={(e) => { e.stopPropagation(); setShowSettings(true); setSidebarOpen(false); }}><Settings size={18} /><span>Settings</span></button>
+        <button className={`bottom-nav-btn ${activeTab === "archive" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("archive"); setSidebarOpen(false); }}>
+          <Archive size={20} /><span>Archive</span>
+        </button>
+        <button className={`bottom-nav-btn ${activeTab === "people" ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setActiveTab("people"); setSidebarOpen(false); }}>
+          <Users size={20} /><span>People</span>
+        </button>
       </motion.nav>
 
       {showSettings && (
