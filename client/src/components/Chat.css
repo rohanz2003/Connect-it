@@ -224,6 +224,7 @@ body {
     grid-template-columns: 1fr;
     height: 100dvh;
     overflow: hidden;
+    background: var(--background-white);
   }
 
   .sidebar {
@@ -315,7 +316,7 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    padding-bottom: 52px;
+    padding-bottom: calc(53px + env(safe-area-inset-bottom, 0px));
     position: relative;
     border-left: none !important;
     border-right: none !important;

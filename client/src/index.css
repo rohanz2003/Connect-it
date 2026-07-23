@@ -94,6 +94,7 @@ code {
   html, body {
     overflow-x: hidden;
     max-width: 100vw;
+    background: #ffffff;
   }
 }
 
