@@ -317,6 +317,8 @@ body {
     overflow: hidden;
     padding-bottom: 0;
     position: relative;
+    border-left: none;
+    border-right: none;
   }
 
   .chat-panel-header {
