@@ -2718,7 +2718,7 @@ function Chat({ user: currentUser }) {
           <div className="analytics-stat-icon online"><Users size={20} /></div>
           <div className="analytics-stat-body">
             <span className="analytics-stat-value">{platformStats.totalUsers.toLocaleString()}</span>
-            <span className="analytics-stat-label">Active Users</span>
+            <span className="analytics-stat-label">Total Users</span>
           </div>
         </div>
         <div className="analytics-stat-card">
