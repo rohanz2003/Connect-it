@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { MessageCircle, Lock, Users, Zap, Phone, Video, UserPlus, MessageSquare, PhoneCall, Activity } from "lucide-react";
+import { MessageCircle, Lock, Users, Zap, Phone, Video, UserPlus, MessageSquare, PhoneCall, Activity, Camera } from "lucide-react";
 import { motion } from "framer-motion";
 import Header from "./Header";
 import Footer from "./Footer";
@@ -67,6 +67,12 @@ const Landing = () => {
       title: "Video Calls",
       description:
         "Face-to-face conversations anytime, anywhere. Enjoy seamless video calls with full-screen mode and picture-in-picture support.",
+    },
+    {
+      icon: Camera,
+      title: "Stories",
+      description:
+        "Share moments that disappear after 24 hours. Post photos and videos, view who's watched, and reply with reactions or messages.",
     },
     {
       icon: UserPlus,
