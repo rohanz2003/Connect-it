@@ -219,6 +219,17 @@
     font-size: 0.85rem;
     padding: 0.6rem 1.1rem;
   }
+  .mobile-back-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: #3b82f6;
+    font-weight: 600;
+    padding: 0.5rem 0;
+    text-align: left;
+    width: 100%;
+  }
 }
 
 @media (max-width: 375px) {

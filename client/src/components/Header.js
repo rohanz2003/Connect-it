@@ -3,14 +3,20 @@ import { Link } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import "../styles/Header.css";
 
-const Header = ({ isLanding = false }) => {
+const Header = ({ isLanding = false, mobileSection = null, onMobileNav = null }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
-  const handleLinkClick = () => {
+  const handleLinkClick = (section) => {
+    setIsMenuOpen(false);
+    if (onMobileNav) onMobileNav(section);
+  };
+
+  const handleCloseMobile = () => {
+    if (onMobileNav) onMobileNav(null);
     setIsMenuOpen(false);
   };
 
@@ -43,15 +49,26 @@ const Header = ({ isLanding = false }) => {
 
         {/* Mobile Navigation */}
         <nav className={`header-nav mobile-nav ${isMenuOpen ? "open" : ""}`}>
-          <a href="#about" className="nav-link" onClick={handleLinkClick}>
-            About
-          </a>
-          <Link to="/login" className="nav-link" onClick={handleLinkClick}>
-            Login
-          </Link>
-          <Link to="/login" className="nav-button" onClick={handleLinkClick}>
-            Get Started
-          </Link>
+          {onMobileNav && mobileSection ? (
+            <button className="nav-link mobile-back-btn" onClick={handleCloseMobile}>
+              ← Back
+            </button>
+          ) : (
+            <>
+              <button className="nav-link" onClick={() => handleLinkClick("about")}>
+                About
+              </button>
+              <button className="nav-link" onClick={() => handleLinkClick("insights")}>
+                Live Insights
+              </button>
+              <Link to="/login" className="nav-link" onClick={() => setIsMenuOpen(false)}>
+                Login
+              </Link>
+              <Link to="/login" className="nav-button" onClick={() => setIsMenuOpen(false)}>
+                Get Started
+              </Link>
+            </>
+          )}
         </nav>
       </div>
     </header>

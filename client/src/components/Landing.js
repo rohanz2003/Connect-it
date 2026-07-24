@@ -35,6 +35,14 @@ const AnimatedCounter = ({ end, suffix = "" }) => {
 
 const Landing = () => {
   const [stats, setStats] = useState({ totalUsers: 0, totalMessages: 0, acceptedRequests: 0 });
+  const [mobileSection, setMobileSection] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const fetchStats = () => {
     authAxios.get("/api/analytics")
@@ -122,9 +130,10 @@ const Landing = () => {
 
   return (
     <div className="landing-page">
-      <Header isLanding={true} />
+      <Header isLanding={true} mobileSection={mobileSection} onMobileNav={setMobileSection} />
 
       {/* Hero Section */}
+      {!mobileSection && (
       <section className="hero-section">
         <motion.div
           className="hero-content"
@@ -188,8 +197,10 @@ const Landing = () => {
           </div>
         </motion.div>
       </section>
+      )}
 
       {/* About Section */}
+      {(!isMobile || mobileSection === "about") && (
       <section className="about-section" id="about">
         <div className="about-container">
           <motion.div
@@ -255,8 +266,10 @@ const Landing = () => {
           </div>
         </div>
       </section>
+      )}
 
       {/* Live Insights Section */}
+      {(!isMobile || mobileSection === "insights") && (
       <section className="insights-section">
         <div className="insights-container">
           <motion.div
@@ -300,8 +313,10 @@ const Landing = () => {
           </div>
         </div>
       </section>
+      )}
 
       {/* CTA Section */}
+      {(!isMobile || mobileSection === "cta") && (
       <section className="cta-section">
         <motion.div
           className="cta-content"
@@ -322,7 +337,98 @@ const Landing = () => {
           </Link>
         </motion.div>
       </section>
+      )}
 
+      {/* Mobile section page */}
+      {isMobile && mobileSection && (
+        <div className="mobile-section-page">
+          {mobileSection === "about" && (
+            <section className="about-section">
+              <div className="about-container">
+                <div className="section-header">
+                  <h2 className="section-title">Why Choose Connect It?</h2>
+                  <p className="section-subtitle">Discover the features that make Connect It the perfect messaging platform</p>
+                </div>
+                <div className="features-grid">
+                  {features.map((feature, index) => {
+                    const IconComponent = feature.icon;
+                    return (
+                      <div key={index} className="feature-card">
+                        <div className="feature-icon"><IconComponent size={32} /></div>
+                        <h3 className="feature-title">{feature.title}</h3>
+                        <p className="feature-description">{feature.description}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="about-analytics-strip">
+                  <div className="about-analytic-item">
+                    <span className="about-analytic-value"><AnimatedCounter end={stats.totalMessages} suffix="+" /></span>
+                    <span className="about-analytic-label">Messages Sent</span>
+                  </div>
+                  <div className="about-analytic-divider" />
+                  <div className="about-analytic-item">
+                    <span className="about-analytic-value"><AnimatedCounter end={stats.totalUsers} suffix="+" /></span>
+                    <span className="about-analytic-label">Active Users</span>
+                  </div>
+                  <div className="about-analytic-divider" />
+                  <div className="about-analytic-item">
+                    <span className="about-analytic-value"><AnimatedCounter end={stats.acceptedRequests} suffix="+" /></span>
+                    <span className="about-analytic-label">Connections</span>
+                  </div>
+                  <div className="about-analytic-divider" />
+                  <div className="about-analytic-item">
+                    <span className="about-analytic-value"><AnimatedCounter end={Math.round(stats.totalMessages * 0.04)} suffix="+" /></span>
+                    <span className="about-analytic-label">Calls Made</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+          {mobileSection === "insights" && (
+            <section className="insights-section">
+              <div className="insights-container">
+                <div className="section-header">
+                  <h2 className="section-title">Live Insights</h2>
+                  <p className="section-subtitle"><span className="live-badge"><span className="live-dot" /> Live</span> Real-time platform analytics at a glance</p>
+                </div>
+                <div className="insights-grid">
+                  <div className="insight-card">
+                    <div className="insight-icon" style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}><MessageSquare size={24} /></div>
+                    <div className="insight-value"><AnimatedCounter end={stats.totalMessages} suffix="+" /></div>
+                    <div className="insight-label">Messages Sent</div>
+                  </div>
+                  <div className="insight-card">
+                    <div className="insight-icon" style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}><Users size={24} /></div>
+                    <div className="insight-value"><AnimatedCounter end={stats.totalUsers} suffix="+" /></div>
+                    <div className="insight-label">Active Users</div>
+                  </div>
+                  <div className="insight-card">
+                    <div className="insight-icon" style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }}><PhoneCall size={24} /></div>
+                    <div className="insight-value"><AnimatedCounter end={Math.round(stats.totalMessages * 0.04)} suffix="+" /></div>
+                    <div className="insight-label">Calls Made</div>
+                  </div>
+                  <div className="insight-card">
+                    <div className="insight-icon" style={{ background: "linear-gradient(135deg, #8b5cf6, #7c3aed)" }}><Activity size={24} /></div>
+                    <div className="insight-value"><AnimatedCounter end={stats.acceptedRequests} suffix="+" /></div>
+                    <div className="insight-label">Connections Made</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+          {mobileSection === "cta" && (
+            <section className="cta-section">
+              <div className="cta-content">
+                <h2 className="cta-title">Ready to Start Chatting?</h2>
+                <p className="cta-subtitle">Join thousands of users connecting in real-time. Get started today!</p>
+                <Link to="/login" className="cta-button">Get Started Now</Link>
+                <Link to="/admin" className="admin-link-hidden" title="Admin Dashboard">🔐</Link>
+              </div>
+            </section>
+          )}
+        </div>
+      )}
       <Footer />
     </div>
   );

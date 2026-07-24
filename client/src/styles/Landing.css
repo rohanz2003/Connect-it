@@ -924,3 +924,56 @@
   width: 100%;
   box-sizing: border-box;
 }
+
+/* Mobile section page - full screen when a nav item is selected */
+.mobile-section-page {
+  min-height: calc(100vh - 64px);
+  width: 100%;
+  overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  .mobile-section-page .about-section,
+  .mobile-section-page .insights-section,
+  .mobile-section-page .cta-section {
+    display: block;
+    padding: 2rem 1.25rem;
+  }
+
+  .mobile-section-page .about-analytics-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 1.5rem 1rem;
+  }
+
+  .mobile-section-page .about-analytic-item {
+    flex: 1 1 40%;
+  }
+
+  .mobile-section-page .about-analytic-value {
+    font-size: 1.5rem;
+  }
+
+  .mobile-section-page .about-analytic-divider {
+    display: none;
+  }
+
+  .mobile-section-page .insights-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .mobile-section-page .insight-card {
+    padding: 1rem;
+  }
+
+  .mobile-section-page .insight-value {
+    font-size: 1.5rem;
+  }
+
+  .mobile-section-page .features-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
