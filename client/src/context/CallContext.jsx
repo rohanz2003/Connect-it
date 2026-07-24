@@ -10,11 +10,12 @@ import {
 } from "../utils/callHelpers";
 import { playRingtone, stopRingtone, playConnectSound, playEndSound } from "../utils/callSounds";
 import { broadcastEvent } from "../utils/crossTabNotifications";
-import socket from "../services/socketService";
+import { SocketContext } from "./SocketContext";
 
 const CallContext = createContext(null);
 
 export function CallProvider({ children, user }) {
+  const socket = useContext(SocketContext);
   const [callState, setCallState] = useState("idle");
   const [incomingCall, setIncomingCall] = useState(null);
   const [activeCall, setActiveCall] = useState({

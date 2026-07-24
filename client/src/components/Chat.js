@@ -190,6 +190,8 @@ function Chat({ user: currentUser }) {
   // Stories
   const { stories, viewingStory, setViewingStory, fetchStories } = useStories();
 
+  const [callsTabOpenedAt, setCallsTabOpenedAt] = useState(null);
+
   const unseenMissedCount = (callHistory || []).filter(
     c => c.status === "missed" && (!callsTabOpenedAt || c.timestamp > callsTabOpenedAt)
   ).length;
@@ -253,7 +255,6 @@ function Chat({ user: currentUser }) {
     try { return JSON.parse(localStorage.getItem(`archivedChats_${localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")).email : ""}`) || "[]"); } catch { return []; }
   });
   const [activeTab, setActiveTab] = useState("recent");
-  const [callsTabOpenedAt, setCallsTabOpenedAt] = useState(null);
   const [displayName, setDisplayName] = useState(() => {
     try { return JSON.parse(localStorage.getItem("user") || "{}").displayName || ""; } catch { return ""; }
   });
