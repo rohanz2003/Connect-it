@@ -3226,20 +3226,52 @@ function Chat({ user: currentUser }) {
         )}
 
         {activeTab === "analytics" && (
-          <div className="sidebar-section" style={{ padding: "16px", gap: "16px", display: "flex", flexDirection: "column" }}>
-            <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-              <div className="stat-item" style={{ textAlign: "center" }}>
-                <span style={{ display: "block", fontSize: "24px", fontWeight: 700, color: "var(--text-primary)" }}>{recentChats.length}</span>
-                <small style={{ fontSize: "11px", color: "var(--text-light)" }}>Active chats</small>
-              </div>
-              <div className="stat-item" style={{ textAlign: "center" }}>
-                <span style={{ display: "block", fontSize: "24px", fontWeight: 700, color: "var(--text-primary)" }}>{Object.keys(chatHistory).reduce((s, p) => s + getUnreadCount(p), 0)}</span>
-                <small style={{ fontSize: "11px", color: "var(--text-light)" }}>Unread</small>
-              </div>
-              <div className="stat-item" style={{ textAlign: "center" }}>
-                <span style={{ display: "block", fontSize: "24px", fontWeight: 700, color: "var(--text-primary)" }}>{otherOnlineUsers.length}</span>
-                <small style={{ fontSize: "11px", color: "var(--text-light)" }}>Online</small>
-              </div>
+          <div className="sidebar-section" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-light)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Platform Stats</div>
+            <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--background-white)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-light)" }}>Total Users</span>
+              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)" }}>{platformStats.totalUsers.toLocaleString()}</span>
+            </div>
+            <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--background-white)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-light)" }}>Messages Sent</span>
+              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)" }}>{platformStats.totalMessages.toLocaleString()}</span>
+            </div>
+            <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--background-white)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-light)" }}>Connections</span>
+              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)" }}>{platformStats.acceptedRequests}</span>
+            </div>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-light)", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "4px" }}>Personal Stats</div>
+            <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--background-white)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-light)" }}>Active Chats</span>
+              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)" }}>{analyticsActiveChats}</span>
+            </div>
+            <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--background-white)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-light)" }}>Unread</span>
+              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)" }}>{analyticsUnread}</span>
+            </div>
+            <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--background-white)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-light)" }}>Online</span>
+              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)" }}>{otherOnlineUsers.length}</span>
+            </div>
+            <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--background-white)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-light)" }}>Total Messages</span>
+              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)" }}>{totalChatMessages}</span>
+            </div>
+            <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--background-white)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-light)" }}>Media Shared</span>
+              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)" }}>{totalChatMedia}</span>
+            </div>
+            <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--background-white)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-light)" }}>Response Rate</span>
+              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)" }}>{responseRate}%</span>
+            </div>
+            <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--background-white)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-light)" }}>Archived</span>
+              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)" }}>{archivedChatsList.length}</span>
+            </div>
+            <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--background-white)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
+              <span style={{ fontSize: "13px", color: "var(--text-light)" }}>Conversations</span>
+              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)" }}>{totalConversations}</span>
             </div>
           </div>
         )}
@@ -3405,20 +3437,52 @@ function Chat({ user: currentUser }) {
           {activeTab === "archive" && renderTabContent("mobile-archive")}
           {activeTab === "all" && renderTabContent("mobile-all")}
           {activeTab === "analytics" && (
-            <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-                <div className="stat-item" style={{ textAlign: "center", background: "var(--background-white)", borderRadius: "12px", padding: "16px 8px", border: "1px solid var(--border-color)" }}>
-                  <span style={{ display: "block", fontSize: "28px", fontWeight: 700, color: "var(--text-primary)" }}>{recentChats.length}</span>
-                  <small style={{ fontSize: "12px", color: "var(--text-light)" }}>Active chats</small>
-                </div>
-                <div className="stat-item" style={{ textAlign: "center", background: "var(--background-white)", borderRadius: "12px", padding: "16px 8px", border: "1px solid var(--border-color)" }}>
-                  <span style={{ display: "block", fontSize: "28px", fontWeight: 700, color: "var(--text-primary)" }}>{Object.keys(chatHistory).reduce((s, p) => s + getUnreadCount(p), 0)}</span>
-                  <small style={{ fontSize: "12px", color: "var(--text-light)" }}>Unread</small>
-                </div>
-                <div className="stat-item" style={{ textAlign: "center", background: "var(--background-white)", borderRadius: "12px", padding: "16px 8px", border: "1px solid var(--border-color)" }}>
-                  <span style={{ display: "block", fontSize: "28px", fontWeight: 700, color: "var(--text-primary)" }}>{otherOnlineUsers.length}</span>
-                  <small style={{ fontSize: "12px", color: "var(--text-light)" }}>Online</small>
-                </div>
+            <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-light)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Platform Stats</div>
+              <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--background-white)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+                <span style={{ fontSize: "14px", color: "var(--text-light)" }}>Total Users</span>
+                <span style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)" }}>{platformStats.totalUsers.toLocaleString()}</span>
+              </div>
+              <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--background-white)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+                <span style={{ fontSize: "14px", color: "var(--text-light)" }}>Messages Sent</span>
+                <span style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)" }}>{platformStats.totalMessages.toLocaleString()}</span>
+              </div>
+              <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--background-white)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+                <span style={{ fontSize: "14px", color: "var(--text-light)" }}>Connections</span>
+                <span style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)" }}>{platformStats.acceptedRequests}</span>
+              </div>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-light)", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "4px" }}>Personal Stats</div>
+              <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--background-white)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+                <span style={{ fontSize: "14px", color: "var(--text-light)" }}>Active Chats</span>
+                <span style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)" }}>{analyticsActiveChats}</span>
+              </div>
+              <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--background-white)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+                <span style={{ fontSize: "14px", color: "var(--text-light)" }}>Unread</span>
+                <span style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)" }}>{analyticsUnread}</span>
+              </div>
+              <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--background-white)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+                <span style={{ fontSize: "14px", color: "var(--text-light)" }}>Online</span>
+                <span style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)" }}>{otherOnlineUsers.length}</span>
+              </div>
+              <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--background-white)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+                <span style={{ fontSize: "14px", color: "var(--text-light)" }}>Total Messages</span>
+                <span style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)" }}>{totalChatMessages}</span>
+              </div>
+              <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--background-white)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+                <span style={{ fontSize: "14px", color: "var(--text-light)" }}>Media Shared</span>
+                <span style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)" }}>{totalChatMedia}</span>
+              </div>
+              <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--background-white)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+                <span style={{ fontSize: "14px", color: "var(--text-light)" }}>Response Rate</span>
+                <span style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)" }}>{responseRate}%</span>
+              </div>
+              <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--background-white)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+                <span style={{ fontSize: "14px", color: "var(--text-light)" }}>Archived</span>
+                <span style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)" }}>{archivedChatsList.length}</span>
+              </div>
+              <div className="stat-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "var(--background-white)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
+                <span style={{ fontSize: "14px", color: "var(--text-light)" }}>Conversations</span>
+                <span style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)" }}>{totalConversations}</span>
               </div>
             </div>
           )}
