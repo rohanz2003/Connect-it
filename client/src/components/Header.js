@@ -10,21 +10,16 @@ const Header = ({ isLanding = false, mobileSection = null, onMobileNav = null })
     setIsMenuOpen(!isMenuOpen);
   };
 
-  const handleLinkClick = (section) => {
+  const handleNavClick = (section) => {
     setIsMenuOpen(false);
     if (onMobileNav) onMobileNav(section);
-  };
-
-  const handleCloseMobile = () => {
-    if (onMobileNav) onMobileNav(null);
-    setIsMenuOpen(false);
   };
 
   return (
     <header className="header">
       <div className="header-container">
         {/* Logo/Brand */}
-        <Link to="/" className="header-logo" onClick={handleLinkClick}>
+        <Link to="/" className="header-logo">
           <span className="logo-icon">💬</span>
           <span className="logo-text">Connect It</span>
         </Link>
@@ -49,26 +44,18 @@ const Header = ({ isLanding = false, mobileSection = null, onMobileNav = null })
 
         {/* Mobile Navigation */}
         <nav className={`header-nav mobile-nav ${isMenuOpen ? "open" : ""}`}>
-          {onMobileNav && mobileSection ? (
-            <button className="nav-link mobile-back-btn" onClick={handleCloseMobile}>
-              ← Back
-            </button>
-          ) : (
-            <>
-              <button className="nav-link" onClick={() => handleLinkClick("about")}>
-                About
-              </button>
-              <button className="nav-link" onClick={() => handleLinkClick("insights")}>
-                Live Insights
-              </button>
-              <Link to="/login" className="nav-link" onClick={() => setIsMenuOpen(false)}>
-                Login
-              </Link>
-              <Link to="/login" className="nav-button" onClick={() => setIsMenuOpen(false)}>
-                Get Started
-              </Link>
-            </>
-          )}
+          <button className="nav-link" onClick={() => handleNavClick("about")}>
+            About
+          </button>
+          <button className="nav-link" onClick={() => handleNavClick("insights")}>
+            Live Insights
+          </button>
+          <Link to="/login" className="nav-link" onClick={() => setIsMenuOpen(false)}>
+            Login
+          </Link>
+          <Link to="/login" className="nav-button" onClick={() => setIsMenuOpen(false)}>
+            Get Started
+          </Link>
         </nav>
       </div>
     </header>

@@ -199,8 +199,8 @@ const Landing = () => {
       </section>
       )}
 
-      {/* About Section */}
-      {(!isMobile || mobileSection === "about") && (
+      {/* About Section - Desktop only */}
+      {!isMobile && (
       <section className="about-section" id="about">
         <div className="about-container">
           <motion.div
@@ -268,8 +268,8 @@ const Landing = () => {
       </section>
       )}
 
-      {/* Live Insights Section */}
-      {(!isMobile || mobileSection === "insights") && (
+      {/* Live Insights Section - Desktop only */}
+      {!isMobile && (
       <section className="insights-section">
         <div className="insights-container">
           <motion.div
@@ -315,8 +315,8 @@ const Landing = () => {
       </section>
       )}
 
-      {/* CTA Section */}
-      {(!isMobile || mobileSection === "cta") && (
+      {/* CTA Section - Desktop only */}
+      {!isMobile && (
       <section className="cta-section">
         <motion.div
           className="cta-content"
@@ -342,6 +342,9 @@ const Landing = () => {
       {/* Mobile section page */}
       {isMobile && mobileSection && (
         <div className="mobile-section-page">
+          <button className="mobile-section-back" onClick={() => setMobileSection(null)}>
+            ← Back
+          </button>
           {mobileSection === "about" && (
             <section className="about-section">
               <div className="about-container">
