@@ -190,7 +190,18 @@ function Chat({ user: currentUser }) {
   // Stories
   const { stories, viewingStory, setViewingStory, fetchStories } = useStories();
 
-  const [callsTabOpenedAt, setCallsTabOpenedAt] = useState(null);
+  const [callsTabOpenedAt, setCallsTabOpenedAt] = useState(() => {
+    try {
+      const saved = localStorage.getItem("callsTabOpenedAt");
+      return saved ? Number(saved) : null;
+    } catch { return null; }
+  });
+
+  useEffect(() => {
+    try {
+      if (callsTabOpenedAt) localStorage.setItem("callsTabOpenedAt", String(callsTabOpenedAt));
+    } catch {}
+  }, [callsTabOpenedAt]);
 
   const unseenMissedCount = (callHistory || []).filter(
     c => c.status === "missed" && (!callsTabOpenedAt || c.timestamp > callsTabOpenedAt)
