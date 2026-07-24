@@ -432,7 +432,7 @@ const Landing = () => {
           )}
         </div>
       )}
-      <Footer />
+      <Footer isMobile={isMobile} onMobileNav={setMobileSection} />
     </div>
   );
 };

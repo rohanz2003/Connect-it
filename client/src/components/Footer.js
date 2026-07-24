@@ -1,7 +1,7 @@
 import React from "react";
 import "../styles/Footer.css";
 
-const Footer = () => {
+const Footer = ({ isMobile = false, onMobileNav = null }) => {
   const currentYear = new Date().getFullYear();
 
   return (
@@ -19,7 +19,11 @@ const Footer = () => {
             <h4 className="footer-heading">Quick Links</h4>
             <ul className="footer-links">
               <li>
-                <a href="#about">About</a>
+                {isMobile && onMobileNav ? (
+                  <button className="footer-link-btn" onClick={() => onMobileNav("about")}>About</button>
+                ) : (
+                  <a href="#about">About</a>
+                )}
               </li>
               <li>
                 <a href="/login">Login</a>

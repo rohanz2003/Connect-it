@@ -64,7 +64,24 @@
   font-size: 0.95rem;
 }
 
-.footer-links li a:hover {
+.footer-links li a:hover,
+.footer-links li button:hover {
+  color: #3b82f6;
+  transform: translateX(4px);
+}
+
+.footer-link-btn {
+  background: none;
+  border: none;
+  color: #d1d5db;
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 0;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.footer-link-btn:hover {
   color: #3b82f6;
   transform: translateX(4px);
 }
@@ -121,6 +138,9 @@
   .footer-section {
     text-align: center;
     align-items: center;
+  }
+  .footer-section:nth-child(3) {
+    display: none;
   }
   .footer-bottom {
     gap: 0.5rem;
