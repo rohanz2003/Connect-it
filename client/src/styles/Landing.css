@@ -611,12 +611,18 @@
     flex-direction: column;
     padding: 2rem 1.5rem;
     gap: 2rem;
+    justify-content: center;
+  }
+  .hero-content {
+    align-items: center;
+    text-align: center;
   }
   .hero-title {
     font-size: 2.5rem;
   }
   .hero-subtitle {
     font-size: 1rem;
+    max-width: 100%;
   }
   .hero-illustration {
     padding: 10px;
@@ -641,6 +647,12 @@
   .hero-button {
     font-size: 1rem;
     padding: 0.9rem 1.8rem;
+  }
+  .hero-badge {
+    margin: 0 auto;
+  }
+  .hero-cta {
+    text-align: center;
   }
 }
 
