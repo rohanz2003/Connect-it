@@ -130,6 +130,8 @@ body {
   min-height: 0;
   height: 100vh;
   height: 100dvh;
+  width: 100%;
+  max-width: 100%;
   gap: 0;
   background: var(--background-light);
   overflow: hidden;
@@ -223,6 +225,7 @@ body {
   .chat-layout {
     grid-template-columns: 1fr;
     height: 100dvh;
+    width: 100%;
     overflow: hidden;
     background: var(--background-white);
   }
