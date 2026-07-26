@@ -35,8 +35,32 @@ exports.getAllFeedback = async (req, res) => {
 // Get all users
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().sort({ lastSeen: -1 });
-    res.json(users);
+    const users = await User.find().sort({ lastSeen: -1 }).lean();
+
+    // Aggregate actual follower/following counts from accepted chat requests
+    const [followingAgg, followersAgg] = await Promise.all([
+      ChatRequest.aggregate([
+        { $match: { status: "accepted" } },
+        { $group: { _id: "$from", count: { $sum: 1 } } },
+      ]),
+      ChatRequest.aggregate([
+        { $match: { status: "accepted" } },
+        { $group: { _id: "$to", count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const followingMap = {};
+    followingAgg.forEach((item) => { followingMap[item._id] = item.count; });
+    const followersMap = {};
+    followersAgg.forEach((item) => { followersMap[item._id] = item.count; });
+
+    const enriched = users.map((u) => ({
+      ...u,
+      followersCount: followersMap[u.email] || 0,
+      followingCount: followingMap[u.email] || 0,
+    }));
+
+    res.json(enriched);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch users", details: error.message });
   }
@@ -423,8 +447,24 @@ exports.getUserDetail = async (req, res) => {
     const devices = await Device.find({ userId: normalizedEmail })
       .select("deviceName deviceType browser os isActive lastSeen");
 
+    // Compute actual follower/following counts from accepted chat requests
+    // followers = people who connected to this user (to = user)
+    const followersCount = await ChatRequest.countDocuments({
+      to: normalizedEmail,
+      status: "accepted",
+    });
+    // following = people this user connected to (from = user)
+    const followingCount = await ChatRequest.countDocuments({
+      from: normalizedEmail,
+      status: "accepted",
+    });
+
     res.json({
-      user,
+      user: {
+        ...user.toObject(),
+        followersCount,
+        followingCount,
+      },
       activity: {
         messageCount,
         feedbackCount,
