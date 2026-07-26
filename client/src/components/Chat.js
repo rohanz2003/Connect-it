@@ -3490,11 +3490,8 @@ function Chat({ user: currentUser }) {
         </div>
       </motion.div>
 
-      <motion.main
+      <main
         className={`chat-panel ${activeTab !== "chat" ? "mobile-hidden" : ""}`}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
       >
         {/* Incoming call overlay - shown globally over the entire app */}
 
@@ -3914,7 +3911,7 @@ function Chat({ user: currentUser }) {
         <input id="attach-audio" type="file" accept="audio/*" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
         <input id="attach-document" type="file" accept=".pdf,.doc,.docx,.txt,.rtf" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
         <input id="attach-file" type="file" accept="*/*" onChange={handleMediaShare} disabled={!selectedUser} style={{ display: "none" }} />
-      </motion.main>
+      </main>
 
       {showLogoutConfirm && (
         <div className="logout-modal-overlay" onClick={() => setShowLogoutConfirm(false)}>
