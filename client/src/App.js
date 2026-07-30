@@ -111,7 +111,7 @@ function App() {
         <Route path="/login" element={<Login />} />
 
         <Route
-          path="/chat"
+          path="/chat/*"
           element={
             <PrivateRoute loading={loading} user={user}>
               <ErrorBoundary>

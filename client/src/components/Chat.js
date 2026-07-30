@@ -73,7 +73,7 @@ import { fetchAllUsers, fetchPendingRequests, fetchSentRequests, fetchRequestSta
 import authAxios from "../services/authAxios";
 import NotificationBell from "./NotificationBell";
 import ProfileViewer from "./ProfileViewer";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { buildMessageNotificationPayload, buildRequestNotificationPayload } from "../utils/browserNotifications";
 import "./Chat.css";
 
@@ -168,6 +168,22 @@ const ImageCropModal = ({ src, onCrop, onCancel }) => {
 function Chat({ user: currentUser }) {
   const socket = useSocket();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const pathname = location.pathname;
+  const isMobileChatPage = pathname.startsWith('/chat/m/');
+  const mobilePartnerId = isMobileChatPage
+    ? normalizeEmail(decodeURIComponent(pathname.replace('/chat/m/', '')))
+    : null;
+
+  // Auto-select the partner when on a mobile chat page
+  const initialPartnerRef = useRef(null);
+  useEffect(() => {
+    if (isMobileChatPage && mobilePartnerId && initialPartnerRef.current !== mobilePartnerId) {
+      initialPartnerRef.current = mobilePartnerId;
+      handleUserSelect(mobilePartnerId);
+    }
+  }, [isMobileChatPage, mobilePartnerId]);
 
   // Call system - from CallContext mounted in App.js
   const {
@@ -2442,7 +2458,7 @@ function Chat({ user: currentUser }) {
               const unreadCount = getUnreadCount(u);
               const unreadStoryComment = unreadCount > 0 && (chatHistory[normalizeEmail(u)] || []).some(m => m.type === "story-comment");
               return (
-                <div key={`mr-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}>
+                <div key={`mr-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => navigate('/chat/m/' + encodeURIComponent(u))}>
                   <div className="avatar-wrap">
                     <Avatar src={getAvatar(u)} email={u} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u, false)} />
                     {isUserOnline(u) && <span className="status-dot online" />}
@@ -2476,7 +2492,7 @@ function Chat({ user: currentUser }) {
           <div className="sidebar-section-title">Online Users</div>
           <div className="sidebar-list">
             {filteredOnlineUsers.length > 0 ? filteredOnlineUsers.map((u, i) => (
-              <div key={`mc-online-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}>
+              <div key={`mc-online-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => navigate('/chat/m/' + encodeURIComponent(u))}>
                 <div className="avatar-wrap">
                   <Avatar src={getAvatar(u)} email={u} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u, false)} />
                   <span className="status-dot online" />
@@ -2513,7 +2529,7 @@ function Chat({ user: currentUser }) {
                   </div>
                   <div className="user-item-actions">
                     {action === "chat" ? (
-                      <button className="ig-icon-btn chat" onClick={() => { handleUserSelect(u.email); setActiveTab("chat"); }} title="Open chat">
+                      <button className="ig-icon-btn chat" onClick={() => navigate('/chat/m/' + encodeURIComponent(u.email))} title="Open chat">
                         <MessageCircle size={16} />
                       </button>
                     ) : action === "request_sent" ? (
@@ -2557,7 +2573,7 @@ function Chat({ user: currentUser }) {
                   <span className="notification-time">{formatMessageTime(req.createdAt)}</span>
                 </div>
                 <div className="user-item-actions">
-                  <button className="notification-accept-btn" onClick={() => { handleRespondToRequest(req._id, "accepted"); setActiveTab("chat"); }} title="Confirm"><Check size={16} /></button>
+                  <button className="notification-accept-btn" onClick={() => { handleRespondToRequest(req._id, "accepted"); navigate('/chat/m/' + encodeURIComponent(req.from)); }} title="Confirm"><Check size={16} /></button>
                   <button className="notification-reject-btn" onClick={() => handleRespondToRequest(req._id, "rejected")} title="Delete"><X size={16} /></button>
                 </div>
               </div>
@@ -2647,7 +2663,7 @@ function Chat({ user: currentUser }) {
             {archivedChatsList.length > 0 ? archivedChatsList.map((u, i) => {
               const unreadCount = getUnreadCount(u);
               return (
-                <div key={`ma-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}>
+                <div key={`ma-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => navigate('/chat/m/' + encodeURIComponent(u))}>
                   <div className="avatar-wrap">
                     <Avatar src={getAvatar(u)} email={u} size={40} className="user-avatar" />
                   </div>
@@ -2808,7 +2824,7 @@ function Chat({ user: currentUser }) {
   if (!user) return <h2>Loading...</h2>;
 
   return (
-    <div className={`chat-layout ${isDarkMode ? "dark" : ""}`}>
+    <div className={`chat-layout${isDarkMode ? " dark" : ""}${isMobileChatPage ? " mobile-chat-page" : ""}`}>
       {/* Admin Broadcast Banner */}
       {broadcastNotification && (
         <div className="broadcast-banner" style={{
@@ -2859,7 +2875,10 @@ function Chat({ user: currentUser }) {
           }}>✕</button>
         </div>
       )}
-      <div className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`} onClick={() => setSidebarOpen(false)} />
+      {!isMobileChatPage && (
+        <div className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`} onClick={() => setSidebarOpen(false)} />
+      )}
+      {!isMobileChatPage && (
       <motion.aside
         className={`sidebar ${sidebarOpen ? "open" : ""}`}
         initial={{ opacity: 0, x: -20 }}
@@ -3290,6 +3309,7 @@ function Chat({ user: currentUser }) {
           </div>
         </div>
       </motion.aside>
+      )}
 
       {requestNotifications.length > 0 && (
         <div className="request-notifications">
@@ -3303,6 +3323,7 @@ function Chat({ user: currentUser }) {
       )}
 
       {/* Mobile page - full screen for Contacts & Archive on mobile */}
+      {!isMobileChatPage && (
       <motion.div
         className={`mobile-page ${activeTab === "chat" ? "mobile-hidden" : ""}`}
         initial={{ opacity: 0, x: 30 }}
@@ -3335,6 +3356,7 @@ function Chat({ user: currentUser }) {
               onCallBack={(email, type) => {
                 handleUserSelect(email);
                 startCall(email, type);
+                navigate('/chat/m/' + encodeURIComponent(email));
               }}
             />
           )}
@@ -3343,7 +3365,7 @@ function Chat({ user: currentUser }) {
               <div className="sidebar-section-title">Online Users</div>
               <div className="sidebar-list">
                 {filteredOnlineUsers.length > 0 ? filteredOnlineUsers.map((u, i) => (
-                  <div key={`mc-online-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => { handleUserSelect(u); setActiveTab("chat"); }}>
+                  <div key={`mc-online-${i}`} className={`user-item ${selectedUser === u ? "active" : ""}`} onClick={() => navigate('/chat/m/' + encodeURIComponent(u))}>
                     <div className="avatar-wrap">
                       <Avatar src={getAvatar(u)} email={u} size={40} className="user-avatar" onClick={(e) => handleAvatarClick(e, u, false)} />
                       <span className="status-dot online" />
@@ -3374,7 +3396,7 @@ function Chat({ user: currentUser }) {
                       </div>
                       <div className="user-item-actions">
                         {action === "chat" ? (
-                          <button className="ig-icon-btn chat" onClick={() => { handleUserSelect(u.email); setActiveTab("chat"); }} title="Open chat">
+                          <button className="ig-icon-btn chat" onClick={() => navigate('/chat/m/' + encodeURIComponent(u.email))} title="Open chat">
                             <MessageCircle size={16} />
                           </button>
                         ) : action === "request_sent" ? (
@@ -3489,17 +3511,19 @@ function Chat({ user: currentUser }) {
           {activeTab === "notifications" && renderTabContent("mobile-notifications")}
         </div>
       </motion.div>
+      )}
 
       <main
-        className={`chat-panel ${activeTab !== "chat" ? "mobile-hidden" : ""}`}
+        className={`chat-panel ${!isMobileChatPage && activeTab !== "chat" ? "mobile-hidden" : ""}`}
       >
         {/* Incoming call overlay - shown globally over the entire app */}
 
         <div className="chat-panel-header">
           <button className="mobile-menu-btn" onClick={() => {
-            if (selectedUser) { setSelectedUser(null); }
+            if (isMobileChatPage) { navigate('/chat'); }
+            else if (selectedUser) { setSelectedUser(null); }
             else { setSidebarOpen(!sidebarOpen); }
-          }} aria-label={selectedUser ? "Back" : "Open menu"}>
+          }} aria-label={selectedUser || isMobileChatPage ? "Back" : "Open menu"}>
             {selectedUser ? (
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             ) : (
@@ -3983,6 +4007,7 @@ function Chat({ user: currentUser }) {
         </div>
       )}
 
+      {!isMobileChatPage && (
       <aside className="dashboard-panel">
         <div className="dashboard-card welcome-card">
           <div className="dashboard-card-head">
@@ -4032,6 +4057,7 @@ function Chat({ user: currentUser }) {
           </div>
         </div>
       </aside>
+      )}
 
         <AnimatePresence>
           {isMediaSending && (
@@ -4132,6 +4158,7 @@ function Chat({ user: currentUser }) {
         />
       )}
 
+      {!isMobileChatPage && (
       <motion.nav
         className="bottom-nav"
         initial={{ opacity: 0, y: 20 }}
@@ -4179,6 +4206,7 @@ function Chat({ user: currentUser }) {
           <BarChart3 size={20} /><span>Analytics</span>
         </button>
       </motion.nav>
+      )}
 
       {showSettings && (
         <div className="settings-modal-overlay" onClick={() => setShowSettings(false)}>

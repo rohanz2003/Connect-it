@@ -386,6 +386,10 @@ body {
   .dashboard-panel {
     display: none;
   }
+
+  .chat-layout.mobile-chat-page .chat-panel {
+    padding-bottom: 0;
+  }
 }
 
 @media (max-width: 640px) {
