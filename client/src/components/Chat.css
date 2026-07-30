@@ -137,9 +137,15 @@ body {
   overflow: hidden;
 }
 
+@media (min-width: 1024px) and (max-width: 1366px) {
+  .chat-layout {
+    grid-template-columns: 280px 1fr 320px;
+  }
+}
+
 @media (min-width: 1400px) {
   .chat-layout {
-    grid-template-columns: 320px 1fr 260px;
+    grid-template-columns: 320px 1fr 320px;
   }
 }
 
