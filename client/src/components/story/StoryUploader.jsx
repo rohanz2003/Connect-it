@@ -59,7 +59,7 @@ export default function StoryUploader({ onClose }) {
         ) : (
           <div className="story-uploader-preview-wrap">
             {file?.type?.startsWith("video") ? (
-              <video src={preview} className="story-uploader-preview" autoPlay muted loop />
+              <video src={preview} className="story-uploader-preview" autoPlay loop />
             ) : (
               <img src={preview} alt="Preview" className="story-uploader-preview" />
             )}

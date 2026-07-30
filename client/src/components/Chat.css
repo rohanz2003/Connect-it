@@ -7194,6 +7194,11 @@ body.dark-mode .incoming-call-card,
   background: rgba(255,255,255,0.2);
 }
 
+.story-viewer-delete-btn:hover {
+  background: rgba(239,68,68,0.3) !important;
+  color: #fca5a5;
+}
+
 /* Media */
 .story-viewer-media {
   flex: 1;

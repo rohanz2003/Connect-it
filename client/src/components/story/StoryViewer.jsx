@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { X, ChevronLeft, ChevronRight, Send, Heart, Smile, Laugh, Flame, Star, Eye, PlusCircle } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Send, Heart, Smile, Laugh, Flame, Star, Eye, PlusCircle, Volume2, VolumeX, Trash2 } from "lucide-react";
 import Avatar from "../Avatar";
 import { useStories } from "../../context/StoryContext";
 import { formatMessageTime } from "../../utils/timeFormatter";
@@ -13,17 +13,19 @@ const REACTIONS = [
 ];
 
 export default function StoryViewer({ userEmail, stories, userProfiles, getDisplayName, user, onClose, onAddStory }) {
-  const { viewStory, reactToStory, commentOnStory } = useStories();
+  const { viewStory, reactToStory, commentOnStory, deleteStory } = useStories();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [paused, setPaused] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [showViewers, setShowViewers] = useState(false);
+  const [soundOn, setSoundOn] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState([]);
   const timerRef = useRef(null);
   const elapsedRef = useRef(0);
   const startTimeRef = useRef(null);
+  const videoRef = useRef(null);
   const story = stories[currentIndex];
   const viewerList = story?.views || [];
 
@@ -120,6 +122,19 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
     }
   };
 
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    if (window.confirm("Delete this story?")) {
+      deleteStory(story._id);
+      onClose();
+    }
+  };
+
+  const toggleSound = (e) => {
+    e.stopPropagation();
+    setSoundOn(prev => !prev);
+  };
+
   if (!story || !userEmail) return null;
 
   const myView = viewerList.find(v => v.viewer === user?.email);
@@ -151,9 +166,19 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
             </div>
           </div>
           <div className="story-viewer-actions-header">
+            {story.mediaType === "video" && (
+              <button className="story-viewer-action-btn" onClick={toggleSound} title={soundOn ? "Mute" : "Unmute"}>
+                {soundOn ? <Volume2 size={18} /> : <VolumeX size={18} />}
+              </button>
+            )}
             {isOwner && onAddStory && (
               <button className="story-viewer-action-btn" onClick={onAddStory} title="Add story">
                 <PlusCircle size={18} />
+              </button>
+            )}
+            {isOwner && (
+              <button className="story-viewer-action-btn story-viewer-delete-btn" onClick={handleDelete} title="Delete story">
+                <Trash2 size={18} />
               </button>
             )}
           </div>
@@ -161,7 +186,7 @@ export default function StoryViewer({ userEmail, stories, userProfiles, getDispl
 
         <div className="story-viewer-media" onClick={togglePause}>
           {story.mediaType === "video" ? (
-            <video src={story.mediaUrl} autoPlay muted className="story-viewer-video" />
+            <video ref={videoRef} src={story.mediaUrl} autoPlay muted={!soundOn} className="story-viewer-video" />
           ) : (
             <img src={story.mediaUrl} alt="Story" className="story-viewer-image" />
           )}
