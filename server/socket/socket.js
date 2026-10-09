@@ -5,25 +5,12 @@ const handleMessages = require("./message");
 const handleCalls = require("./call");
 const handleRequests = require("./requests");
 const { getCorsOrigins } = require("../config/env");
-const { registerSocket, unregisterSocket } = require("../utils/socketAuth");
+const { normalizeEmail, getAuthenticatedEmail, registerSocket, unregisterSocket } = require("../utils/socketAuth");
 const { updateLastSeen } = require("../controllers/userController");
 const { verifyFirebaseToken, isFirebaseConfigured } = require("../config/firebase");
 const Device = require("../models/Device");
 
 const crypto = require("crypto");
-
-let firebaseWarnedOnce = false;
-
-const decodeTokenPayload = (token) => {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString());
-    return payload.email || null;
-  } catch {
-    return null;
-  }
-};
 
 const generateDeviceId = () => `dev_${crypto.randomBytes(8).toString("hex")}`;
 
@@ -55,55 +42,32 @@ const initSocket = (server) => {
       return next(new Error("Too many connections from this IP"));
     }
 
-    // Try Firebase token verification first
-    if (auth.idToken) {
-      if (isFirebaseConfigured()) {
-        try {
-          const decoded = await verifyFirebaseToken(auth.idToken);
-          if (decoded && decoded.email) {
-            socket.data.authEmail = decoded.email.toLowerCase().trim();
-            connectionCounts.set(ip, count + 1);
-            return next();
-          }
-        } catch (err) {
-          // Fallback: decode token without verification
-          const email = decodeTokenPayload(auth.idToken);
-          if (email) {
-            socket.data.authEmail = email.toLowerCase().trim();
-            connectionCounts.set(ip, count + 1);
-            return next();
-          }
-          if (!firebaseWarnedOnce) {
-            console.warn("⚠️ Firebase verification failed, using decoded token:", err.message);
-            firebaseWarnedOnce = true;
-          }
-        }
-      } else {
-        // Firebase not configured — decode token payload without verification
-        const email = decodeTokenPayload(auth.idToken);
-        if (email) {
-          socket.data.authEmail = email.toLowerCase().trim();
-          connectionCounts.set(ip, count + 1);
-          return next();
-        }
-      }
+    if (typeof auth.idToken !== "string" || !auth.idToken.trim()) {
+      return next(new Error("Authentication required"));
+    }
+    if (!isFirebaseConfigured()) {
+      return next(new Error("Authentication unavailable"));
     }
 
-    // Fallback: require email in auth (for backward compatibility)
-    const email = auth.email || auth.userId;
-    if (email && typeof email === "string" && email.trim().length > 0) {
-      socket.data.authEmail = email.toLowerCase().trim();
-      connectionCounts.set(ip, count + 1);
-      return next();
+    let decoded;
+    try {
+      decoded = await verifyFirebaseToken(auth.idToken);
+    } catch {
+      return next(new Error("Invalid authentication token"));
     }
+    const email = normalizeEmail(decoded?.email);
+    if (!email) return next(new Error("Invalid authentication token"));
 
-    return next(new Error("Authentication required"));
+    socket.data.authEmail = email;
+    connectionCounts.set(ip, count + 1);
+    return next();
   });
 
   io.on("connection", async (socket) => {
     const auth = socket.handshake.auth || {};
     let deviceId = auth.deviceId;
     const authEmail = socket.data.authEmail;
+    registerSocket(socket.id, authEmail);
 
     // Register/update device in DB
     (async () => {
@@ -137,14 +101,14 @@ const initSocket = (server) => {
     handleCalls(io, socket, users);
     handleRequests(io, socket, users);
 
-    socket.on("heartbeat", (email) => {
-      if (!email) return;
-      const normalized = email.toLowerCase().trim();
-      lastHeartbeats[normalized] = Date.now();
+    socket.on("heartbeat", () => {
+      const email = getAuthenticatedEmail(socket);
+      if (!email || !users[email]?.has(socket.id)) return;
+      lastHeartbeats[email] = Date.now();
     });
 
     socket.on("disconnect", async () => {
-      const disconnectedUser = unregisterSocket(socket.id);
+      unregisterSocket(socket.id);
 
       const ip = socket.handshake.address;
       const count = connectionCounts.get(ip) || 0;

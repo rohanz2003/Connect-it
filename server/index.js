@@ -63,6 +63,13 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
+app.use(
+  cors({
+    origin: getCorsOrigins(),
+    credentials: true,
+  })
+);
+
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -99,16 +106,8 @@ const removeMongoKeys = (obj) => {
   }
 };
 
-app.use(mongoSanitizeCustom);
-
-app.use(
-  cors({
-    origin: getCorsOrigins(),
-    credentials: true,
-  })
-);
-
 app.use(express.json({ limit: "5mb" }));
+app.use(mongoSanitizeCustom);
 
 app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
@@ -225,6 +224,13 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err.type === "entity.parse.failed") {
+    return res.status(400).json({ error: "Invalid JSON body" });
+  }
+  if (err.type === "entity.too.large") {
+    return res.status(413).json({ error: "Request body too large" });
+  }
   console.error("Unhandled error:", err.message);
   res.status(500).json({ error: "Internal server error" });
 });
@@ -255,14 +261,17 @@ const startServer = async () => {
   // Firebase Admin init — verify at startup once, not on every request
   if (isFirebaseConfigured()) {
     try {
-      initFirebase();
-      console.log("✅ Firebase Admin initialized at startup");
+      if (initFirebase()) {
+        console.log("✅ Firebase Admin initialized at startup");
+      } else {
+        console.warn("⚠️ Firebase Admin initialization failed — authenticated requests will be rejected");
+      }
     } catch (err) {
       console.warn("⚠️ Firebase Admin init failed:", err.message);
-      console.warn("⚠️ Firebase token verification disabled — using decoded tokens");
+      console.warn("⚠️ Authenticated requests will be rejected until Firebase is configured");
     }
   } else {
-    console.warn("⚠️ Firebase Admin not configured — using decoded tokens");
+    console.warn("⚠️ Firebase Admin not configured — authenticated HTTP requests will be rejected");
   }
 
   const serverInstance = server.listen(PORT, () => {

@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test api.test.js firebaseAuth.test.js firebaseConfig.test.js adminFirebase.test.js story.test.js request.test.js socketIdentity.test.js"
   },
   "keywords": [],
   "author": "",

@@ -2,28 +2,54 @@ const ChatRequest = require("../models/ChatRequest");
 const Message = require("../models/Message");
 const User = require("../modules/User");
 const { sendPushNotification } = require("../services/pushService");
+const { getAuthenticatedEmail } = require("../utils/socketAuth");
+
+const normalizeEmail = (value) => {
+  if (typeof value !== "string") return null;
+  const email = value.trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+$/.test(email) ? email : null;
+};
+const validRequestId = (value) => typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
+const authenticatedActor = (socket, users, callback, claimed, field) => {
+  // socketAuth resolves the identity verified by the handshake, never payloads.
+  const actor = normalizeEmail(getAuthenticatedEmail(socket, users));
+  if (!actor) {
+    if (callback) callback({ error: "Not authenticated" });
+    return null;
+  }
+  if (field) {
+    const email = normalizeEmail(claimed);
+    if (!email) {
+      if (callback) callback({ error: `${field} must be a valid email` });
+      return null;
+    }
+    if (email !== actor) {
+      if (callback) callback({ error: "Cannot act on behalf of another user" });
+      return null;
+    }
+  }
+  return actor;
+};
+const requestPair = (from, to) => ({ $or: [{ from, to }, { from: to, to: from }] });
 
 const handleRequests = (io, socket, users) => {
   socket.on("send-request", async (data, callback) => {
+    callback = typeof callback === "function" ? callback : undefined;
     try {
-      const { from, to } = data;
-      if (!from || !to) {
-        if (callback) callback({ error: "from and to are required" });
+      const normalizedFrom = authenticatedActor(socket, users, callback, data?.from, "from");
+      if (!normalizedFrom) return;
+      const normalizedTo = normalizeEmail(data?.to);
+      if (!normalizedTo) {
+        if (callback) callback({ error: "to must be a valid email" });
         return;
       }
-
-      const { getAuthenticatedEmail } = require("../utils/socketAuth");
-      const authEmail = getAuthenticatedEmail(socket, users);
-      if (!authEmail) {
-        if (callback) callback({ error: "Not authenticated" });
+      if (normalizedFrom === normalizedTo) {
+        if (callback) callback({ error: "Cannot send a request to yourself" });
         return;
       }
-      const normalizedFrom = authEmail.toLowerCase();
-      const normalizedTo = to.toLowerCase();
 
       const existing = await ChatRequest.findOne({
-        from: normalizedFrom,
-        to: normalizedTo,
+        ...requestPair(normalizedFrom, normalizedTo),
         status: { $in: ["pending", "accepted"] },
       });
       if (existing) {
@@ -31,10 +57,10 @@ const handleRequests = (io, socket, users) => {
         return;
       }
 
-      // Delete any rejected/removed request so a fresh one can be created (unique index)
-      await ChatRequest.deleteOne({
-        from: normalizedFrom,
-        to: normalizedTo,
+      // Clear only inactive records, including a previous request in reverse.
+      await ChatRequest.deleteMany({
+        ...requestPair(normalizedFrom, normalizedTo),
+        status: { $in: ["rejected", "removed"] },
       });
 
       const request = await ChatRequest.create({
@@ -42,7 +68,7 @@ const handleRequests = (io, socket, users) => {
         to: normalizedTo,
       });
 
-      io.to(to.toLowerCase()).emit("new-request", {
+      io.to(normalizedTo).emit("new-request", {
         _id: request._id,
         from: request.from,
         to: request.to,
@@ -52,19 +78,22 @@ const handleRequests = (io, socket, users) => {
       if (callback) callback({ success: true, request });
     } catch (err) {
       console.error("Socket send-request error:", err.message);
-      if (callback) callback({ error: err.message });
+      if (callback) callback({ error: err.code === 11000 ? "Request already exists" : err.message });
     }
   });
 
   socket.on("unsend-request", async (data, callback) => {
+    callback = typeof callback === "function" ? callback : undefined;
     try {
-      const { requestId } = data;
-      if (!requestId) {
-        if (callback) callback({ error: "requestId is required" });
+      const actor = authenticatedActor(socket, users, callback);
+      if (!actor) return;
+      const requestId = data?.requestId;
+      if (!validRequestId(requestId)) {
+        if (callback) callback({ error: "Invalid requestId" });
         return;
       }
 
-      const request = await ChatRequest.findByIdAndDelete(requestId);
+      const request = await ChatRequest.findOneAndDelete({ _id: requestId, from: actor, status: "pending" });
       if (!request) {
         if (callback) callback({ error: "Request not found" });
         return;
@@ -83,29 +112,22 @@ const handleRequests = (io, socket, users) => {
   });
 
   socket.on("remove-friend", async (data, callback) => {
+    callback = typeof callback === "function" ? callback : undefined;
     try {
-      const { user, friend } = data;
-      if (!user || !friend) {
-        if (callback) callback({ error: "user and friend are required" });
+      const normalizedUser = authenticatedActor(socket, users, callback, data?.user, "user");
+      if (!normalizedUser) return;
+      const normalizedFriend = normalizeEmail(data?.friend);
+      if (!normalizedFriend) {
+        if (callback) callback({ error: "friend must be a valid email" });
         return;
       }
-
-      const { getAuthenticatedEmail } = require("../utils/socketAuth");
-      const authEmail = getAuthenticatedEmail(socket, users);
-      if (!authEmail) {
-        if (callback) callback({ error: "Not authenticated" });
+      if (normalizedUser === normalizedFriend) {
+        if (callback) callback({ error: "Cannot remove yourself as a friend" });
         return;
       }
-      const normalizedUser = authEmail.toLowerCase();
-      const normalizedFriend = friend.toLowerCase();
 
       // Delete all chat request records between the two users
-      await ChatRequest.deleteMany({
-        $or: [
-          { from: normalizedUser, to: normalizedFriend },
-          { from: normalizedFriend, to: normalizedUser },
-        ],
-      });
+      await ChatRequest.deleteMany(requestPair(normalizedUser, normalizedFriend));
 
       // Delete all messages between the two users
       await Message.deleteMany({
@@ -139,10 +161,13 @@ const handleRequests = (io, socket, users) => {
   });
 
   socket.on("respond-request", async (data, callback) => {
+    callback = typeof callback === "function" ? callback : undefined;
     try {
-      const { requestId, action } = data;
-      if (!requestId || !action) {
-        if (callback) callback({ error: "requestId and action are required" });
+      const actor = authenticatedActor(socket, users, callback);
+      if (!actor) return;
+      const { requestId, action } = data || {};
+      if (!validRequestId(requestId)) {
+        if (callback) callback({ error: "Invalid requestId" });
         return;
       }
 
@@ -152,8 +177,8 @@ const handleRequests = (io, socket, users) => {
         return;
       }
 
-      const request = await ChatRequest.findByIdAndUpdate(
-        requestId,
+      const request = await ChatRequest.findOneAndUpdate(
+        { _id: requestId, to: actor, from: { $ne: actor }, status: "pending" },
         { status: action, respondedAt: new Date() },
         { returnDocument: "after" }
       );

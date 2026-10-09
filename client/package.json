@@ -26,7 +26,14 @@
     "start": "react-scripts start",
     "build": "cross-env CI=false NODE_OPTIONS=--no-deprecation react-scripts build",
     "test": "react-scripts test",
+    "test:ci": "react-scripts test --watchAll=false --runInBand",
     "eject": "react-scripts eject"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^react-router-dom$": "<rootDir>/node_modules/react-router-dom/dist/index.js",
+      "^react-router/dom$": "<rootDir>/node_modules/react-router/dist/development/dom-export.js"
+    }
   },
   "eslintConfig": {
     "extends": [

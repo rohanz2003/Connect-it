@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const firebaseAuth = require("../middleware/firebaseAuth");
+const { isDatabaseConnected } = require("../config/database");
 const {
   createStory,
   getStories,
@@ -9,6 +10,20 @@ const {
   commentOnStory,
   deleteStory,
 } = require("../controllers/storyController");
+
+router.use((req, res, next) => {
+  if (!isDatabaseConnected()) {
+    return res.status(503).json({ error: "Database unavailable" });
+  }
+  next();
+});
+
+router.param("storyId", (req, res, next, storyId) => {
+  if (!/^[a-f\d]{24}$/i.test(storyId)) {
+    return res.status(400).json({ error: "Invalid story ID" });
+  }
+  next();
+});
 
 router.post("/", firebaseAuth, createStory);
 router.get("/", firebaseAuth, getStories);

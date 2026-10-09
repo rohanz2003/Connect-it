@@ -1,9 +1,10 @@
-module.exports = (io, socket, users) => {
-  const normalizeEmail = (email) => (email || "").toLowerCase().trim();
+const { normalizeEmail, getAuthenticatedEmail } = require("../utils/socketAuth");
 
-  socket.on("typing", ({ from, to }) => {
-    const normalizedFrom = normalizeEmail(from);
-    const target = normalizeEmail(to);
+module.exports = (io, socket, users) => {
+  socket.on("typing", (data) => {
+    const normalizedFrom = getAuthenticatedEmail(socket);
+    const target = normalizeEmail(data?.to);
+    if (!normalizedFrom || normalizedFrom !== normalizeEmail(data?.from)) return;
     
     console.log(`📨 Typing event received - from: ${normalizedFrom}, to: ${target}`);
     
@@ -27,9 +28,10 @@ module.exports = (io, socket, users) => {
     io.to(target).emit("typing", { from: normalizedFrom });
   });
 
-  socket.on("stop-typing", ({ from, to }) => {
-    const normalizedFrom = normalizeEmail(from);
-    const target = normalizeEmail(to);
+  socket.on("stop-typing", (data) => {
+    const normalizedFrom = getAuthenticatedEmail(socket);
+    const target = normalizeEmail(data?.to);
+    if (!normalizedFrom || normalizedFrom !== normalizeEmail(data?.from)) return;
     
     console.log(`📨 Stop-typing event received - from: ${normalizedFrom}, to: ${target}`);
     

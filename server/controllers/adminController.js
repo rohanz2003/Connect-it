@@ -1,5 +1,5 @@
 // Admin Controller - Get all data from database
-const admin = require("firebase-admin");
+const { getAuth } = require("firebase-admin/auth");
 const mongoose = require("mongoose");
 const Message = require("../models/Message");
 const Feedback = require("../models/Feedback");
@@ -146,10 +146,10 @@ exports.adminDeleteUser = async (req, res) => {
       const { initFirebase } = require("../config/firebase");
       const app = initFirebase();
       if (app) {
-        const firebaseAdmin = require("firebase-admin");
+        const auth = getAuth(app);
         // Find user by email and delete
-        const userRecord = await firebaseAdmin.auth().getUserByEmail(normalizedEmail);
-        await firebaseAdmin.auth().deleteUser(userRecord.uid);
+        const userRecord = await auth.getUserByEmail(normalizedEmail);
+        await auth.deleteUser(userRecord.uid);
         firebaseDeleted = true;
         console.log(`🗑️ Firebase Auth user deleted: ${normalizedEmail}`);
       }

@@ -76,6 +76,7 @@ import ProfileViewer from "./ProfileViewer";
 import { useNavigate } from "react-router-dom";
 import { buildMessageNotificationPayload, buildRequestNotificationPayload } from "../utils/browserNotifications";
 import "./Chat.css";
+import { isSameMessage } from "../utils/messageIdentity";
 
 const normalizeEmail = (email) => (email || "").toLowerCase().trim();
 
@@ -84,13 +85,6 @@ const getOtherParty = (msg, currentUserEmail) => {
   const receiverEmail = normalizeEmail(msg.receiver);
   const me = normalizeEmail(currentUserEmail);
   return senderEmail === me ? receiverEmail : senderEmail;
-};
-
-const isSameMessage = (a, b) => {
-  if (!a || !b) return false;
-  if (a._id && b._id && String(a._id) === String(b._id)) return true;
-  if (a.tempId && b.tempId && a.tempId === b.tempId) return true;
-  return false;
 };
 
 const upsertMessageInList = (list, msg) => {
@@ -311,7 +305,32 @@ function Chat({ user: currentUser }) {
   });
 
   const [showStoryUploader, setShowStoryUploader] = useState(false);
-  const storyViewerOpenCount = useRef(0);
+  const layoutRef = useRef(null);
+
+  useEffect(() => {
+    if (viewingStory?.userEmail) fetchStories();
+  }, [viewingStory?.userEmail, fetchStories]);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const updateViewport = () => {
+      layoutRef.current?.style.setProperty("--chat-viewport-height", `${viewport?.height || window.innerHeight}px`);
+      layoutRef.current?.style.setProperty("--chat-viewport-top", `${viewport?.offsetTop || 0}px`);
+      if (window.innerWidth >= 768) {
+        setActiveTab(tab => tab === "people" ? "all" : ["chat", "stories", "notifications"].includes(tab) ? "recent" : tab);
+        setSidebarOpen(false);
+      }
+    };
+    updateViewport();
+    viewport?.addEventListener("resize", updateViewport);
+    viewport?.addEventListener("scroll", updateViewport);
+    window.addEventListener("resize", updateViewport);
+    return () => {
+      viewport?.removeEventListener("resize", updateViewport);
+      viewport?.removeEventListener("scroll", updateViewport);
+      window.removeEventListener("resize", updateViewport);
+    };
+  }, [user?.email]);
 
   // Use Ref to track selectedUser for the socket listener to avoid stale closures
   const selectedUserRef = useRef(selectedUser);
@@ -1254,7 +1273,7 @@ function Chat({ user: currentUser }) {
     socket.on("message-status-update", ({ messageId, tempId, status }) => {
       const applyStatus = (list) =>
         list.map((m) =>
-          (m._id === messageId || m.tempId === tempId)
+          isSameMessage(m, { _id: messageId, tempId })
             ? { ...m, status, pending: false }
             : m
         );
@@ -1321,6 +1340,7 @@ function Chat({ user: currentUser }) {
       socket.off("new-request", handleNewRequest);
       socket.off("request-response", handleRequestResponse);
       socket.off("request-unsent", handleRequestUnsent);
+      socket.off("friend-removed", handleFriendRemoved);
       socket.off("message-saved", handleMessageSaved);
       socket.off("message-error", handleMessageError);
       socket.off("message-deleted");
@@ -1464,6 +1484,7 @@ function Chat({ user: currentUser }) {
   const syncChatRef = useRef(null);
 
   useEffect(() => {
+    let cancelled = false;
     const syncChat = async () => {
       if (!user || !selectedUser || !socket) return;
       const partner = normalizeEmail(selectedUser);
@@ -1483,7 +1504,7 @@ function Chat({ user: currentUser }) {
         const response = await fetchMessages(user.email, partner);
 
         // Ignore stale response if user switched during fetch
-        if (syncChatRef.current !== partner) return;
+        if (cancelled || syncChatRef.current !== partner) return;
 
         const history = Array.isArray(response) ? response : (response?.messages || []);
         
@@ -1502,11 +1523,12 @@ function Chat({ user: currentUser }) {
           return merged.sort((a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt));
         });
       } catch (err) {
+        if (cancelled || syncChatRef.current !== partner) return;
         console.error("Failed to fetch messages:", err);
         const cached = chatHistoryRef.current[partner];
         if (cached?.length) {
           setMessages(
-            cached.sort(
+            [...cached].sort(
               (a, b) => new Date(a.timestamp || a.createdAt) - new Date(b.timestamp || b.createdAt)
             )
           );
@@ -1515,6 +1537,7 @@ function Chat({ user: currentUser }) {
     };
 
     syncChat();
+    return () => { cancelled = true; };
   }, [selectedUser, user, socket]);
 
   const stopTyping = () => {
@@ -1700,10 +1723,12 @@ function Chat({ user: currentUser }) {
 
     const mediaType = audioExts.includes(ext) ? 'audio' : videoExts.includes(ext) ? 'video' : file.type.split('/')[0];
 
-    const maxSize = isImage ? 5 * 1024 * 1024 : 25 * 1024 * 1024;
+    // Files travel as base64 JSON through a 10 MB Socket.IO transport and are
+    // encrypted into a MongoDB document; 25 MB raw files cannot fit either.
+    const maxSize = 5 * 1024 * 1024;
 
     if (file.size > maxSize) {
-      alert(`File size must be less than ${isImage ? '5MB' : '25MB'}. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      alert(`File size must be 5MB or less. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB`);
       e.target.value = null;
       return;
     }
@@ -2161,6 +2186,11 @@ function Chat({ user: currentUser }) {
     const partner = normalizeEmail(u);
     setSelectedUser(partner);
     setSidebarOpen(false);
+    setIsChatMinimized(false);
+    setReplyTo(null);
+    setShowEmojiPicker(false);
+    setShowAttachMenu(false);
+    if (window.innerWidth < 768) setActiveTab("chat");
     
     // Update messages when user is selected, ensuring chronological order
     if (chatHistory[partner]) {
@@ -2400,14 +2430,14 @@ function Chat({ user: currentUser }) {
     const normalizedEmail = normalizeEmail(u);
     return (
       normalizedEmail.includes(searchValue) ||
-      getDisplayName(u).includes(searchValue)
+      getDisplayName(u).toLowerCase().includes(searchValue)
     );
   });
   const filteredOnlineUsers = otherOnlineUsers.filter((u) => {
     const normalizedEmail = normalizeEmail(u);
     return (
       normalizedEmail.includes(searchValue) ||
-      getDisplayName(u).includes(searchValue)
+      getDisplayName(u).toLowerCase().includes(searchValue)
     );
   });
 
@@ -2808,7 +2838,7 @@ function Chat({ user: currentUser }) {
   if (!user) return <h2>Loading...</h2>;
 
   return (
-    <div className={`chat-layout ${isDarkMode ? "dark" : ""}`}>
+    <div ref={layoutRef} className={`chat-layout ${isDarkMode ? "dark" : ""}`}>
       {/* Admin Broadcast Banner */}
       {broadcastNotification && (
         <div className="broadcast-banner" style={{
@@ -2932,7 +2962,7 @@ function Chat({ user: currentUser }) {
             {(() => {
               const myGroup = stories.find(g => g.user === user?.email);
               return (
-                <div
+                <button type="button"
                   className="story-circle-wrap"
                   onClick={() => myGroup ? setViewingStory({ userEmail: user.email, stories: myGroup.stories }) : setShowStoryUploader(true)}
                   style={{ cursor: "pointer" }}
@@ -2942,7 +2972,7 @@ function Chat({ user: currentUser }) {
                     <span className="story-circle-add-badge">+</span>
                   </div>
                   <span className="story-circle-name">{myGroup ? "Your story" : "Add story"}</span>
-                </div>
+                </button>
               );
             })()}
 
@@ -3310,10 +3340,11 @@ function Chat({ user: currentUser }) {
         transition={{ duration: 0.35, ease: "easeOut" }}
       >
         <div className="mobile-page-header">
-          <button className="mobile-page-back" onClick={() => setActiveTab("chat")}>
+          <button className="mobile-page-back" aria-label="Back to chat" onClick={() => setActiveTab("chat")}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
           <h3>{activeTab === "online" ? "Online Users" : activeTab === "people" ? "People" : activeTab === "stories" ? "Stories" : activeTab === "calls" ? "Call History" : activeTab === "analytics" ? "Analytics" : activeTab === "archive" ? "Archive" : activeTab === "all" ? "All Users" : activeTab === "notifications" ? "Notifications" : "Recent Chats"}</h3>
+          {activeTab === "stories" && <button className="stories-add-btn" onClick={() => setShowStoryUploader(true)} aria-label="Add story"><PlusCircle size={22} /></button>}
           <button className="mobile-page-notif-btn" title="Notifications" onClick={() => setActiveTab("notifications")}>
             <Bell size={18} />
             {(pendingRequests.length + unreadNotifications) > 0 && <span className="mobile-notif-badge">{(pendingRequests.length + unreadNotifications) > 9 ? "9+" : (pendingRequests.length + unreadNotifications)}</span>}
@@ -3407,7 +3438,7 @@ function Chat({ user: currentUser }) {
                 {(() => {
                   const myGroup = stories.find(g => g.user === user?.email);
                   return (
-                    <div className="stories-page-card" onClick={() => myGroup ? setViewingStory({ userEmail: user.email, stories: myGroup.stories }) : setShowStoryUploader(true)}>
+                    <button type="button" className="stories-page-card" onClick={() => myGroup ? setViewingStory({ userEmail: user.email, stories: myGroup.stories }) : setShowStoryUploader(true)}>
                       <div className="stories-page-avatar-wrap">
                         <div className="story-ring my-story">
                           <Avatar src={getAvatar(user?.email)} email={user?.email} size={48} />
@@ -3415,22 +3446,22 @@ function Chat({ user: currentUser }) {
                         </div>
                       </div>
                       <span className="stories-page-name">{myGroup ? "Your Story" : "Add Story"}</span>
-                    </div>
+                    </button>
                   );
                 })()}
                 {stories.filter(g => g.user !== user?.email).map(group => (
-                  <div key={group.user} className="stories-page-card" onClick={() => setViewingStory({ userEmail: group.user, stories: group.stories })}>
+                  <button type="button" key={group.user} className="stories-page-card" onClick={() => setViewingStory({ userEmail: group.user, stories: group.stories })}>
                     <div className="stories-page-avatar-wrap">
                       <div className={`story-ring ${group.hasUnseen ? "unseen" : "seen"}`}>
                         <Avatar src={getAvatar(group.user)} email={group.user} size={48} />
                       </div>
                     </div>
                     <span className="stories-page-name">{getDisplayName(group.user)}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
               {stories.filter(g => g.user !== user?.email).length === 0 && (
-                <div className="empty-list" style={{ textAlign: "center", marginTop: 40 }}>No stories yet. Tap + to add your first story.</div>
+                <div className="empty-list" style={{ textAlign: "center", marginTop: 40 }}>No stories from other people yet. Tap + to share a story.</div>
               )}
             </div>
           )}
@@ -3497,7 +3528,7 @@ function Chat({ user: currentUser }) {
 
         <div className="chat-panel-header">
           <button className="mobile-menu-btn" onClick={() => {
-            if (selectedUser) { setSelectedUser(null); }
+            if (selectedUser) { setSelectedUser(null); setActiveTab("recent"); }
             else { setSidebarOpen(!sidebarOpen); }
           }} aria-label={selectedUser ? "Back" : "Open menu"}>
             {selectedUser ? (
@@ -3825,14 +3856,14 @@ function Chat({ user: currentUser }) {
               <span>Accept their chat request to start messaging</span>
             </div>
           </div>
-        ) : !isChatMinimized && (
+          ) : !isChatMinimized && selectedUser && (
         <div className="chat-panel-footer">
           {showEmojiPicker && (
             <div ref={emojiPickerRef} className="emoji-picker-wrapper">
               <EmojiPicker 
                 onEmojiClick={(emojiData) => setMessage(prev => prev + emojiData.emoji)}
                 theme={isDarkMode ? "dark" : "light"}
-                width={320}
+                width="100%"
                 height={400}
                 searchPlaceholder="Search emoji..."
               />
@@ -4134,6 +4165,7 @@ function Chat({ user: currentUser }) {
 
       <motion.nav
         className="bottom-nav"
+        aria-label="Main navigation"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut", delay: 0.2 }}
@@ -4307,13 +4339,13 @@ function Chat({ user: currentUser }) {
       {/* Story Viewer Modal */}
       {viewingStory && (
         <StoryViewer
-          key={storyViewerOpenCount.current}
+          key={viewingStory.userEmail}
           userEmail={viewingStory.userEmail}
-          stories={viewingStory.stories}
+          stories={stories.find(group => group.user === viewingStory.userEmail)?.stories || []}
           userProfiles={userProfiles}
           getDisplayName={getDisplayName}
           user={user}
-          onClose={() => { storyViewerOpenCount.current += 1; setViewingStory(null); fetchStories(); }}
+          onClose={() => { setViewingStory(null); fetchStories(); }}
           onAddStory={() => { setViewingStory(null); setShowStoryUploader(true); }}
         />
       )}

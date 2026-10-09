@@ -3,25 +3,51 @@ const Message = require("../models/Message");
 const User = require("../modules/User");
 const { sendPushNotification } = require("../services/pushService");
 
+const normalizeEmail = (value) => {
+  if (typeof value !== "string") return null;
+  const email = value.trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+$/.test(email) ? email : null;
+};
+const validRequestId = (value) => typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
+const authenticatedActor = (req, res, claimed, field) => {
+  const actor = normalizeEmail(req.user?.email);
+  if (!actor) {
+    res.status(401).json({ error: "Authentication required" });
+    return null;
+  }
+  if (field) {
+    const email = normalizeEmail(claimed);
+    if (!email) {
+      res.status(400).json({ error: `${field} must be a valid email` });
+      return null;
+    }
+    if (email !== actor) {
+      res.status(403).json({ error: "Cannot act on behalf of another user" });
+      return null;
+    }
+  }
+  return actor;
+};
+const requestPair = (from, to) => ({ $or: [{ from, to }, { from: to, to: from }] });
+
 exports.sendRequest = async (req, res) => {
   try {
-    const { from, to } = req.body;
-    if (!from || !to) return res.status(400).json({ error: "from and to are required" });
-
-    const normalizedFrom = from.toLowerCase();
-    const normalizedTo = to.toLowerCase();
+    const normalizedFrom = authenticatedActor(req, res, req.body?.from, "from");
+    if (!normalizedFrom) return;
+    const normalizedTo = normalizeEmail(req.body?.to);
+    if (!normalizedTo) return res.status(400).json({ error: "to must be a valid email" });
+    if (normalizedFrom === normalizedTo) return res.status(400).json({ error: "Cannot send a request to yourself" });
 
     const existing = await ChatRequest.findOne({
-      from: normalizedFrom,
-      to: normalizedTo,
+      ...requestPair(normalizedFrom, normalizedTo),
       status: { $in: ["pending", "accepted"] },
     });
     if (existing) return res.status(400).json({ error: "Request already exists" });
 
-    // Delete any rejected/removed request so a fresh one can be created (unique index)
-    await ChatRequest.deleteOne({
-      from: normalizedFrom,
-      to: normalizedTo,
+    // Clear only inactive records, including a previous request in reverse.
+    await ChatRequest.deleteMany({
+      ...requestPair(normalizedFrom, normalizedTo),
+      status: { $in: ["rejected", "removed"] },
     });
 
     const request = await ChatRequest.create({
@@ -33,7 +59,7 @@ exports.sendRequest = async (req, res) => {
 
     const io = req.app.get("io");
     if (io) {
-      io.to(to.toLowerCase()).emit("new-request", {
+      io.to(normalizedTo).emit("new-request", {
         _id: request._id,
         from: request.from,
         to: request.to,
@@ -52,8 +78,11 @@ exports.sendRequest = async (req, res) => {
 
 exports.unsendRequest = async (req, res) => {
   try {
-    const { requestId } = req.params;
-    const request = await ChatRequest.findByIdAndDelete(requestId);
+    const actor = authenticatedActor(req, res);
+    if (!actor) return;
+    const requestId = req.params?.requestId;
+    if (!validRequestId(requestId)) return res.status(400).json({ error: "Invalid requestId" });
+    const request = await ChatRequest.findOneAndDelete({ _id: requestId, from: actor, status: "pending" });
     if (!request) return res.status(404).json({ error: "Request not found" });
 
     // Notify the recipient that the request was cancelled
@@ -74,11 +103,11 @@ exports.unsendRequest = async (req, res) => {
 
 exports.getPendingRequests = async (req, res) => {
   try {
-    const { email } = req.params;
-    if (!email) return res.status(400).json({ error: "email is required" });
+    const actor = authenticatedActor(req, res, req.params?.email, "email");
+    if (!actor) return;
 
     const requests = await ChatRequest.find({
-      to: email.toLowerCase(),
+      to: actor,
       status: "pending",
     }).sort({ createdAt: -1 }).lean();
 
@@ -91,11 +120,11 @@ exports.getPendingRequests = async (req, res) => {
 
 exports.getSentRequests = async (req, res) => {
   try {
-    const { email } = req.params;
-    if (!email) return res.status(400).json({ error: "email is required" });
+    const actor = authenticatedActor(req, res, req.params?.email, "email");
+    if (!actor) return;
 
     const requests = await ChatRequest.find({
-      from: email.toLowerCase(),
+      from: actor,
     }).sort({ createdAt: -1 }).lean();
 
     res.json({ success: true, requests });
@@ -107,12 +136,14 @@ exports.getSentRequests = async (req, res) => {
 
 exports.respondToRequest = async (req, res) => {
   try {
-    const { requestId, action } = req.body;
-    if (!requestId || !action) return res.status(400).json({ error: "requestId and action are required" });
+    const actor = authenticatedActor(req, res);
+    if (!actor) return;
+    const { requestId, action } = req.body || {};
+    if (!validRequestId(requestId)) return res.status(400).json({ error: "Invalid requestId" });
     if (!["accepted", "rejected"].includes(action)) return res.status(400).json({ error: "action must be 'accepted' or 'rejected'" });
 
-    const request = await ChatRequest.findByIdAndUpdate(
-      requestId,
+    const request = await ChatRequest.findOneAndUpdate(
+      { _id: requestId, to: actor, from: { $ne: actor }, status: "pending" },
       { status: action, respondedAt: new Date() },
       { returnDocument: "after" }
     );
@@ -151,17 +182,16 @@ exports.respondToRequest = async (req, res) => {
 
 exports.getAcceptedChats = async (req, res) => {
   try {
-    const { email } = req.params;
-    if (!email) return res.status(400).json({ error: "email is required" });
+    const normalized = authenticatedActor(req, res, req.params?.email, "email");
+    if (!normalized) return;
 
-    const normalized = email.toLowerCase();
     const requests = await ChatRequest.find({
       $or: [{ from: normalized, status: "accepted" }, { to: normalized, status: "accepted" }],
     }).sort({ respondedAt: -1 }).lean();
 
-    const partners = requests.map((r) =>
+    const partners = [...new Set(requests.map((r) =>
       r.from === normalized ? r.to : r.from
-    );
+    ))];
 
     res.json({ success: true, partners });
   } catch (err) {
@@ -172,19 +202,14 @@ exports.getAcceptedChats = async (req, res) => {
 
 exports.removeFriend = async (req, res) => {
   try {
-    const { user, friend } = req.body;
-    if (!user || !friend) return res.status(400).json({ error: "user and friend are required" });
-
-    const normalizedUser = user.toLowerCase();
-    const normalizedFriend = friend.toLowerCase();
+    const normalizedUser = authenticatedActor(req, res, req.body?.user, "user");
+    if (!normalizedUser) return;
+    const normalizedFriend = normalizeEmail(req.body?.friend);
+    if (!normalizedFriend) return res.status(400).json({ error: "friend must be a valid email" });
+    if (normalizedUser === normalizedFriend) return res.status(400).json({ error: "Cannot remove yourself as a friend" });
 
     // Delete all chat request records between the two users
-    await ChatRequest.deleteMany({
-      $or: [
-        { from: normalizedUser, to: normalizedFriend },
-        { from: normalizedFriend, to: normalizedUser },
-      ],
-    });
+    await ChatRequest.deleteMany(requestPair(normalizedUser, normalizedFriend));
 
     // Delete all messages between the two users
     await Message.deleteMany({
@@ -222,23 +247,20 @@ exports.removeFriend = async (req, res) => {
 
 exports.getRequestStatuses = async (req, res) => {
   try {
-    const { email } = req.params;
-    if (!email) return res.status(400).json({ error: "email is required" });
+    const normalized = authenticatedActor(req, res, req.params?.email, "email");
+    if (!normalized) return;
 
-    const normalized = email.toLowerCase();
     const requests = await ChatRequest.find({
       $or: [{ from: normalized }, { to: normalized }],
     }).sort({ createdAt: -1 }).lean();
 
     const statusMap = {};
+    // Legacy reversed records may coexist. Accepted wins over pending, and the
+    // newest record wins among equal statuses (the query is newest-first).
+    const priority = { accepted: 3, pending: 2, rejected: 1, removed: 0 };
     for (const req of requests) {
       const other = req.from === normalized ? req.to : req.from;
-      if (req.status === "rejected") {
-        if (!statusMap[other] || statusMap[other] === "none") {
-          statusMap[other] = { status: "rejected", requestId: req._id, direction: req.from === normalized ? "sent" : "received" };
-        }
-        continue;
-      }
+      if (statusMap[other] && priority[statusMap[other].status] >= priority[req.status]) continue;
       statusMap[other] = {
         status: req.status,
         direction: req.from === normalized ? "sent" : "received",

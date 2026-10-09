@@ -3,36 +3,68 @@ const Message = require("../models/Message");
 const ChatRequest = require("../models/ChatRequest");
 const { normalizeEmail } = require("../utils/socketAuth");
 
+const getAcceptedPartners = async (user) => {
+  const acceptedChats = await ChatRequest.find({
+    status: "accepted",
+    $or: [{ from: user }, { to: user }],
+  }).lean();
+  return [...new Set(acceptedChats.map(c => normalizeEmail(c.from === user ? c.to : c.from)))];
+};
+
+const getAccessibleStory = async (storyId, user) => {
+  const story = await Story.findById(storyId);
+  // MongoDB's TTL cleanup is asynchronous; enforce expiration on reads too.
+  if (!story || !(story.expiresAt > new Date())) return null;
+  if (story.user === user || story.privacy === "public") return story;
+  if (story.privacy !== "private") return null;
+  const accepted = await ChatRequest.exists({
+    status: "accepted",
+    $or: [{ from: user, to: story.user }, { from: story.user, to: user }],
+  });
+  return accepted ? story : null;
+};
+
+// Replies are also direct messages. Only the owner sees everyone's replies/views.
+const visibleViews = (story, user) => story.user === user
+  ? story.views || []
+  : (story.views || []).filter(v => v.viewer === user);
+const visibleComments = (story, user) => story.user === user
+  ? story.comments || []
+  : (story.comments || []).filter(c => c.user === user);
+
 exports.createStory = async (req, res) => {
   try {
-    const { mediaUrl, mediaType, privacy, caption } = req.body;
+    const { mediaUrl, mediaType, privacy = "public", caption = "" } = req.body || {};
     const user = normalizeEmail(req.user.email);
 
-    if (!mediaUrl || !mediaType) {
-      return res.status(400).json({ error: "mediaUrl and mediaType are required" });
+    if (typeof mediaUrl !== "string" || !mediaUrl.trim() || !["image", "video"].includes(mediaType)) {
+      return res.status(400).json({ error: "mediaUrl and an image or video mediaType are required" });
+    }
+    if (!["public", "private"].includes(privacy) || typeof caption !== "string") {
+      return res.status(400).json({ error: "privacy must be public or private and caption must be text" });
     }
 
     const story = await Story.create({
       user,
       mediaUrl,
       mediaType,
-      privacy: privacy || "public",
-      caption: caption || "",
+      privacy,
+      caption,
     });
 
     const io = req.app.get("io");
     if (io) {
-      const connectedUserIds = Object.keys(io.sockets?.adapter?.rooms || {});
-      if (privacy === "public") {
-        io.emit("new-story", { user });
-      } else {
-        const acceptedChats = await ChatRequest.find({
-          $or: [{ from: user, status: "accepted" }, { to: user, status: "accepted" }],
-        }).lean();
-        const partners = acceptedChats.map(c => normalizeEmail(c.from === user ? c.to : c.from));
-        partners.forEach(partner => {
-          io.to(partner).emit("new-story", { user });
-        });
+      try {
+        if (story.privacy === "public") {
+          io.emit("new-story", { user });
+        } else {
+          const partners = await getAcceptedPartners(user);
+          new Set([user, ...partners]).forEach(partner => {
+            io.to(partner).emit("new-story", { user });
+          });
+        }
+      } catch (notificationErr) {
+        console.warn("Failed to notify about new story:", notificationErr.message);
       }
     }
 
@@ -46,25 +78,22 @@ exports.createStory = async (req, res) => {
 exports.getStories = async (req, res) => {
   try {
     const user = normalizeEmail(req.user.email);
-    const Stories = await Story.find({ expiresAt: { $gt: new Date() } })
+    const acceptedPartners = await getAcceptedPartners(user);
+    const stories = await Story.find({
+      expiresAt: { $gt: new Date() },
+      $or: [
+        { user },
+        { privacy: "public" },
+        { privacy: "private", user: { $in: acceptedPartners } },
+      ],
+    })
       .sort({ createdAt: -1 })
       .lean();
 
-    const acceptedChats = await ChatRequest.find({
-      $or: [{ from: user, status: "accepted" }, { to: user, status: "accepted" }],
-    }).lean();
-    const acceptedPartners = acceptedChats.map(c => normalizeEmail(c.from === user ? c.to : c.from));
-
-    const filtered = Stories.filter(s => {
-      if (s.user === user) return true;
-      if (s.privacy === "public") return true;
-      return acceptedPartners.includes(s.user);
-    });
-
-    const grouped = {};
-    filtered.forEach(s => {
+    const grouped = Object.create(null);
+    stories.forEach(s => {
       if (!grouped[s.user]) grouped[s.user] = [];
-      grouped[s.user].push(s);
+      grouped[s.user].push({ ...s, views: visibleViews(s, user), comments: visibleComments(s, user) });
     });
 
     const result = Object.entries(grouped).map(([storyUser, stories]) => ({
@@ -85,7 +114,7 @@ exports.viewStory = async (req, res) => {
     const { storyId } = req.params;
     const viewer = normalizeEmail(req.user.email);
 
-    const story = await Story.findById(storyId);
+    const story = await getAccessibleStory(storyId, viewer);
     if (!story) return res.status(404).json({ error: "Story not found" });
 
     const alreadyViewed = story.views.some(v => v.viewer === viewer);
@@ -94,7 +123,7 @@ exports.viewStory = async (req, res) => {
       await story.save();
     }
 
-    res.json({ success: true, views: story.views });
+    res.json({ success: true, views: visibleViews(story, viewer) });
   } catch (err) {
     console.error("viewStory error:", err.message);
     res.status(500).json({ error: "Failed to record view" });
@@ -104,12 +133,14 @@ exports.viewStory = async (req, res) => {
 exports.reactToStory = async (req, res) => {
   try {
     const { storyId } = req.params;
-    const { reaction } = req.body;
+    const { reaction } = req.body || {};
     const viewer = normalizeEmail(req.user.email);
 
-    if (!reaction) return res.status(400).json({ error: "reaction is required" });
+    if (typeof reaction !== "string" || !reaction.trim()) {
+      return res.status(400).json({ error: "reaction must be non-empty text" });
+    }
 
-    const story = await Story.findById(storyId);
+    const story = await getAccessibleStory(storyId, viewer);
     if (!story) return res.status(404).json({ error: "Story not found" });
 
     const existingView = story.views.find(v => v.viewer === viewer);
@@ -120,7 +151,7 @@ exports.reactToStory = async (req, res) => {
     }
     await story.save();
 
-    res.json({ success: true, views: story.views });
+    res.json({ success: true, views: visibleViews(story, viewer) });
   } catch (err) {
     console.error("reactToStory error:", err.message);
     res.status(500).json({ error: "Failed to add reaction" });
@@ -130,12 +161,12 @@ exports.reactToStory = async (req, res) => {
 exports.commentOnStory = async (req, res) => {
   try {
     const { storyId } = req.params;
-    const { text } = req.body;
+    const { text } = req.body || {};
     const user = normalizeEmail(req.user.email);
 
-    if (!text || !text.trim()) return res.status(400).json({ error: "text is required" });
+    if (typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "text is required" });
 
-    const story = await Story.findById(storyId);
+    const story = await getAccessibleStory(storyId, user);
     if (!story) return res.status(404).json({ error: "Story not found" });
 
     story.comments.push({ user, text: text.trim(), createdAt: new Date() });
@@ -168,7 +199,7 @@ exports.commentOnStory = async (req, res) => {
       console.warn("Failed to send story-comment message:", msgErr.message);
     }
 
-    res.json({ success: true, comments: story.comments });
+    res.json({ success: true, comments: visibleComments(story, user) });
   } catch (err) {
     console.error("commentOnStory error:", err.message);
     res.status(500).json({ error: "Failed to add comment" });

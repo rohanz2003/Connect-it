@@ -1,4 +1,4 @@
-const { normalizeEmail, registerSocket } = require("../utils/socketAuth");
+const { normalizeEmail, getAuthenticatedEmail } = require("../utils/socketAuth");
 const User = require("../modules/User");
 const Message = require("../models/Message");
 const ClearedChat = require("../models/ClearedChat");
@@ -8,22 +8,19 @@ const { updateLastSeen } = require("../controllers/userController");
 
 module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSockets) => {
   socket.on("join", async (data) => {
-    let userId = typeof data === 'string' ? data : data?.email;
+    const userId = normalizeEmail(typeof data === 'string' ? data : data?.email);
     const profilePic = typeof data === 'object' ? data?.profilePic : null;
     const displayName = typeof data === 'object' ? data?.displayName : null;
     const bio = typeof data === 'object' ? data?.bio : null;
     
-    if (!userId || userId.trim() === "") {
+    if (!userId) {
       return;
     }
-    userId = userId.trim().toLowerCase();
 
-    if (userId !== socket.data.authEmail) {
+    if (userId !== getAuthenticatedEmail(socket)) {
       console.warn(`Socket ${socket.id} tried to join as ${userId} but auth is ${socket.data.authEmail}`);
       return;
     }
-
-    registerSocket(socket.id, userId);
 
     if (!users[userId]) {
       users[userId] = new Set();
@@ -199,11 +196,8 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
   });
 
   socket.on("leave", (data) => {
-    const userIdRaw = typeof data === 'string' ? data : data?.email;
-    if (!userIdRaw) return;
-
-    const userId = userIdRaw.toLowerCase().trim();
-    if (userId !== socket.data.authEmail) return;
+    const userId = normalizeEmail(typeof data === 'string' ? data : data?.email);
+    if (!userId || userId !== getAuthenticatedEmail(socket)) return;
     if (!users[userId]) return;
 
     users[userId].delete(socket.id);
@@ -220,12 +214,12 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
   });
 
   socket.on("update-profile", async (data) => {
-    const email = data?.email?.toLowerCase()?.trim();
+    const email = normalizeEmail(data?.email);
     if (!email) {
       console.warn("update-profile: email is missing");
       return;
     }
-    if (email !== socket.data.authEmail) {
+    if (email !== getAuthenticatedEmail(socket)) {
       console.warn(`Socket ${socket.id} tried to update profile for ${email} but auth is ${socket.data.authEmail}`);
       return;
     }
@@ -284,12 +278,12 @@ module.exports = (io, socket, users, userProfiles, socketToDevice, userDeviceSoc
   });
 
   socket.on("remove-profile-pic", async (data) => {
-    const email = data?.email?.toLowerCase()?.trim();
+    const email = normalizeEmail(data?.email);
     if (!email) {
       console.warn("remove-profile-pic: email is missing");
       return;
     }
-    if (email !== socket.data.authEmail) {
+    if (email !== getAuthenticatedEmail(socket)) {
       console.warn(`Socket ${socket.id} tried to remove profile pic for ${email} but auth is ${socket.data.authEmail}`);
       return;
     }

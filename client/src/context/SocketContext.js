@@ -1,34 +1,25 @@
-import { createContext, useEffect, useState } from "react";
-import socket, { connectSocket } from "../services/socketService";
+import { createContext, useEffect } from "react";
+import socket, { connectSocket, disconnectSocket } from "../services/socketService";
 import { auth } from "../firebase";
 
 export const SocketContext = createContext(socket);
 
 export function SocketProvider({ children }) {
-  const [connected, setConnected] = useState(false);
-
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
-        connectSocket().then(() => setConnected(true));
+        connectSocket().catch(() => {
+          // The service reports connection failures. Cancellation is expected
+          // when the account changes or this provider unmounts.
+        });
       } else {
-        if (socket.connected) {
-          socket.disconnect();
-        }
-        setConnected(false);
+        disconnectSocket();
       }
     });
 
-    const handleConnect = () => setConnected(true);
-    const handleDisconnect = () => setConnected(false);
-
-    socket.on("connect", handleConnect);
-    socket.on("disconnect", handleDisconnect);
-
     return () => {
       unsubscribe();
-      socket.off("connect", handleConnect);
-      socket.off("disconnect", handleDisconnect);
+      disconnectSocket();
     };
   }, []);
 

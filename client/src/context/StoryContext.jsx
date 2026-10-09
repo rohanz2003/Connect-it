@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import authAxios from "../services/authAxios";
 import { SocketContext } from "./SocketContext";
 
@@ -9,8 +9,14 @@ export function StoryProvider({ children, user }) {
   const [stories, setStories] = useState([]);
   const [viewingStory, setViewingStory] = useState(null);
   const [storyUploading, setStoryUploading] = useState(false);
-  const storiesRef = useRef(stories);
-  storiesRef.current = stories;
+  const userEmail = user?.email?.toLowerCase().trim();
+
+  const updateStory = useCallback((storyId, changes) => {
+    setStories(groups => groups.map(group => {
+      const updated = group.stories.map(story => story._id === storyId ? { ...story, ...changes } : story);
+      return { ...group, stories: updated, hasUnseen: updated.some(story => !story.views?.some(view => view.viewer === userEmail)) };
+    }));
+  }, [userEmail]);
 
   const fetchStories = useCallback(async () => {
     if (!user?.email) return;
@@ -57,29 +63,47 @@ export function StoryProvider({ children, user }) {
 
   const viewStory = useCallback(async (storyId) => {
     try {
-      await authAxios.post(`/api/stories/${storyId}/view`);
+      const res = await authAxios.post(`/api/stories/${storyId}/view`);
+      if (res.data?.success && Array.isArray(res.data.views)) {
+        // Merge views without overwriting a reaction that completed after this request began.
+        setStories(groups => groups.map(group => {
+          const updated = group.stories.map(story => story._id !== storyId ? story : {
+            ...story,
+            views: res.data.views.map(view => ({ ...view, reaction: story.views?.find(existing => existing.viewer === view.viewer)?.reaction || view.reaction })),
+          });
+          return { ...group, stories: updated, hasUnseen: updated.some(story => !story.views?.some(view => view.viewer === userEmail)) };
+        }));
+      }
     } catch (err) {
       console.warn("Failed to record story view:", err.message);
     }
-  }, []);
+  }, [userEmail]);
 
   const reactToStory = useCallback(async (storyId, reaction) => {
     try {
-      await authAxios.post(`/api/stories/${storyId}/react`, { reaction });
+      const res = await authAxios.post(`/api/stories/${storyId}/react`, { reaction });
+      if (res.data?.success && Array.isArray(res.data.views)) {
+        updateStory(storyId, { views: res.data.views });
+        return res.data.views;
+      }
     } catch (err) {
       console.warn("Failed to react to story:", err.message);
     }
-  }, []);
+    return null;
+  }, [updateStory]);
 
   const commentOnStory = useCallback(async (storyId, text) => {
     try {
       const res = await authAxios.post(`/api/stories/${storyId}/comment`, { text });
-      return res.data?.comments || [];
+      if (res.data?.success && Array.isArray(res.data.comments)) {
+        updateStory(storyId, { comments: res.data.comments });
+        return res.data.comments;
+      }
     } catch (err) {
       console.warn("Failed to comment on story:", err.message);
-      return [];
     }
-  }, []);
+    return null;
+  }, [updateStory]);
 
   const deleteStory = useCallback(async (storyId) => {
     try {

@@ -35,8 +35,12 @@ function App() {
   };
 
   useEffect(() => {
+    let sessionRevision = 0;
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      const revision = ++sessionRevision;
       if (currentUser) {
+        setUser(null);
+        setLoading(true);
         const mappedUser = {
           email: currentUser.email,
           profilePic: currentUser.photoURL || localStorage.getItem(`profilePic_${currentUser.email.toLowerCase()}`),
@@ -47,6 +51,7 @@ function App() {
         authAxios.get(`/api/users/profile?email=${encodeURIComponent(currentUser.email)}`)
           .then(r => r.data)
           .then(profileData => {
+            if (revision !== sessionRevision) return;
             const displayName = profileData?.success && profileData?.user?.displayName ? profileData.user.displayName : "";
             const bio = profileData?.success && profileData?.user?.bio ? profileData.user.bio : "";
 
@@ -73,6 +78,7 @@ function App() {
             setLoading(false);
           })
           .catch(() => {
+            if (revision !== sessionRevision) return;
             // Even if fetch fails, set user without displayName (will be fetched in Chat.js)
             setUser(mappedUser);
             const storedUserPayload = JSON.stringify({
@@ -98,7 +104,7 @@ function App() {
         setLoading(false);
       }
     });
-    return () => unsubscribe();
+    return () => { sessionRevision += 1; unsubscribe(); };
   }, []);
 
   return (
@@ -127,10 +133,11 @@ function App() {
         
         <Route path="/admin" element={<Admin />} />
         <Route path="/chat/admin" element={<Admin />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </CallProvider>
     </SocketProvider>
   );
 }
 
-export default App;                                                            
+export default App;

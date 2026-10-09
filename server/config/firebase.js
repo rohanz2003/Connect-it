@@ -1,4 +1,5 @@
-const admin = require("firebase-admin");
+const { getApps, initializeApp, cert } = require("firebase-admin/app");
+const { getAuth } = require("firebase-admin/auth");
 
 let firebaseApp = null;
 let initFailed = false;
@@ -32,10 +33,11 @@ const initFirebase = () => {
     return null;
   }
 
-  if (!admin.apps.length) {
+  const apps = getApps();
+  if (!apps.length) {
     try {
-      firebaseApp = admin.initializeApp({
-        credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
+      firebaseApp = initializeApp({
+        credential: cert({ projectId, clientEmail, privateKey }),
       });
       console.log("✅ Firebase Admin initialized with service account for project:", projectId);
     } catch (err) {
@@ -44,7 +46,7 @@ const initFirebase = () => {
       initFailed = true;
     }
   } else {
-    firebaseApp = admin.apps[0];
+    firebaseApp = apps[0];
   }
 
   return firebaseApp;
@@ -62,7 +64,7 @@ const verifyFirebaseToken = async (idToken) => {
   if (!idToken || typeof idToken !== "string") {
     throw new Error("Invalid token: not a string");
   }
-  return admin.auth().verifyIdToken(idToken);
+  return getAuth(app).verifyIdToken(idToken);
 };
 
 module.exports = { initFirebase, verifyFirebaseToken, isFirebaseConfigured };

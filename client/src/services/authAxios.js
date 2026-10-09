@@ -5,6 +5,7 @@ const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const authAxios = axios.create({
   baseURL: API_URL,
+  timeout: 15000,
 });
 
 authAxios.interceptors.request.use(async (config) => {
